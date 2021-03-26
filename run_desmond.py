@@ -34,7 +34,10 @@ def run_DESMOND(
     
         plot_all = True,
         verbose = True,
+        seed = 0,
     ):
+    random.seed(seed)
+    np.random.seed(seed)
 
     biclusters = {} # UP and DOWN
     start_time = time.time()
@@ -161,19 +164,21 @@ def run_DESMOND(
 def parse_args():
     parser = argparse.ArgumentParser("DESMOND2 - is a tool for bicluster search")
     parser.add_argument('exprs_file', help="file with an input matrix")
+    
     parser.add_argument('--out_dir', default="./")
-    parser.add_argument('--basename', default=False)
-    parser.add_argument('--min_n_samples', default=-1)
-    parser.add_argument('--min_SNR', default=1.5)
-    parser.add_argument('--alpha', default=1.0)
-    parser.add_argument('--beta_K', default=1.0)
-    parser.add_argument('--max_n_steps', default=200)
-    parser.add_argument('--n_steps_averaged', default=20)
-    parser.add_argument('--n_steps_for_convergence', default=5)
-    parser.add_argument('--n_points_fit', default=10)
-    parser.add_argument('--plot_all', default=True)
-    parser.add_argument('--verbose', default=True)
+    parser.add_argument('--basename', default=False, type=bool)
+    parser.add_argument('--min_n_samples', default=-1, type=int)
+    parser.add_argument('--min_SNR', default=1.5, type=float)
+    parser.add_argument('--alpha', default=1.0, type=float)
+    parser.add_argument('--beta_K', default=1.0, type=float)
+    parser.add_argument('--max_n_steps', default=200, type=int)
+    parser.add_argument('--n_steps_averaged', default=20, type=int)
+    parser.add_argument('--n_steps_for_convergence', default=5, type=int)
+    parser.add_argument('--n_points_fit', default=10, type=int)
+    parser.add_argument('--plot_all', default=True, type=bool)
+    parser.add_argument('--verbose', default=True, type=bool)
 
+    parser.add_argument('--seed', default=0, type=int, help="random seed")
     return parser.parse_args()
     
 
