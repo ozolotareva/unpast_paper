@@ -14,105 +14,108 @@ from fisher import pvalue
 
 import matplotlib.pyplot as plt
 
-def GM_binarization(exprs,min_SNR,min_n_samples,verbose = True, plot=True, plot_SNR_thr= 2,show_fits=[]):
-    genes = exprs.index.values
-    exprs_t = exprs.T.values #
-    SNRs= []
-    SNRs_up, SNRs_down = [],[]
-    sizes_up, sizes_down = [],[]
-    bin_p = {}
-    bin_n = {}
-    smaller_group_size = []
+
+def calc_SNR(ar1, ar2):
+    return (np.mean(ar1) - np.mean(ar2)) / (np.std(ar1) + np.std(ar2))
+
+
+def select_pos_neg(row, min_SNR, min_n_samples, min_diff_samples, stat):
+    """ find 'higher' (positive), and 'lower' (negative) signal in vals. 
+        vals are found with GM binarization
+    """
+
+    with warnings.catch_warnings(): # this is to ignore convergence warnings 
+        warnings.simplefilter('ignore')
+        
+        row2d = row[:, np.newaxis]  # adding mock axis for GM interface
+        labels = GaussianMixture(
+            n_components=2, init_params="kmeans",
+            max_iter=300, n_init = 1, 
+            covariance_type = "spherical"
+        ).fit(row2d).predict(row2d) # Bayesian
+        
+        stat['SNRs'].append(calc_SNR(row[labels==0], row[labels==1])) 
+    
+    # let labels == 1 be the bigger half
+    if np.sum(labels == 0) > np.sum(labels == 1): 
+        labels = 1 - labels
+    n0 = np.sum(labels == 0)
+    n1 = np.sum(labels == 1)
+    assert n0 + n1 == len(row)
+
+    signal_pretendents = []
+    if min_n_samples < n0: 
+        # signal (bicluster) should be big enough
+        signal_pretendents.append(labels==0)
+        if n1 - n0 < min_diff_samples:
+            # in case of insignifican difference 
+            # the bigger half is treated as signal too
+            stat['n_inexplicit'] += 1 
+            signal_pretendents.append(labels==1) 
+            
+    mask_pos = np.zeros_like(labels, bool)
+    mask_neg = np.zeros_like(labels, bool)
+    for mask in signal_pretendents:
+        sig_snr = calc_SNR(row[mask], row[~mask])
+        if abs(sig_snr) > min_SNR:
+            if sig_snr > 0:
+                mask_pos |= mask
+            else: 
+                mask_neg |= mask
+
+    return mask_pos, mask_neg
+
+
+def GM_binarization(exprs, min_SNR, min_n_samples, verbose=True, plot=True, plot_SNR_thr=2, show_fits=[]):
     t0 = time.time()
-    n_inexplicit = 0
-    for i in range(0,len(genes)):
+    stat = {
+        'SNRs': [],
+        'n_inexplicit': 0,
+    }
+
+    mask_pos, mask_neg = [], []
+    for i, (gene, row) in enumerate(exprs.iterrows()):
+        row = row.values
+        row_mask_pos, row_mask_neg = select_pos_neg(row, min_SNR, min_n_samples, min_n_samples*2, stat)
+        mask_pos.append(row_mask_pos.astype(int))
+        mask_neg.append(row_mask_neg.astype(int))
+
+        # logging
         if verbose:
             if i % 1000 == 0:
                 print("\t\tgenes processed:",i)
-        gene = genes[i]
-        e = exprs_t[:,[i]]
+        SNR = stat['SNRs'][-1]
+        if plot and abs(SNR) > plot_SNR_thr or gene in show_fits:
+            print("Gene %s: SNR=%s, pos=%s, neg=%s"%(gene, round(SNR,2), len(row_mask_pos), len(row_mask_neg)))
+            row_mask_neutral = (~row_mask_pos) & (~row_mask_neg)
 
-        with warnings.catch_warnings(): # this is to ignore convergence warnings 
-            warnings.simplefilter('ignore')
-            labels = GaussianMixture(n_components=2,init_params="kmeans",
-                                   max_iter=300,n_init = 1, covariance_type = "spherical").fit(e).predict(e) # Bayesian
-            
-            e1, e0 = [], []
-            s1, s0 = [], []
-            for l in range(len(labels)):
-                if labels[l] == 1:
-                    e1.append(e[l,0])
-                    s1.append(l)
-                else:
-                    e0.append(e[l,0])
-                    s0.append(l)
-            SNR = (np.mean(e1)-np.mean(e0))/(np.std(e1)+np.std(e0))
-            SNRs.append(abs(SNR))
-            if  min(len(e1),len(e0)) > min_n_samples:
-                #smaller_group_size.append(min(len(e1),len(e0)))
-                if len(s1)-len(s0) >= min_n_samples*2: 
-                    # s1 is background, s0 is a bicluster
-                    bic, bg = s0, s1
-                    if SNR >= min_SNR:
-                        bin_n[gene] = 1-labels
-                        c1,c0 = "grey", "blue"
-                        SNRs_down.append(SNR)
-                    elif SNR <= -min_SNR:
-                        c1,c0 = "grey", "red"
-                        bin_p[gene] = 1-labels
-                        SNRs_up.append(SNR)
-                elif len(s0)-len(s1) >= min_n_samples*2:
-                    # s0 is background, s1 is bicluster
-                    bic, bg = s1, s0
-                    if SNR >= min_SNR:
-                        c1,c0 = "red","grey"
-                        bin_p[gene] = labels
-                        SNRs_up.append(SNR)
-                    elif SNR <= -min_SNR:
-                        bin_n[gene] = labels
-                        c1,c0 = "blue","grey"
-                        SNRs_down.append(SNR)
-                else:
-                    # inexplicit gene: |bic| and |bg| are almost the same => 
-                    # => duplicate gene profile and include it to both outputs
-                    if len(s0) > len(s1):
-                        bic, bg = s1,s0
-                    else:
-                        bic, bg = s0,s1
-                    if SNR >= min_SNR:
-                        n_inexplicit +=1
-                        c1,c0 = "red","blue"
-                        bin_p[gene] = labels
-                        bin_n[gene] = 1-labels
-                        SNRs_up.append(SNR)
-                    elif SNR <= -min_SNR:
-                        n_inexplicit +=1
-                        bin_n[gene] = labels
-                        bin_p[gene] = 1-labels
-                        c1,c0 = "blue","red"
-                        SNRs_down.append(SNR)
-                if plot and  abs(SNR) > plot_SNR_thr or gene in show_fits:
-                    print("Gene %s: SNR=%s, bicluster=%s, bg=%s"%(gene, round(SNR,2), len(bic),len(bg)))
-                    tmp = plt.hist(e1, bins=80, alpha = 0.5, color=c1)
-                    tmp = plt.hist(e0, bins=80, alpha = 0.5, color=c0)
-                    plt.show()
+            plt.hist(row[row_mask_neutral], bins=80, alpha=0.5, color='grey')
+            plt.hist(row[row_mask_neg], bins=80, alpha=0.5, color='blue')
+            plt.hist(row[row_mask_pos], bins=80, alpha=0.5, color='red')
+            plt.show()
+ 
+    def _remove_empty_rows(df):
+        # thx https://stackoverflow.com/a/22650162/7647325
+        return df.loc[~(df==0).all(axis=1)]
+    df_p = _remove_empty_rows(pd.DataFrame(mask_pos, index=exprs.index)).T
+    df_n = _remove_empty_rows(pd.DataFrame(mask_neg, index=exprs.index)).T
 
-                    
-    df_p = pd.DataFrame.from_dict(bin_p)
-    df_n = pd.DataFrame.from_dict(bin_n)
+    # logging
     if verbose:
-        print("Total runtime",round(time.time()-t0,2), "s for ", len(genes),"genes")
+        print("Total runtime",round(time.time()-t0,2), "s for ", len(exprs),"genes")
         print("Genes passed SNR threshold of %s:"%round(min_SNR,2))
         print("\tup-regulated genes:", df_p.shape[1])
         print("\tdown-regulated genes:", df_n.shape[1])
-        print("\tinexplicit genes:",n_inexplicit)
+        print("\tinexplicit genes:", stat['n_inexplicit'])
     if plot:
-        tmp = plt.figure(figsize=(7,5))
-        tmp = plt.hist(SNRs_up, bins=50, range=(0,3),color="red",alpha=0.5) 
-        tmp = plt.hist(SNRs_down, bins=50, range=(0,3),color="blue",alpha=0.5)
-        tmp = plt.hist(SNRs, bins=50, range=(0,3),color="grey",alpha=0.5)
-        tmp = plt.xlabel("avg.|SNR|")
-        tmp = plt.xlabel("binarized genes")
+        plt.figure(figsize=(7,5))
+        # plt.hist(SNRs_up, bins=50, range=(0,3), color="red", alpha=0.5) 
+        # plt.hist(SNRs_down, bins=50, range=(0,3), color="blue", alpha=0.5)
+        plt.hist(stat['SNRs'], bins=50, range=(0,3), color="grey", alpha=0.5)
+        plt.xlabel("avg.|SNR|")
+        plt.xlabel("binarized genes")
+        plt.plot()
+
     return {"UP":df_p, "DOWN":df_n}
 
 ################## 2. Probabiliatic clustering #############

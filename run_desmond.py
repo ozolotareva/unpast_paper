@@ -54,7 +54,7 @@ def run_DESMOND(
         print("Will save output files to: %s*."% (out_dir + basename + suffix), file = sys.stdout)
 
     # read inputs
-    exprs = pd.read_csv(exprs_file, sep="\t",index_col=0)
+    exprs = pd.read_csv(exprs_file, sep="\t", index_col=0)
 
     # define minimal number of patients in a module
     if min_n_samples == -1:
@@ -65,6 +65,7 @@ def run_DESMOND(
     sele_genes = ["SIDT1","CLIC6","BMPR1B", "FOXA1","GATA3","ESR1","ERBB2","GRB7"]
     binarized_expressions = GM_binarization(exprs,min_SNR,min_n_samples,verbose = verbose,
                                  plot=plot_all, plot_SNR_thr= 2.5,show_fits=sele_genes)    
+
     ### 2. Edge clustering ###
     
     # simplifying probability calculations
@@ -166,7 +167,7 @@ def parse_args():
     parser.add_argument('exprs_file', help="file with an input matrix")
     
     parser.add_argument('--out_dir', default="./")
-    parser.add_argument('--basename', default=False, type=bool)
+    parser.add_argument('--basename', action='store_true')
     parser.add_argument('--min_n_samples', default=-1, type=int)
     parser.add_argument('--min_SNR', default=1.5, type=float)
     parser.add_argument('--alpha', default=1.0, type=float)
@@ -175,8 +176,8 @@ def parse_args():
     parser.add_argument('--n_steps_averaged', default=20, type=int)
     parser.add_argument('--n_steps_for_convergence', default=5, type=int)
     parser.add_argument('--n_points_fit', default=10, type=int)
-    parser.add_argument('--plot_all', default=True, type=bool)
-    parser.add_argument('--verbose', default=True, type=bool)
+    parser.add_argument('--no_plot', dest='plot_all', action='store_false')
+    parser.add_argument('--verbose', action='store_false')
 
     parser.add_argument('--seed', default=0, type=int, help="random seed")
     return parser.parse_args()
@@ -185,4 +186,3 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     run_DESMOND(**vars(args))
-
