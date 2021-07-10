@@ -14,6 +14,21 @@ from fisher import pvalue
 
 import matplotlib.pyplot as plt
 
+# optimizer
+TRY_USE_NUMBA=False
+# def jit_if_available(*_args, **_kwargs):
+def jit_if_available(func):
+    def decorated(*args, **kwargs):
+        return func(*args, **kwargs)
+    return decorated
+    # return decorator
+if TRY_USE_NUMBA:
+    try:
+        from numba import jit  # as jit_if_available
+        jit_if_available = jit()
+    except:
+        print("Numba is not available. Install numba for a bit faster calculations")
+
 
 def calc_SNR(ar1, ar2):
     return (np.mean(ar1) - np.mean(ar2)) / (np.std(ar1) + np.std(ar2))
@@ -48,7 +63,7 @@ def select_pos_neg(row, min_SNR, min_n_samples, min_diff_samples, stat):
         # signal (bicluster) should be big enough
         signal_pretendents.append(labels==0)
         if n1 - n0 < min_diff_samples:
-            # in case of insignifican difference 
+            # in case of insignificant difference 
             # the bigger half is treated as signal too
             stat['n_inexplicit'] += 1 
             signal_pretendents.append(labels==1) 
@@ -118,46 +133,100 @@ def GM_binarization(exprs, min_SNR, min_n_samples, verbose=True, plot=True, plot
 
     return {"UP":df_p, "DOWN":df_n}
 
+
 ################## 2. Probabiliatic clustering #############
+@jit_if_available
 def calc_lp(gene_ndx,module_ndx,gene2Samples,
             nOnesPerSampleInModules,moduleSizes,
             moduleOneFreqs,p0,match_score,mismatch_score,bK_1,N,
             alpha,beta_K):
     
-    m_size = moduleSizes[module_ndx]
-    gene_vector = gene2Samples[gene_ndx,] 
+    # 1. Prepare vals: (n_ones_per_pat, m_size, alpha, gene_vector, beta_K)
+    #      and return answer in special cases
     
-  
+    m_size = moduleSizes[module_ndx]
     if m_size == 0:
+        # gene is removed, the module is empty
         return p0
     
+    gene_vector = gene2Samples[gene_ndx,] 
     n_ones_per_pat = nOnesPerSampleInModules[module_ndx,]
-    
     if gene_ndx == module_ndx: # remove the gene from its own module
         if m_size == 1:
             return p0
         m_size -=1
-        n_ones_per_pat = n_ones_per_pat-gene_vector
-    
+        n_ones_per_pat = n_ones_per_pat - gene_vector
+
     # if a module is composed of a single gene
     if m_size == 1:
         # just count number of matches and mismatches and
-        n_matches =  np.inner(n_ones_per_pat,gene_vector)
-        return n_matches*match_score+(N-n_matches)*mismatch_score + bK_1
+        # n_matches =  np.inner(n_ones_per_pat,gene_vector)
+        n_matches =  np.sum(n_ones_per_pat[gene_vector==1])
+
+        return n_matches*match_score + (N-n_matches)*mismatch_score + bK_1
     
-    # if a module contains more than one gene
+    # 2. usual case if a module contains more than one gene
+    return calc_lp_formula(n_ones_per_pat, m_size, alpha, gene_vector, beta_K)
+
+@jit_if_available
+def calc_lp_formula(n_ones_per_pat, m_size, alpha, gene_vector, beta_K): 
     beta_term = math.log(m_size+beta_K)
     
     # alpha_term
     # ones-matching
     oneRatios = (n_ones_per_pat+alpha/2)/(m_size+alpha)
-    ones_matching_term = np.inner(np.log(oneRatios),gene_vector)
+    ones_matching_term = np.sum(np.log(oneRatios)[gene_vector == 1])
+
     # zero-matching
-    zeroRatios = (m_size-n_ones_per_pat+alpha/2)/(m_size+alpha)
-    zeros_matching_term = np.inner(np.log(zeroRatios),(1-gene_vector))
+    # zeroRatios = (m_size-n_ones_per_pat+alpha/2)/(m_size+alpha)
+    zeroRatios = 1 - oneRatios
+    zeros_matching_term = np.sum(np.log(zeroRatios)[gene_vector == 0])
 
-    return ones_matching_term+zeros_matching_term + beta_term
+    return ones_matching_term + zeros_matching_term + beta_term
 
+def calc_lp_column(module_ndx,gene2Samples,
+            nOnesPerSampleInModules,moduleSizes,
+            moduleOneFreqs,p0,match_score,mismatch_score,bK_1,N,
+            alpha,beta_K):
+    """Same as calc_lp, but for all the genes simultaneously"""
+    m_size = moduleSizes[module_ndx]
+    if m_size == 0:
+        # all genes are removed, the module is empty, alfl answers are p0
+        return p0
+
+    n_ones_per_pat = nOnesPerSampleInModules[module_ndx,]
+    if m_size == 1:
+        # if a module is composed of a single gene
+        n_matches = np.dot(gene2Samples, n_ones_per_pat)
+        vals = n_matches*match_score + (N-n_matches)*mismatch_score + bK_1
+
+    else: 
+        # ones-matching
+        oneRatios = (n_ones_per_pat+alpha/2)/(m_size+alpha)
+        # ones_matching_term = np.dot((gene2Samples == 1), np.log(oneRatios))
+        ones_matching_term = np_faster_dot(gene2Samples == 1, np.log(oneRatios))
+
+        # zero-matching
+        zeroRatios = 1 - oneRatios  # = (m_size-n_ones_per_pat+alpha/2)/(m_size+alpha)
+        # zeros_matching_term = np.dot((gene2Samples == 0), np.log(zeroRatios))
+        zeros_matching_term = np_faster_dot(gene2Samples == 0, np.log(zeroRatios))
+
+        beta_term = math.log(m_size+beta_K)
+        vals = ones_matching_term + zeros_matching_term + beta_term
+
+    # calc LP[m,m] with the less optimized func
+    vals[module_ndx] = calc_lp(module_ndx,module_ndx,gene2Samples,nOnesPerSampleInModules,moduleSizes,
+                            moduleOneFreqs,p0,match_score,mismatch_score,bK_1,N,alpha,beta_K)
+    return vals
+
+@jit_if_available
+def np_faster_dot(np_a, np_b): 
+    # translating to float64 for jit compilation
+    # may be a bit faster in some cases
+    return np.dot(
+        np_a.astype(np.float64),
+        np_b.astype(np.float64)
+    )
 
 def set_initial_conditions(df, alpha,beta_K,verbose = True):
     t_0 = time.time()
@@ -184,11 +253,13 @@ def set_initial_conditions(df, alpha,beta_K,verbose = True):
 
     #4. initial module id
     gene2Module = list(range(0,K))
+    gene2Module = np.array(gene2Module)
     
     #5. moduleOneFreqs
     moduleOneFreqs = []
     for g in range(0,K):
         moduleOneFreqs.append(float(sum(gene2Samples[g,]))/N)
+    moduleOneFreqs = np.array(moduleOneFreqs)
     
     #6. setting initial LPs: i = gene, j=module
     LP = np.zeros((K,K),dtype=np.float)
@@ -200,7 +271,7 @@ def set_initial_conditions(df, alpha,beta_K,verbose = True):
             nOnesPerSampleInModules,moduleSizes,
             moduleOneFreqs,p0,match_score,mismatch_score,bK_1,N,alpha, beta_K)
             LP[j,i] = LP[i,j]
-    print("time:\tInitial state created in",round(time.time()- t_0,1) , "s.", file = sys.stdout)
+    print("time:\tInitial state created in",round(time.time()-t_0, 1) , "s.", file = sys.stdout)
     return moduleSizes, gene2Samples, nOnesPerSampleInModules, gene2Module, moduleOneFreqs, LP
 
 def adjust_lp(log_probs,n_exp_orders=7):
@@ -293,10 +364,44 @@ def check_convergence_conditions(n_skipping_edges,n_skipping_edges_range,
         print("\tConverged:",convergence,"#skipping edges slope:",round(k,5))#,"RMS(Pn-Pn+1) slope:",round(k2,5))
     return convergence  
 
+# @jit_if_available
 def apply_changes(gene_ndx,new_module,curr_module,LP,gene2Samples, gene2Module, nOnesPerPatientInModules,moduleSizes,
                 moduleOneFreqs, p0,match_score,mismatch_score, bK_1,alpha,beta_K,N,K, calc_LPs=True):
-    '''Moves the gene from the current module to the next one
-    and updates gene2Module, nOnesPerPatientInModules and moduleSizes respectively.'''
+    """Moves the gene from the current module to the new one
+        and updates gene2Module, nOnesPerPatientInModules and moduleSizes respectively.
+        K - quantity of genes
+        M (=K) - quantitiy of modules
+        S - quantity of samples (patients)
+        
+        see also set_initial_conditions for more info
+
+    Args: 
+        gene_ndx(int): 
+        new_module(int): 
+        curr_module(int):
+        LP(np.array KxM): matrix of transmission probabilities
+        gene2Samples(np.array KxS): matrix of samples co-regulated with genes
+        gene2Module(list): list of i'th module
+        nOnesPerPatientInModules(np.array MxS): precalculated sums for optimization
+            nOnesPerPatientInModules[m] = sum(gene2Samples[g] for g in genes if gene2Module[g] == m)
+        moduleSizes(np.array M) - genes in module
+        
+        moduleOneFreqs - is not used
+        N - is not used
+
+        p0(float) - precalculated default probability
+        match_score(float) - precalculated const
+        mismatch_score(float) - precalculated const
+        bK_1(float) - precalculated const
+        
+        alpha(float) - alg. global parameter
+        beta_K(float) - alg. global parameter
+
+        K(int) - count of Genes
+
+        calc_LPs(bool) - should LPs be recalculated? 
+
+    """
     # update the gene module membership
     gene2Module[gene_ndx] = new_module
     # for this edge no probabilities change
@@ -312,37 +417,41 @@ def apply_changes(gene_ndx,new_module,curr_module,LP,gene2Samples, gene2Module, 
     
     # update LPs for all genes contacting curr and new modules
     if calc_LPs:
-        for gene in range(0,K):
-            #### update LP for new_module
-            if not gene == gene_ndx: # for this gene no probabilities changed
-                LP[gene,curr_module] = calc_lp(gene,curr_module,gene2Samples,nOnesPerPatientInModules,moduleSizes,
-                                                           moduleOneFreqs,p0,match_score,mismatch_score,bK_1,N,alpha,beta_K)
-                LP[gene,new_module] = calc_lp(gene,new_module,gene2Samples,nOnesPerPatientInModules,moduleSizes,
-                                                          moduleOneFreqs,p0,match_score,mismatch_score,bK_1,N,alpha,beta_K)
-            
+        for module in curr_module, new_module:
+            ndx_old_val = LP[gene_ndx, module] # for this gene no probabilities changed
+            LP[:, module] = calc_lp_column(module,gene2Samples,nOnesPerPatientInModules,moduleSizes,
+                                                            moduleOneFreqs,p0,match_score,mismatch_score,bK_1,N,alpha,beta_K)
+            LP[gene_ndx, module] = ndx_old_val
+
+
+
+
+
+
 def sampling(LP,gene2Module, gene2Samples,nOnesPerPatientInModules,moduleSizes,
              moduleOneFreqs, p0, match_score, mismatch_score, bK_1, alpha, beta_K,
              max_n_steps=100,n_steps_averaged = 20,n_points_fit = 10,tol = 0.05,
              n_steps_for_convergence = 5,verbose=True):
     
+    # gene2Module = np.array(gene2Module)
     K = len(gene2Module)
     N  = gene2Samples.shape[1]
     t_ =  time.time()
     gene2Module_history = [copy.copy(gene2Module)]
     is_converged = False
     #network_edges = network.edges(data=True)
-    for step in range(1,max_n_steps):
+    for step in range(1, max_n_steps):
         if verbose:
-            print("step",step,file = sys.stdout)
+            print("step", step,file = sys.stdout)
         not_changed_genes = 0
         t_0 = time.time()
         t_1=t_0
         i = 1
-        for gene_ndx in range(0,K):
+        for gene_ndx in range(0, K):
             # adjust LogP and sample a new module
-            P_adj = adjust_lp(LP[gene_ndx,:],n_exp_orders=7)
+            P_adj = adjust_lp(LP[gene_ndx,:], n_exp_orders=7)
             curr_module = gene2Module[gene_ndx]
-            new_module = np.random.choice(range(0,K), p = P_adj) 
+            new_module = np.random.choice(range(0,K), p=P_adj) 
 
             # update network and matrices if necessary
             if new_module != curr_module:
@@ -354,12 +463,12 @@ def sampling(LP,gene2Module, gene2Samples,nOnesPerPatientInModules,moduleSizes,
             i+=1
             if i%1000 == 0:
                 if verbose:
-                    print(i,"\t\tgenes processed in",round(time.time()- t_1,1) , "s runtime...",file=sys.stdout)
+                    print(i,"\t\tgenes processed in",round(time.time()- t_1, 1) , "s runtime...",file=sys.stdout)
                 not_changed_edges=0
                 t_1 = time.time()
         if verbose:
             print("\tstep ",step,# 1.0*not_changed_edges/len(edge_order),"- % edges not changed; runtime",
-                  round(time.time()- t_0,1) , "s", file = sys.stdout)
+                  round(time.time() - t_0, 1) , "s", file = sys.stdout)
         
         gene2Module_history.append(copy.copy(gene2Module))
         if step == n_steps_averaged:
@@ -430,6 +539,7 @@ def plot_convergence(n_skipping_edges,P_diffs, thr_step,n_steps_averaged, outfil
 def get_consensus_modules(gene2module_history, LP,  genes2Samples, gene2Module,
                           nOnesPerPatientInModules,moduleSizes, moduleOneFreqs, p0, match_score,mismatch_score,
                           bK_1,alpha,beta_K, N, K):
+    # gene2Module = np.array(gene2Module)
     consensus = []
     labels = np.asarray(gene2module_history)
     
