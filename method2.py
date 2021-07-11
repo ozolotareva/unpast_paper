@@ -15,7 +15,7 @@ from fisher import pvalue
 import matplotlib.pyplot as plt
 
 # optimizer
-TRY_USE_NUMBA=False
+TRY_USE_NUMBA=True
 # def jit_if_available(*_args, **_kwargs):
 def jit_if_available(func):
     def decorated(*args, **kwargs):
