@@ -11,8 +11,10 @@ import warnings
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 from fisher import pvalue
+from scipy.interpolate import interp1d
 
 import matplotlib.pyplot as plt
+import statsmodels.api as sm
 
 # optimizer
 TRY_USE_NUMBA=True
@@ -33,8 +35,39 @@ if TRY_USE_NUMBA:
 def calc_SNR(ar1, ar2):
     return (np.mean(ar1) - np.mean(ar2)) / (np.std(ar1) + np.std(ar2))
 
+def rand_norm_splits(N, snr_pval = 0.05,seed = 1):
+    # empirical distribuition of SNR depending on the bicluster size 
+    # generates normal samples of matching size and split them into bicluster and background
+    min_n_perm = int(5*1.0/snr_pval)
+    n_perm = max(min_n_perm,int(100000/N))
+    min_n_samples = int(max(5,0.05*N))
+    print("total samples: %s, min_n_samples: %s, n_permutations: %s"%(N,min_n_samples,n_perm))
+    sizes = np.arange(min_n_samples,int(N/2+2))#.shape
+    snr_thresholds = np.zeros(sizes.shape)
+    np.random.seed(seed=seed)
+    for s in sizes:
+        snrs = np.zeros(n_perm)
+        for i in range(0,n_perm):
+            x = np.random.normal(size = N)
+            x.sort()
+            snrs[i] = calc_SNR(x[s:], x[:s]) #(x[s:].mean()-x[:s].mean())/(x[s:].std()+x[:s].std())
+        snr_thresholds[s-min_n_samples]=np.quantile(snrs,q=1-0.05)
+    return sizes, snr_thresholds
 
-def select_pos_neg(row, min_SNR, min_n_samples, min_diff_samples, stat):
+def get_trend(sizes, thresholds, plot= True):
+    # smoothens the trend and retunrs a function min_SNR(size; p-val. cutoff)
+    lowess = sm.nonparametric.lowess
+    lowess_curve = lowess(sizes, thresholds,frac=0.25,return_sorted=True,is_sorted=False)
+    get_min_snr = interp1d(lowess_curve[:,1],lowess_curve[:,0],kind="nearest",fill_value="extrapolate")
+    if plot:
+        plt.plot(sizes, thresholds,"b--",lw=2)
+        plt.plot(sizes,get_min_snr(sizes),"r-",lw=2)
+        plt.xlabel("n_samples")
+        plt.ylabel("SNR threshold")
+        plt.show()
+    return get_min_snr
+
+def select_pos_neg(row, get_min_snr, min_n_samples, min_diff_samples, stat,seed=42):
     """ find 'higher' (positive), and 'lower' (negative) signal in vals. 
         vals are found with GM binarization
     """
@@ -43,13 +76,16 @@ def select_pos_neg(row, min_SNR, min_n_samples, min_diff_samples, stat):
         warnings.simplefilter('ignore')
         
         row2d = row[:, np.newaxis]  # adding mock axis for GM interface
+        np.random.seed(seed=seed)
         labels = GaussianMixture(
             n_components=2, init_params="kmeans",
             max_iter=300, n_init = 1, 
-            covariance_type = "spherical"
+            covariance_type = "spherical",
+            random_state = seed
         ).fit(row2d).predict(row2d) # Bayesian
         
-        stat['SNRs'].append(calc_SNR(row[labels==0], row[labels==1])) 
+        sig_snr = calc_SNR(row[labels==0], row[labels==1])
+        stat['SNRs'].append(sig_snr) 
     
     # let labels == 1 be the bigger half
     if np.sum(labels == 0) > np.sum(labels == 1): 
@@ -58,6 +94,8 @@ def select_pos_neg(row, min_SNR, min_n_samples, min_diff_samples, stat):
     n1 = np.sum(labels == 1)
     assert n0 + n1 == len(row)
 
+    # min_SNR threshold depends on biclister size
+    min_SNR = get_min_snr(n0) 
     signal_pretendents = []
     if min_n_samples < n0: 
         # signal (bicluster) should be big enough
@@ -65,8 +103,9 @@ def select_pos_neg(row, min_SNR, min_n_samples, min_diff_samples, stat):
         if n1 - n0 < min_diff_samples:
             # in case of insignificant difference 
             # the bigger half is treated as signal too
-            stat['n_inexplicit'] += 1 
             signal_pretendents.append(labels==1) 
+            if abs(sig_snr) > min_SNR: 
+                stat['n_inexplicit'] += 1 
             
     mask_pos = np.zeros_like(labels, bool)
     mask_neg = np.zeros_like(labels, bool)
@@ -81,7 +120,7 @@ def select_pos_neg(row, min_SNR, min_n_samples, min_diff_samples, stat):
     return mask_pos, mask_neg
 
 
-def GM_binarization(exprs, min_SNR, min_n_samples, verbose=True, plot=True, plot_SNR_thr=2, show_fits=[]):
+def GM_binarization(exprs, get_min_snr, min_n_samples, verbose=True, plot=True, plot_SNR_thr=2, show_fits=[],seed=1):
     t0 = time.time()
     stat = {
         'SNRs': [],
@@ -91,7 +130,7 @@ def GM_binarization(exprs, min_SNR, min_n_samples, verbose=True, plot=True, plot
     mask_pos, mask_neg = [], []
     for i, (gene, row) in enumerate(exprs.iterrows()):
         row = row.values
-        row_mask_pos, row_mask_neg = select_pos_neg(row, min_SNR, min_n_samples, min_n_samples*2, stat)
+        row_mask_pos, row_mask_neg = select_pos_neg(row, get_min_snr, min_n_samples, min_n_samples*2, stat,seed=seed)
         mask_pos.append(row_mask_pos.astype(int))
         mask_neg.append(row_mask_neg.astype(int))
 
@@ -100,8 +139,10 @@ def GM_binarization(exprs, min_SNR, min_n_samples, verbose=True, plot=True, plot
             if i % 1000 == 0:
                 print("\t\tgenes processed:",i)
         SNR = stat['SNRs'][-1]
-        if plot and abs(SNR) > plot_SNR_thr or gene in show_fits:
-            print("Gene %s: SNR=%s, pos=%s, neg=%s"%(gene, round(SNR,2), len(row_mask_pos), len(row_mask_neg)))
+        s_pos = len(row[row_mask_pos])
+        s_neg = len(row[row_mask_neg])
+        if plot and (abs(SNR) > plot_SNR_thr and max(s_pos,s_neg)>0) or gene in show_fits:
+            print("Gene %s: SNR=%s, pos=%s, neg=%s"%(gene, round(SNR,2), s_pos, s_neg))
             row_mask_neutral = (~row_mask_pos) & (~row_mask_neg)
 
             plt.hist(row[row_mask_neutral], bins=80, alpha=0.5, color='grey')
@@ -118,21 +159,12 @@ def GM_binarization(exprs, min_SNR, min_n_samples, verbose=True, plot=True, plot
     # logging
     if verbose:
         print("Total runtime",round(time.time()-t0,2), "s for ", len(exprs),"genes")
-        print("Genes passed SNR threshold of %s:"%round(min_SNR,2))
+        #print("Genes passed SNR threshold of %s:"%round(min_SNR,2))
         print("\tup-regulated genes:", df_p.shape[1])
         print("\tdown-regulated genes:", df_n.shape[1])
         print("\tinexplicit genes:", stat['n_inexplicit'])
-    if plot:
-        plt.figure(figsize=(7,5))
-        # plt.hist(SNRs_up, bins=50, range=(0,3), color="red", alpha=0.5) 
-        # plt.hist(SNRs_down, bins=50, range=(0,3), color="blue", alpha=0.5)
-        plt.hist(stat['SNRs'], bins=50, range=(0,3), color="grey", alpha=0.5)
-        plt.xlabel("avg.|SNR|")
-        plt.xlabel("binarized genes")
-        plt.plot()
 
     return {"UP":df_p, "DOWN":df_n}
-
 
 ################## 2. Probabiliatic clustering #############
 @jit_if_available
