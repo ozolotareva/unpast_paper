@@ -7,6 +7,7 @@ import time
 import math
 import itertools
 import warnings
+import os
 
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
@@ -141,7 +142,7 @@ def GM_binarization(exprs, get_min_snr, min_n_samples, verbose=True, plot=True, 
         SNR = stat['SNRs'][-1]
         s_pos = len(row[row_mask_pos])
         s_neg = len(row[row_mask_neg])
-        if plot and (abs(SNR) > plot_SNR_thr and max(s_pos,s_neg)>0) or gene in show_fits:
+        if plot and ((abs(SNR) > plot_SNR_thr and max(s_pos,s_neg)>0) or gene in show_fits):
             print("Gene %s: SNR=%s, pos=%s, neg=%s"%(gene, round(SNR,2), s_pos, s_neg))
             row_mask_neutral = (~row_mask_pos) & (~row_mask_neg)
 
@@ -297,6 +298,7 @@ def set_initial_conditions(df, alpha,beta_K,verbose = True):
     LP = np.zeros((K,K),dtype=np.float)
     for i in range(0,K):
         if (i+1)% 1000==0:
+            if verbose:
                 print("\t",i+1,"genes processed in ",round(time.time()- t_0,1),"s")
         for j in range(i,K):
             LP[i,j] = calc_lp(i,j,gene2Samples,
@@ -322,74 +324,31 @@ def adjust_lp(log_probs,n_exp_orders=7):
     return probs
 
 ### functions for checking of convergence conditions ###
-def calc_p_transitions(states,unique,counts):
-    n_steps = len(states)-1
-    transitions = dict(zip(tuple(itertools.product(unique,unique)),np.zeros(len(unique)**2)))
-    for i in range(0,n_steps):
-        transitions[(states[i],states[i+1])] += 1 
-    p = { k:v/(counts[unique.index(k[0])]) for k, v in transitions.items()}
-    return  p
 
-def collect_all_p(labels):
-    P={}
-    # calculate edge transition probabilities
-    for edge in range(0,labels.shape[1]):
-        states = labels[:,edge]
-        unique,counts = np.unique(states , return_counts=True)
+def count_skipping_genes(labels):
+    n_skipping_genes = 0
+    for gene in range(0,labels.shape[1]):
+        states = labels[:,gene]
+        unique = np.unique(states)
         if len(unique)> 1:
-            P[edge] = calc_p_transitions(states,list(unique),counts)
-    return P
+            n_skipping_genes +=1
+    return n_skipping_genes
 
-def calc_RMSD(P,P_prev):
-    t0 = time.time()
-    p_prev_edges = set(P_prev.keys())
-    p_edges = set(P.keys())
-    Pdiff = []
-    for edge in p_edges.difference(p_prev_edges):
-        P_prev[edge] = {k:0 for k in P[edge].keys()}
-        P_prev[edge] = {k:1 for k in P_prev[edge].keys() if k[0]==k[1]}
-    for edge in p_prev_edges.difference(p_edges):
-        P[edge] = {k:0 for k in P_prev[edge].keys()}
-        P[edge] = {k:1 for k in P[edge].keys() if k[0]==k[1]}
-    for edge in p_edges.intersection(p_prev_edges):
-        p_modules = set(P[edge].keys())
-        p_prev_modules = set(P_prev[edge].keys())
-        for  m,m2 in p_modules.difference(p_prev_modules):
-            Pdiff.append((P[edge][(m,m2)])**2) 
-        for  m,m2 in p_prev_modules.difference(p_modules):
-            Pdiff.append((P_prev[edge][(m,m2)])**2) 
-        for  m,m2 in p_modules.intersection(p_prev_modules):
-            Pdiff.append((P[edge][(m,m2)] - P_prev[edge][(m,m2)])**2) 
-    if not len(Pdiff)==0:
-        return np.sqrt(sum(Pdiff)/len(Pdiff))
+
+def check_convergence_conditions(n_skipping,n_min,n_max,tol=0.05, verbose = True):
+    n_points = len(n_skipping)
+    n_skipping = np.array(n_skipping,dtype=float)
+    
+    if n_max - n_min >0:
+        # scale
+        n_skipping = (n_skipping-n_min)/(n_max - n_min)*n_points
+        # fit line
+        A = np.vstack([range(0,n_points), np.ones(n_points)]).T
+        k,b = np.linalg.lstsq(A, n_skipping, rcond=None)[0] # y = kx + b
     else:
-        return 0
-
-def check_convergence_conditions(n_skipping_edges,n_skipping_edges_range,
-                                 ## P_diffs,P_diffs_range,
-                                 step,tol=0.05, verbose = True):
-    n_points = len(n_skipping_edges)
-    # check skipping edges 
-    se_min, se_max = n_skipping_edges_range
-    n_skipping_edges = np.array(n_skipping_edges,dtype=float)
-
+        k = 0 
     
-    # scale
-    n_skipping_edges = (n_skipping_edges-se_min)/(se_max - se_min)*n_points
-    
-    # fit line
-    A = np.vstack([range(0,n_points), np.ones(n_points)]).T
-    k,b = np.linalg.lstsq(A, n_skipping_edges, rcond=None)[0]
-    
-    # check P_diffs
-    #P_diffs_min, P_diffs_max = P_diffs_range
-    #P_diffs = np.array(P_diffs)
-    
-    # scale 
-    #P_diffs = (P_diffs-P_diffs_min)/(P_diffs_max- P_diffs_min)*n_points
-    #k2, b2  = np.linalg.lstsq(A, P_diffs, rcond=None)[0]
-    
-    if abs(k)<tol:# and abs(k2)<tol:
+    if abs(k)<tol:
         convergence = True
     else:
         convergence = False
@@ -463,13 +422,14 @@ def apply_changes(gene_ndx,new_module,curr_module,LP,gene2Samples, gene2Module, 
 
 def sampling(LP,gene2Module, gene2Samples,nOnesPerPatientInModules,moduleSizes,
              moduleOneFreqs, p0, match_score, mismatch_score, bK_1, alpha, beta_K,
-             max_n_steps=100,n_steps_averaged = 20,n_points_fit = 10,tol = 0.05,
+             max_n_steps=100,n_steps_averaged = 5,n_points_fit = 10,tol = 0.05,
              n_steps_for_convergence = 10,verbose=True):
     
     K = len(gene2Module)
     N  = gene2Samples.shape[1]
     t_ =  time.time()
     gene2Module_history = [copy.copy(gene2Module)]
+    sampling_steps = n_steps_for_convergence 
     is_converged = False
     
     for step in range(1, max_n_steps):
@@ -503,72 +463,78 @@ def sampling(LP,gene2Module, gene2Samples,nOnesPerPatientInModules,moduleSizes,
                   round(time.time() - t_0, 1) , "s", file = sys.stdout)
         
         gene2Module_history.append(copy.copy(gene2Module))
+        
         if step == n_steps_averaged:
             is_converged = False
             n_times_cc_fulfilled = 0
             labels = np.asarray(gene2Module_history[step-n_steps_averaged:step])
-            P_prev = collect_all_p(labels)
-            P_diffs = []
-            n_skipping_edges = [] 
-            n_skipping_edges.append(len(P_prev.keys()))
+            n_skipping = [count_skipping_genes(labels)]
+            
         if step > n_steps_averaged:
             labels = np.asarray(gene2Module_history[step-n_steps_averaged:step])
-            P = collect_all_p(labels)
-            ##P_diff = calc_RMSD(copy.copy(P),copy.copy(P_prev))
-            ##P_diffs.append(P_diff)
-            n_skipping_edges.append(len(P.keys()))
-            ##P_prev=P
-        if  step >= n_steps_averaged + n_points_fit:
-            ##P_diffs_range = min(P_diffs),max(P_diffs)
-            n_skipping_edges_range= min(n_skipping_edges), max(n_skipping_edges)
-            # check convergence condition
-            is_converged = check_convergence_conditions(n_skipping_edges[-n_points_fit:],
-                                                      n_skipping_edges_range,
-                                                      #P_diffs[-n_points_fit:],
-                                                      #P_diffs_range,
-                                                      step,
-                                                      tol=tol,
-                                                      verbose = verbose)
-        if is_converged:
-            n_times_cc_fulfilled +=1
-        else:
-            n_times_cc_fulfilled = 0
-            
-        if n_times_cc_fulfilled > n_steps_for_convergence: # stop if convergence is True for the last n steps
-            ### define how many the last steps to consider
-            n_final_steps = n_points_fit+n_steps_for_convergence
+            n_skipping.append(count_skipping_genes(labels))
             if verbose:
-                print("The model converged after", step,"steps.", file = sys.stdout)
-                print("Consensus of last",n_final_steps,"states will be taken")
-                print("Sampling runtime",round(time.time()- t_ ,1) , "s", file = sys.stdout)
-            return gene2Module_history, n_final_steps,n_skipping_edges,P_diffs
+                print("Genes skipping in last %s steps: %s"%(n_steps_averaged, n_skipping[-1]),file=sys.stdout)
+            
+        
+        if  step >= n_steps_averaged + n_points_fit:
+            last_steps = n_skipping[-n_points_fit:]
+            if len(np.unique(last_steps))==1: # stop when n_skipped is the same in last n_points_fit steps 
+                if verbose:
+                    print("The model converged after", step+1,"steps.", file = sys.stdout)
+                    print("Consensus of last",sampling_steps,"states will be taken")
+                    print("Sampling runtime",round(time.time()- t_ ,1) , "s", file = sys.stdout)
+                return gene2Module_history, sampling_steps,n_skipping
+            
+            n_min, n_max = min(n_skipping),max(n_skipping)
+            is_converged = check_convergence_conditions(last_steps,n_min, n_max,tol=tol,verbose = verbose)
+                
+            if is_converged:
+                n_times_cc_fulfilled +=1
+            else:
+                n_times_cc_fulfilled = 0
+
+            if n_times_cc_fulfilled > n_steps_for_convergence: # stop if convergence is True for the last n steps
+                if verbose:
+                    print("The model converged after", step+1,"steps.", file = sys.stdout)
+                    print("Consensus of last",sampling_steps,"states will be taken")
+                    print("Sampling runtime",round(time.time()- t_ ,1) , "s", file = sys.stdout)
+                return gene2Module_history, sampling_steps,n_skipping
     
-    n_final_steps = n_steps_for_convergence
     if verbose:
-        print("The model did not converge after", step,"steps.", file = sys.stdout)
-        print("Consensus of last",n_final_steps,"states will be taken")
+        print("The model did NOT converge after", step+1,"steps.", file = sys.stdout)
+        print("Consensus of last",sampling_steps,"states will be taken")
         print("Sampling runtime",round(time.time()- t_ ,1) , "s", file = sys.stdout)
         
-    return gene2Module_history,n_final_steps,n_skipping_edges,P_diffs
+    return gene2Module_history,sampling_steps,n_skipping
 
 
-def plot_convergence(n_skipping_edges,P_diffs, thr_step,n_steps_averaged, outfile = ""):
-    # plots numnber of oscilating edges and RMS(Pn-Pn+1)
+def plot_convergence(n_skipping_edges,thr_step,
+                     alpha=1.0, beta_K=1.0,
+                     n_steps_averaged=10,n_points_fit = 20, 
+                     n_steps_for_convergence = 10,
+                     save_plot = False):
+    
+    # plots numnber of oscilating genes
     steps = range(n_steps_averaged,n_steps_averaged+len(n_skipping_edges))
-    fig, axarr = plt.subplots(1, 1,figsize=(15,5))
-    axarr.set_title("Model convergence")
-    axarr.plot(steps, n_skipping_edges,'b.-')
-    axarr.axvline(thr_step,color="red",linestyle='--') 
-    axarr.set_ylabel("#genes oscilating on the last "+str(int(n_steps_averaged))+" steps")
-    axarr.set_xlabel('step')
-    #axarr[1].plot(steps,P_diffs,'b.-' )
-    #axarr[1].set_xlabel('step')
-    #axarr[1].axvline(thr_step,color="red",linestyle='--') 
-    #tmp = axarr[1].set_ylabel("RMS(Pn-Pn+1)")
-    if outfile:
-        plt.savefig(outfile, transparent=True)    
-        
-def get_consensus_modules(gene2module_history, f = 0.25, verbose = True):
+    fig, ax = plt.subplots(1, 1,figsize=(15,5))
+    ax.set_title("Model convergence")
+    ax.plot(steps, n_skipping_edges,'b.-')
+    ax.axvline(thr_step,color="red",linestyle='--') 
+    ax.set_ylabel("#genes oscilating on the last "+str(int(n_steps_averaged))+" steps")
+    ax.set_xlabel('step')
+    text = 'alpha=%s; beta/K=%s;\n'%(alpha,beta_K)
+    text += "ns_a=%s; n_points_fit=%s; ns_c=%s"%(n_steps_averaged,n_points_fit,n_steps_for_convergence)
+    ax.text(0.5, 0.90, text,
+    verticalalignment='top', horizontalalignment='center',
+    transform=ax.transAxes,
+    color='black', fontsize=15)
+    
+    if save_plot:
+        plt.savefig(save_plot, transparent=True)  
+
+
+def get_consensus_modules(gene2module_history, f = 0.25, verbose = False):
     
     # g->m states from sampling phase
     labels = np.asarray(gene2module_history)
@@ -580,6 +546,8 @@ def get_consensus_modules(gene2module_history, f = 0.25, verbose = True):
     # consensus module -> genes 
     consensus = [[] for i in range(0,K)]
     
+    # genes in many modules
+    n_mult_genes = 0
     for gene_ndx in range(0,K):
         unique, counts = np.unique(labels[:,gene_ndx], return_counts=True)
         
@@ -591,11 +559,12 @@ def get_consensus_modules(gene2module_history, f = 0.25, verbose = True):
             new_ndxs  = [unique[i] for i in range(len(freqs)) if freqs[i]>=f]
             for i in new_ndxs:
                 consensus[i].append(gene_ndx) 
-            if len(new_ndxs)>1:
-                print("Gene %s -> [%s]" %(gene_ndx, ",".join(map(str,new_ndxs))),file= sys.stdout)
-                print(gene_ndx ,":",unique, freqs)
+            if len(new_ndxs)>1 and verbose:
+                n_mult_genes +=1 
+                #print("Gene %s -> [%s]" %(gene_ndx, ",".join(map(str,new_ndxs))),file= sys.stdout)
+                #print(gene_ndx ,":",unique, freqs)
             consensus.append(new_ndxs)
-            
+    print("Genes assigned to more than 1 module:",n_mult_genes, file =sys.stderr)
     if verbose:
         print()
         print("size(genes)\tn_modules")
@@ -614,7 +583,7 @@ def get_consensus_modules(gene2module_history, f = 0.25, verbose = True):
 ################################## 3. Post-processing ####################
 
 def genesets2biclusters(consensus, exprs_np, exprs_data, ints2g_names, ints2s_names,
-                        min_SNR = 0,direction="UP",min_n_samples=10, min_n_genes=2,
+                        min_SNR = 0,min_n_samples=10, min_n_genes=2,
                         verbose = True):
     # Identify optimal sample set for each module: split samples into two sets in a subspace of each module
     # Filter out bad biclusters with too few genes or samples, or with low SNR
@@ -627,10 +596,9 @@ def genesets2biclusters(consensus, exprs_np, exprs_data, ints2g_names, ints2s_na
         gene_ids = consensus[mid]
         if len(gene_ids) >= min_n_genes: # makes sense to take 2+
             bic = identify_opt_sample_set(gene_ids, exprs_np, exprs_data,
-                                          direction=direction,
                                           min_n_samples=min_n_samples)
             avgSNR = bic["avgSNR"]
-            if avgSNR ==-1:  # exclude biclusters with too few samples
+            if avgSNR == False:  # exclude biclusters with too few samples
                 wrong_sample_number+=1
             elif avgSNR < min_SNR: # exclude biclusters with low avg. SNR 
                 low_SNR += 1
@@ -658,32 +626,34 @@ def genesets2biclusters(consensus, exprs_np, exprs_data, ints2g_names, ints2s_na
                                      round(bic["avgSNR"],3)," ".join(sorted(bic["genes"]))])),file = sys.stdout)
     return filtered_bics
 
-
-def identify_opt_sample_set(bic_genes,exprs,exprs_data,direction="UP",min_n_samples=8):
+def identify_opt_sample_set(bic_genes,exprs_bin,exprs_data,min_n_samples=8):
     # identify optimal samples set given gene set
     N, exprs_sums, exprs_sq_sums = exprs_data
-    e = exprs[bic_genes,:]
+    e = exprs_bin[bic_genes,:]
     
     labels = KMeans(n_clusters=2, random_state=0).fit(e.T).labels_
     ndx0 = np.where(labels == 0)[0]
     ndx1 = np.where(labels == 1)[0]
     if min(len(ndx1),len(ndx0))< min_n_samples:
         return {"avgSNR":-1}
-    if np.mean(e[:,ndx1].mean()) > np.mean(e[:,ndx0].mean()):
-        if direction=="UP":samples = ndx1
-        else: samples = ndx0
+    if len(ndx1) > len(ndx0):
+        samples = ndx0
+    else: 
+        samples = ndx1
+    
+    avgSNR = calc_bic_SNR(bic_genes, samples, exprs_bin, N, exprs_sums, exprs_sq_sums)
+    if avgSNR >0:
+        direction = "UP"
     else:
-        if direction=="UP":samples = ndx0
-        else: samples = ndx1
-    avgSNR = calc_bic_SNR(bic_genes, samples, exprs, N, exprs_sums, exprs_sq_sums)
+        direction = "DOWN"
 
     if len(samples)>=min_n_samples: # len(samples)<N*0.5*1.1 - allow bicluster to be a little bit bigger than N/2
         bic = {"genes":set(bic_genes),"n_genes":len(bic_genes),
                "samples":set(samples),"n_samples":len(samples),
-               "avgSNR":avgSNR,"direction":direction}
+               "avgSNR":abs(avgSNR),"direction":direction}
         return bic
     else:
-        return {"avgSNR":-1}
+        return {"avgSNR":False}
     
 def calc_bic_SNR(genes, samples, exprs, N, exprs_sums,exprs_sq_sums):
     bic = exprs[genes,:][:,samples]
@@ -697,7 +667,7 @@ def calc_bic_SNR(genes, samples, exprs, N, exprs_sums,exprs_sq_sums):
     bic_mean, bic_std = calc_mean_std_by_powers((len(samples),bic_sums,bic_sq_sums))
     bg_mean, bg_std = calc_mean_std_by_powers((bg_counts,bg_sums,bg_sq_sums))
     
-    return  np.mean(abs(bic_mean - bg_mean)/ (bic_std + bg_std))
+    return  np.mean((bic_mean - bg_mean)/ (bic_std + bg_std))
 
 def calc_mean_std_by_powers(powers):
     count, val_sum, sum_sq = powers
@@ -707,22 +677,28 @@ def calc_mean_std_by_powers(powers):
     return mean, std
 
 ###### save and read modules #####
-def write_bic_table(resulting_bics, results_file_name):
-    if len(resulting_bics) ==0 :
-        pass
+def write_bic_table(bics_dict_or_df, results_file_name,to_str=True):
+    bics = bics_dict_or_df.copy()
+    if len(bics) ==0:
+        print("No biclusters found",file=sys.stderr)
     else:
-        resulting_bics = pd.DataFrame.from_dict(resulting_bics)
-        resulting_bics["genes"] = resulting_bics["genes"].apply(lambda x:" ".join(map(str,x)))
-        resulting_bics["samples"] = resulting_bics["samples"].apply(lambda x:" ".join(map(str,x)))
-        resulting_bics = resulting_bics[["id","avgSNR","n_genes","n_samples","direction","genes","samples"]]
-        resulting_bics.sort_values(by=["avgSNR","n_genes","n_samples"],inplace = True, ascending = False)
-        resulting_bics["id"] = range(0,resulting_bics.shape[0])
-    resulting_bics.to_csv(results_file_name ,sep = "\t", index=False)
+        if not type(bics) == type(pd.DataFrame()):
+            bics = pd.DataFrame.from_dict(bics)
+        if to_str:
+            bics["genes"] = bics["genes"].apply(lambda x:" ".join(map(str,sorted(x))))
+            bics["samples"] = bics["samples"].apply(lambda x:" ".join(map(str,sorted(x))))
+        bics = bics.sort_values(by=["avgSNR","n_genes","n_samples"], ascending = False)
+        bics.index = range(0,bics.shape[0])
+        bics.index.name = "id"
+        cols =  bics.columns.values
+        first_cols = ["avgSNR","n_genes","n_samples","direction","genes","samples"]
+        bics = bics.loc[:,first_cols+sorted(list(set(cols).difference(first_cols)))]
+    bics.to_csv(results_file_name ,sep = "\t")
 
 def read_bic_table(results_file_name):
     if not os.path.exists(results_file_name):
         return pd.DataFrame()
-    resulting_bics = pd.read_csv(results_file_name,sep = "\t")
+    resulting_bics = pd.read_csv(results_file_name,sep = "\t",index_col=0)
     if len(resulting_bics) ==0:
         return pd.DataFrame()
     else:
