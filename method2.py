@@ -707,3 +707,34 @@ def read_bic_table(results_file_name):
     #resulting_bics.set_index("id",inplace=True)
     
     return resulting_bics
+
+
+#### permutation tests ####
+
+def flip_direction(x):
+    if x=="UP":
+        return "DOWN"
+    if x=="DOWN":
+        return "UP"
+    
+def generate_null_dist(exprs,g_size=3,n_permutations=100):
+    """Generates N biclusters of given size in genes"""
+    
+    null_dist_SNR = np.zeros(n_permutations)
+    for i in range(0,n_permutations):
+        e = exprs.sample(n = g_size).values
+        labels = KMeans(n_clusters=2, random_state=0,n_init=1,max_iter=100).fit(e.T).labels_
+        ndx0 = np.where(labels == 0)[0]
+        ndx1 = np.where(labels == 1)[0]
+        e1 = e[:,ndx1]
+        e0 = e[:,ndx0]
+        SNR = np.mean(abs(e0.mean(axis=1)-e1.mean(axis=1))/(e0.std(axis=1)+e1.std(axis=1)))
+        null_dist_SNR[i] = SNR
+    return null_dist_SNR
+
+
+def calc_e_pv(row,snr_dist):
+    SNR=row["avgSNR"]
+    e_pval = (1+snr_dist[snr_dist >= SNR].shape[0])/snr_dist.shape[0]
+    row["e_pval"] = e_pval
+    return row
