@@ -738,3 +738,81 @@ def calc_e_pv(row,snr_dist):
     e_pval = (1+snr_dist[snr_dist >= SNR].shape[0])/snr_dist.shape[0]
     row["e_pval"] = e_pval
     return row
+
+def do_permutations(basename,exprs,in_dir = ".",out_dir=".",alphas=[1.0], 
+                betas=[1.0], p_vals =[0.005], runs=[1],FDR = 0.01):
+    all_bics = {}
+    all_bic_counts = []
+    for pv in p_vals:
+        for r in runs:
+            for a in alphas:
+                for b in betas:
+                    bic_fname = basename +"."+str(r)+".alpha="+str(a)+",beta_K="+str(b)+",pv="+str(pv)+".biclusters.tsv"
+                    print("Read",in_dir+bic_fname)
+                    bics = read_bic_table(in_dir+bic_fname)
+                    bic_fname = ".".join(bic_fname.split(".")[:-1])
+                    bics["genes"] = bics["genes"].apply(lambda x:" ".join(sorted(x)))
+                    bics["samples"] = bics["samples"].apply(lambda x:" ".join(sorted(x)))
+                    bics = bics.sort_values(by="avgSNR",ascending = False)
+
+                    # of biclusters of similar genes, keep those with higher SNR 
+                    print("\tAll biclsuters:",bics.shape[0])
+                    bics = bics.drop_duplicates(subset = "genes") # duplicates appear when alpha is large
+                    print("\t\tdeduplicated:",bics.shape[0])
+                    N = exprs.shape[1]
+                    
+                    # flip too large biclusters with > N/2 samples
+                    if bics.loc[bics["n_samples"]>N/2,:].shape[0]>0:
+                        print("\t\tflip %s biclusters"%bics.loc[bics["n_samples"]>N/2,:].shape[0])
+                        bics.loc[bics["n_samples"]>N/2,"direction"] = bics.loc[bics["n_samples"]>N/2,"direction"].apply(flip_direction)
+                        bics.loc[bics["n_samples"]>N/2,"n_samples"] = bics.loc[bics["n_samples"]>N/2,"n_samples"]*-1+N
+                    
+                    all_bics[bic_fname] = bics
+                    bic_counts = bics.loc[:,["n_genes","genes"]].groupby("n_genes").agg("count")
+
+                    bic_counts = bics.loc[:,["n_genes","genes"]].groupby("n_genes").agg("count")
+                    bic_counts.columns = [bic_fname]
+                    all_bic_counts.append(bic_counts)
+
+    # define maximal number of biclusters of given size per run
+    all_bic_counts= pd.concat(all_bic_counts,axis=1)
+    all_bic_counts= all_bic_counts.fillna(0)
+    g_sizes = all_bic_counts.index.values
+    # number of permutations
+    n_permutations = all_bic_counts.max(axis=1).apply(lambda x: max(int(x/FDR),100)).to_dict()
+
+    # generate null distributions
+    t0 = time()
+    SNR_dists = {}
+    for g_size in g_sizes:
+        n_perm = int(n_permutations[g_size])
+        print("size: %s - %s permutations"%(g_size,n_perm))
+        t1 = time()
+        snr_dist = generate_null_dist(exprs,g_size=g_size,n_permutations=n_perm)
+        print("\tSNR=",round(np.quantile(snr_dist,0.95),2),round(time()-t1,2),"s")
+        SNR_dists[g_size] = snr_dist
+    print("Time to generate null distributions:",round(time()-t0,2),file =sys.stdout)
+    
+    for bic_fname in all_bics.keys():
+        bics = all_bics[bic_fname]
+        fdr_bics = []
+        for g_size in g_sizes:
+            df = bics.loc[bics["n_genes"]==g_size,:]
+            snr_dist = SNR_dists[g_size]
+            # calculate empirical p-val
+            df = df.apply(lambda row: calc_e_pv(row,snr_dist),axis=1)
+            if df.shape[0]>0:
+                # apply BH-correction
+                rejected, q_val = fdrcorrection(df["e_pval"], method='indep', is_sorted=False)
+                df["q_val"] = q_val
+                n_passed = df.loc[df["q_val"]<=FDR,:].shape[0]
+                print("\t%s biclusters with %s genes"%(n_passed,g_size),file=sys.stdout)
+                fdr_bics.append(df)
+        fdr_bics = pd.concat(fdr_bics,axis=0)
+
+        print(bic_fname,":\tTotal biclusters passed:",fdr_bics.loc[fdr_bics["q_val"]<=FDR,:].shape[0],file=sys.stdout)
+        write_bic_table(fdr_bics, out_dir + bic_fname+".qval.tsv",to_str=False)
+        fdr_bics = fdr_bics.loc[fdr_bics["q_val"]<=FDR,:]
+        write_bic_table(fdr_bics,out_dir + bic_fname+".FDR_"+str(FDR)+".tsv",to_str=False)
+        all_bics[bic_fname] = fdr_bics
+    return all_bics
