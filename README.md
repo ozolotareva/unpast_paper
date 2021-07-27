@@ -1,2 +1,11 @@
 # DESMOND2
-yet another biclustering method
+
+DESMOND2 is a novel method for identification of differentially expressed biclusters.
+It is an unconstrained version of DESMOND: https://github.com/ozolotareva/DESMOND
+
+Major modifications:
+ * does not require the network 
+ * DESMOND2 clusters individual genes instead of gene pairs
+ * uses Gaussian mixture models for binarization of gene expressions
+ * a gene may be assigned to multiple biclusters where it spent more than f time during the sampling phase
+ * SNR threshold is authomatically determined based on bicluster size and user-defined p-value cutoff
