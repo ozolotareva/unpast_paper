@@ -19,12 +19,11 @@ import statsmodels.api as sm
 
 # optimizer
 TRY_USE_NUMBA=True
-# def jit_if_available(*_args, **_kwargs):
 def jit_if_available(func):
+    # default "do nothing" decorator with the numba-like interface
     def decorated(*args, **kwargs):
         return func(*args, **kwargs)
     return decorated
-    # return decorator
 if TRY_USE_NUMBA:
     try:
         from numba import jit  # as jit_if_available
