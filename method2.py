@@ -3,7 +3,7 @@ import copy
 import random
 import pandas as pd
 import numpy as np
-import time
+from time import time
 import math
 import itertools
 import warnings
@@ -13,6 +13,7 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 from fisher import pvalue
 from scipy.interpolate import interp1d
+import jenkspy
 
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
@@ -35,12 +36,11 @@ if TRY_USE_NUMBA:
 def calc_SNR(ar1, ar2):
     return (np.mean(ar1) - np.mean(ar2)) / (np.std(ar1) + np.std(ar2))
 
-def rand_norm_splits(N, snr_pval = 0.05,seed = 1):
+def rand_norm_splits(N, min_n_samples, snr_pval = 0.05,seed = 1):
     # empirical distribuition of SNR depending on the bicluster size 
     # generates normal samples of matching size and split them into bicluster and background
     min_n_perm = int(5*1.0/snr_pval)
     n_perm = max(min_n_perm,int(100000/N))
-    min_n_samples = int(max(5,0.05*N))
     print("total samples: %s, min_n_samples: %s, n_permutations: %s"%(N,min_n_samples,n_perm))
     sizes = np.arange(min_n_samples,int(N/2+2))#.shape
     snr_thresholds = np.zeros(sizes.shape)
@@ -66,6 +66,86 @@ def get_trend(sizes, thresholds, plot= True):
         plt.ylabel("SNR threshold")
         plt.show()
     return get_min_snr
+
+def jenks_binarization(exprs, get_min_snr,min_n_samples,verbose = True,
+                      plot=True, plot_SNR_thr= 3.0, show_fits = []):
+    t0= time()
+    binarized_expressions = {"UP" : {}, "DOWN" : {}}
+    N = exprs.shape[1]
+    n_bins = max(20,int(N/10))
+    n_ambiguous = 0
+    snrs = []
+    sizes = []
+    genes = []
+    for i, (gene, row) in enumerate(exprs.iterrows()):
+        values = row.values
+        hist_range = values.min(), values.max()
+        up_color, down_color = "grey", "grey"
+        
+        ### special treatment of zero expressions, try zero vs non-zero before Jenks breaks
+        ### TBG
+        neg_mask = values == hist_range[0]
+        # if many min-values
+        if neg_mask.astype(int).sum() >= min_n_samples:
+            pos_mask = values > hist_range[0]
+        
+        else:
+            breaks = jenkspy.jenks_breaks(values, nb_class=2)
+            threshold = breaks[1]
+            neg_mask = values<threshold
+            pos_mask = values>=threshold
+        
+        down_group = values[neg_mask]
+        up_group = values[pos_mask]
+        
+        if min(len(down_group),len(up_group)) >= min_n_samples:
+
+            # calculate SNR 
+            SNR = calc_SNR(up_group,down_group)
+            size = min(len(down_group),len(up_group))
+            # define bicluster and background if SNR is signif. higer than random
+            if SNR >= get_min_snr(size):
+                snrs.append(SNR)
+                sizes.append(size)
+                genes.append(gene)
+
+                # in case of insignificant difference 
+                # the bigger half is treated as signal too
+                if abs(len(up_group)-len(down_group)) <= min_n_samples:
+                    n_ambiguous +=1 
+
+                if len(down_group)-len(up_group) >= -min_n_samples:
+                    # up-regulated group is smaller than down-regulated
+                    binarized_expressions["UP"][gene] = pos_mask.astype(int)
+                    up_color='red'
+
+                if len(up_group)-len(down_group) >= -min_n_samples:
+                    binarized_expressions["DOWN"][gene] = neg_mask.astype(int)
+                    down_color='blue'
+                
+        # logging
+        if verbose:
+            if i % 1000 == 0:
+                print("\t\tgenes processed:",i)
+                
+        if (gene in show_fits or SNR > plot_SNR_thr) and plot:
+            print("Gene %s: SNR=%s, pos=%s, neg=%s"%(gene, round(SNR,2), len(up_group), len(down_group)))
+            plt.hist(down_group, bins=n_bins, alpha=0.5, color=down_color,range=hist_range)
+            plt.hist(up_group, bins=n_bins, alpha=0.5, color=up_color,range=hist_range)
+            plt.show()
+    
+    binarized_expressions["UP"] = pd.DataFrame.from_dict(binarized_expressions["UP"])
+    binarized_expressions["DOWN"] = pd.DataFrame.from_dict(binarized_expressions["DOWN"])
+    
+    # logging
+    if verbose:
+        print("Total runtime",round(time()-t0,2), "s for ", len(exprs),"genes")
+        #print("Genes passed SNR threshold of %s:"%round(min_SNR,2))
+        print("\tup-regulated genes:", binarized_expressions["UP"].shape[1])
+        print("\tdown-regulated genes:", binarized_expressions["DOWN"].shape[1])
+        print("\tambiguous genes:", n_ambiguous )
+    stats = pd.DataFrame.from_records({"SNR":snrs,"size":sizes}, index = genes)
+    return binarized_expressions, stats
 
 def select_pos_neg(row, get_min_snr, min_n_samples, min_diff_samples, stat,seed=42):
     """ find 'higher' (positive), and 'lower' (negative) signal in vals. 
@@ -121,7 +201,9 @@ def select_pos_neg(row, get_min_snr, min_n_samples, min_diff_samples, stat,seed=
 
 
 def GM_binarization(exprs, get_min_snr, min_n_samples, verbose=True, plot=True, plot_SNR_thr=2, show_fits=[],seed=1):
-    t0 = time.time()
+    t0 = time()
+    N = exprs.shape[1]
+    n_bins = max(20,int(N/10))
     stat = {
         'SNRs': [],
         'n_inexplicit': 0,
@@ -130,7 +212,7 @@ def GM_binarization(exprs, get_min_snr, min_n_samples, verbose=True, plot=True, 
     mask_pos, mask_neg = [], []
     for i, (gene, row) in enumerate(exprs.iterrows()):
         row = row.values
-        row_mask_pos, row_mask_neg = select_pos_neg(row, get_min_snr, min_n_samples, min_n_samples*2, stat,seed=seed)
+        row_mask_pos, row_mask_neg = select_pos_neg(row, get_min_snr, min_n_samples, min_n_samples, stat,seed=seed)
         mask_pos.append(row_mask_pos.astype(int))
         mask_neg.append(row_mask_neg.astype(int))
 
@@ -145,9 +227,9 @@ def GM_binarization(exprs, get_min_snr, min_n_samples, verbose=True, plot=True, 
             print("Gene %s: SNR=%s, pos=%s, neg=%s"%(gene, round(SNR,2), s_pos, s_neg))
             row_mask_neutral = (~row_mask_pos) & (~row_mask_neg)
 
-            plt.hist(row[row_mask_neutral], bins=80, alpha=0.5, color='grey')
-            plt.hist(row[row_mask_neg], bins=80, alpha=0.5, color='blue')
-            plt.hist(row[row_mask_pos], bins=80, alpha=0.5, color='red')
+            plt.hist(row[row_mask_neutral], bins=n_bins, alpha=0.5, color='grey')
+            plt.hist(row[row_mask_neg], bins=n_bins, alpha=0.5, color='blue')
+            plt.hist(row[row_mask_pos], bins=n_bins, alpha=0.5, color='red')
             plt.show()
  
     def _remove_empty_rows(df):
@@ -158,7 +240,7 @@ def GM_binarization(exprs, get_min_snr, min_n_samples, verbose=True, plot=True, 
 
     # logging
     if verbose:
-        print("Total runtime",round(time.time()-t0,2), "s for ", len(exprs),"genes")
+        print("Total runtime",round(time()-t0,2), "s for ", len(exprs),"genes")
         #print("Genes passed SNR threshold of %s:"%round(min_SNR,2))
         print("\tup-regulated genes:", df_p.shape[1])
         print("\tdown-regulated genes:", df_n.shape[1])
@@ -261,15 +343,15 @@ def np_faster_dot(np_a, np_b):
     )
 
 def set_initial_conditions(df, alpha,beta_K,verbose = True):
-    t_0 = time.time()
+    t_0 = time()
     N = df.shape[0] # number of samples
     K = df.shape[1] # initial number of modules
     p0 = N*np.log(0.5)+np.log(beta_K)
     match_score = np.log((alpha*0.5+1)/(alpha))
     mismatch_score = np.log((alpha*0.5+0)/alpha)
     bK_1 = math.log(1+beta_K)
-    print("\t\tKxN=%sx%s"%(K,N))
-    print("\t\tp0=",p0)
+    #print("\t\tKxN=%sx%s"%(K,N))
+    #print("\t\tp0=",p0)
     
     # p0, match_score, mismatch_score, bK_1
     genes = df.columns.values
@@ -296,15 +378,15 @@ def set_initial_conditions(df, alpha,beta_K,verbose = True):
     #6. setting initial LPs: i = gene, j=module
     LP = np.zeros((K,K),dtype=np.float)
     for i in range(0,K):
-        if (i+1)% 1000==0:
-            if verbose:
-                print("\t",i+1,"genes processed in ",round(time.time()- t_0,1),"s")
+        #if (i+1)% 1000==0:
+        #    if verbose:
+        #        print("\t",i+1,"genes processed in ",round(time()- t_0,1),"s")
         for j in range(i,K):
             LP[i,j] = calc_lp(i,j,gene2Samples,
             nOnesPerSampleInModules,moduleSizes,
             moduleOneFreqs,p0,match_score,mismatch_score,bK_1,N,alpha, beta_K)
             LP[j,i] = LP[i,j]
-    print("time:\tInitial state created in",round(time.time()-t_0, 1) , "s.", file = sys.stdout)
+    print("time:\tInitial state created in",round(time()-t_0, 1) , "s.", file = sys.stdout)
     return moduleSizes, gene2Samples, nOnesPerSampleInModules, gene2Module, moduleOneFreqs, LP
 
 def adjust_lp(log_probs,n_exp_orders=7):
@@ -426,16 +508,16 @@ def sampling(LP,gene2Module, gene2Samples,nOnesPerPatientInModules,moduleSizes,
     
     K = len(gene2Module)
     N  = gene2Samples.shape[1]
-    t_ =  time.time()
+    t_ =  time()
     gene2Module_history = [copy.copy(gene2Module)]
     sampling_steps = n_steps_for_convergence 
     is_converged = False
     
     for step in range(1, max_n_steps):
-        if verbose:
-            print("step", step,file = sys.stdout)
+        #if verbose:
+        #    print("step", step,file = sys.stdout)
         not_changed_genes = 0
-        t_0 = time.time()
+        t_0 = time()
         t_1=t_0
         i = 1
         for gene_ndx in range(0, K):
@@ -452,14 +534,12 @@ def sampling(LP,gene2Module, gene2Samples,nOnesPerPatientInModules,moduleSizes,
             else:
                 not_changed_genes +=1#
             i+=1
-            if i%1000 == 0:
-                if verbose:
-                    print(i,"\t\tgenes processed in",round(time.time()- t_1, 1) , "s runtime...",file=sys.stdout)
-                not_changed_edges=0
-                t_1 = time.time()
+            #if i%1000 == 0:
+            #    if verbose:
+            #        print(i,"\t\tgenes processed in",round(time()- t_1, 1) , "s runtime...",file=sys.stdout)
+            #    t_1 = time()
         if verbose:
-            print("\tstep ",step,# 1.0*not_changed_edges/len(edge_order),"- % edges not changed; runtime",
-                  round(time.time() - t_0, 1) , "s", file = sys.stdout)
+            print("\t\tstep ",step,round(time() - t_0, 1) , "s", file = sys.stdout)
         
         gene2Module_history.append(copy.copy(gene2Module))
         
@@ -482,7 +562,7 @@ def sampling(LP,gene2Module, gene2Samples,nOnesPerPatientInModules,moduleSizes,
                 if verbose:
                     print("The model converged after", step+1,"steps.", file = sys.stdout)
                     print("Consensus of last",sampling_steps,"states will be taken")
-                    print("Sampling runtime",round(time.time()- t_ ,1) , "s", file = sys.stdout)
+                    print("Sampling runtime",round(time()- t_ ,1) , "s", file = sys.stdout)
                 return gene2Module_history, sampling_steps,n_skipping
             
             n_min, n_max = min(n_skipping),max(n_skipping)
@@ -497,13 +577,13 @@ def sampling(LP,gene2Module, gene2Samples,nOnesPerPatientInModules,moduleSizes,
                 if verbose:
                     print("The model converged after", step+1,"steps.", file = sys.stdout)
                     print("Consensus of last",sampling_steps,"states will be taken")
-                    print("Sampling runtime",round(time.time()- t_ ,1) , "s", file = sys.stdout)
+                    print("Sampling runtime",round(time()- t_ ,1) , "s", file = sys.stdout)
                 return gene2Module_history, sampling_steps,n_skipping
     
     if verbose:
         print("The model did NOT converge after", step+1,"steps.", file = sys.stdout)
         print("Consensus of last",sampling_steps,"states will be taken")
-        print("Sampling runtime",round(time.time()- t_ ,1) , "s", file = sys.stdout)
+        print("Sampling runtime",round(time()- t_ ,1) , "s", file = sys.stdout)
         
     return gene2Module_history,sampling_steps,n_skipping
 
@@ -581,50 +661,6 @@ def get_consensus_modules(gene2module_history, f = 0.25, verbose = False):
         
 ################################## 3. Post-processing ####################
 
-def genesets2biclusters(consensus, exprs_np, exprs_data, ints2g_names, ints2s_names,
-                        min_SNR = 0,min_n_samples=10, min_n_genes=2,
-                        verbose = True):
-    # Identify optimal sample set for each module: split samples into two sets in a subspace of each module
-    # Filter out bad biclusters with too few genes or samples, or with low SNR
-    t0 = time.time()
-    filtered_bics = []
-    wrong_sample_number = 0
-    low_SNR = 0
-    
-    for mid in range(0,len(consensus)):
-        gene_ids = consensus[mid]
-        if len(gene_ids) >= min_n_genes: # makes sense to take 2+
-            bic = identify_opt_sample_set(gene_ids, exprs_np, exprs_data,
-                                          min_n_samples=min_n_samples)
-            avgSNR = bic["avgSNR"]
-            if avgSNR == False:  # exclude biclusters with too few samples
-                wrong_sample_number+=1
-            elif avgSNR < min_SNR: # exclude biclusters with low avg. SNR 
-                low_SNR += 1
-            else:
-                bic["id"] = mid
-                filtered_bics.append(bic)
-      
-    if verbose:
-        print("time:\tIdentified optimal sample sets for %s modules in %s s." %(len(consensus),round(time.time()-t0,2)))
-        print("Passed biclusters (>=%s genes, > %s SNR): %s"%(min_n_samples,min_SNR,len(filtered_bics)), file = sys.stdout)
-        print("\tModules with not enough or too many samples:",wrong_sample_number, file = sys.stdout)      
-        print("\tModules not passed avg. |SNR| threshold:", low_SNR, file = sys.stdout)
-        print()
-        
-    # rename bicluster genes and samples 
-    
-    i = 0
-    for bic in filtered_bics:
-        bic["id"] = i
-        i+=1
-        bic["genes"] = set([ints2g_names[x] for x in bic["genes"]])
-        bic["samples"] = set([ints2s_names[x] for x in bic["samples"]])
-        if len(bic["genes"])>2 and bic["avgSNR"]> 0.5 and verbose:
-            print("\t".join(map(str,[str(bic["n_genes"])+"x"+str(bic["n_samples"]),
-                                     round(bic["avgSNR"],3)," ".join(sorted(bic["genes"]))])),file = sys.stdout)
-    return filtered_bics
-
 def identify_opt_sample_set(bic_genes,exprs_bin,exprs_data,min_n_samples=8):
     # identify optimal samples set given gene set
     N, exprs_sums, exprs_sq_sums = exprs_data
@@ -647,12 +683,56 @@ def identify_opt_sample_set(bic_genes,exprs_bin,exprs_data,min_n_samples=8):
         direction = "DOWN"
 
     if len(samples)>=min_n_samples: # len(samples)<N*0.5*1.1 - allow bicluster to be a little bit bigger than N/2
-        bic = {"genes":set(bic_genes),"n_genes":len(bic_genes),
-               "samples":set(samples),"n_samples":len(samples),
+        bic = {"gene_ids":set(bic_genes),"n_genes":len(bic_genes),
+               "sample_ids":set(samples),"n_samples":len(samples),
                "avgSNR":abs(avgSNR),"direction":direction}
         return bic
     else:
         return {"avgSNR":False}
+    
+def genesets2biclusters(consensus, exprs_np, exprs_data, ints2g_names, ints2s_names,
+                        min_SNR = 0,min_n_samples=10, min_n_genes=2,
+                        verbose = True):
+    # Identify optimal sample set for each module: split samples into two sets in a subspace of each module
+    # Filter out bad biclusters with too few genes or samples, or with low SNR
+    t0 = time()
+    filtered_bics = {}
+    wrong_sample_number = 0
+    low_SNR = 0
+    i = 0
+    
+    for mid in range(0,len(consensus)):
+        gene_ids = consensus[mid]
+        if len(gene_ids) >= min_n_genes: # makes sense to take 2+
+            bic = identify_opt_sample_set(gene_ids, exprs_np, exprs_data,
+                                          min_n_samples=min_n_samples)
+            avgSNR = bic["avgSNR"]
+            if avgSNR == False:  # exclude biclusters with too few samples
+                wrong_sample_number+=1
+            elif avgSNR < min_SNR: # exclude biclusters with low avg. SNR 
+                low_SNR += 1
+            else:
+                bic["id"] = i
+                filtered_bics[i] = bic
+                i+=1
+      
+    if verbose:
+        print("time:\tIdentified optimal sample sets for %s modules in %s s." %(len(consensus),round(time()-t0,2)))
+        print("Passed biclusters (>=%s genes, > %s SNR): %s"%(min_n_genes,min_SNR,i-1), file = sys.stdout)
+        print("\tModules with not enough or too many samples:",wrong_sample_number, file = sys.stdout)      
+        print("\tModules not passed avg. |SNR| threshold:", low_SNR, file = sys.stdout)
+        print()
+        
+    # rename bicluster genes and samples 
+    
+    for i in filtered_bics.keys():
+        bic = filtered_bics[i]
+        bic["genes"] = set([ints2g_names[x] for x in bic["gene_ids"]])
+        bic["samples"] = set([ints2s_names[x] for x in bic["sample_ids"]])
+        if len(bic["genes"])>=min_n_genes and bic["avgSNR"]>min_SNR and verbose:
+            print("\t".join(map(str,[str(bic["n_genes"])+"x"+str(bic["n_samples"]),
+                                     round(bic["avgSNR"],3)," ".join(sorted(bic["genes"]))])),file = sys.stdout)
+    return filtered_bics
     
 def calc_bic_SNR(genes, samples, exprs, N, exprs_sums,exprs_sq_sums):
     bic = exprs[genes,:][:,samples]
