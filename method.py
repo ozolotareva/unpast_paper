@@ -1,10 +1,11 @@
 import sys
+import os
+import subprocess
 import random
+import warnings
 import pandas as pd
 import numpy as np
 from time import time
-import os
-import subprocess
 
 from sklearn.mixture import GaussianMixture
 from scipy.interpolate import interp1d
@@ -116,8 +117,8 @@ def jenks_binarization(exprs, get_min_snr,min_n_samples,verbose = True,
             if i % 1000 == 0:
                 print("\t\tgenes processed:",i)
                 
-        if (gene in show_fits or SNR > plot_SNR_thr) and plot:
-            print("Gene %s: SNR=%s, pos=%s, neg=%s"%(gene, round(SNR,2), len(up_group), len(down_group)))
+        if gene in show_fits or SNR > plot_SNR_thr:
+            print("Gene {}: SNR={:.2f}, pos={}, neg={}".format(gene, SNR, len(up_group), len(down_group)))
             plt.hist(down_group, bins=n_bins, alpha=0.5, color=down_color,range=hist_range)
             plt.hist(up_group, bins=n_bins, alpha=0.5, color=up_color,range=hist_range)
             plt.show()
@@ -134,24 +135,125 @@ def jenks_binarization(exprs, get_min_snr,min_n_samples,verbose = True,
     stats = pd.DataFrame.from_records({"SNR":snrs,"size":sizes}, index = genes)
     return binarized_expressions, stats
 
-def binarize(exprs, method='Jenks',
-             load =False, save = False, prefix = "",
-             min_n_samples = 10, snr_pval = 0.01,
-             plot_all = True, plot_SNR_thr= 3.0,show_fits = [],
-             verbose= True,seed=42):
+def select_pos_neg(row, get_min_snr, min_n_samples, min_diff_samples, stat,seed=42):
+    """ find 'higher' (positive), and 'lower' (negative) signal in vals. 
+        vals are found with GM binarization
+    """
+
+    with warnings.catch_warnings(): # this is to ignore convergence warnings 
+        warnings.simplefilter('ignore')
+        
+        row2d = row[:, np.newaxis]  # adding mock axis for GM interface
+        np.random.seed(seed=seed)
+        labels = GaussianMixture(
+            n_components=2, init_params="kmeans",
+            max_iter=300, n_init = 1, 
+            covariance_type = "spherical",
+            random_state = seed
+        ).fit(row2d).predict(row2d) # Bayesian
+        
+        sig_snr = calc_SNR(row[labels==0], row[labels==1])
+        stat['SNRs'].append(sig_snr) 
     
-    if load:
+    # let labels == 1 be the bigger half
+    if np.sum(labels == 0) > np.sum(labels == 1): 
+        labels = 1 - labels
+    n0 = np.sum(labels == 0)
+    n1 = np.sum(labels == 1)
+    assert n0 + n1 == len(row)
+
+    # min_SNR threshold depends on biclister size
+    min_SNR = get_min_snr(n0) 
+    signal_pretendents = []
+    if min_n_samples < n0: 
+        # signal (bicluster) should be big enough
+        signal_pretendents.append(labels==0)
+        if n1 - n0 < min_diff_samples:
+            # in case of insignificant difference 
+            # the bigger half is treated as signal too
+            signal_pretendents.append(labels==1) 
+            if abs(sig_snr) > min_SNR: 
+                stat['n_inexplicit'] += 1 
+            
+    mask_pos = np.zeros_like(labels, bool)
+    mask_neg = np.zeros_like(labels, bool)
+    for mask in signal_pretendents:
+        sig_snr = calc_SNR(row[mask], row[~mask])
+        if abs(sig_snr) > min_SNR:
+            if sig_snr > 0:
+                mask_pos |= mask
+            else: 
+                mask_neg |= mask
+
+    return mask_pos, mask_neg
+
+def GM_binarization(exprs, get_min_snr, min_n_samples, verbose=True, plot=True, plot_SNR_thr=2, show_fits=[],seed=1):
+    t0 = time()
+    N = exprs.shape[1]
+    n_bins = max(20,int(N/10))
+    stat = {
+        'SNRs': [],
+        'n_inexplicit': 0,
+    }
+
+    mask_pos, mask_neg = [], []
+    for i, (gene, row) in enumerate(exprs.iterrows()):
+        row = row.values
+        row_mask_pos, row_mask_neg = select_pos_neg(row, get_min_snr, min_n_samples, min_n_samples, stat,seed=seed)
+        mask_pos.append(row_mask_pos.astype(int))
+        mask_neg.append(row_mask_neg.astype(int))
+
+        # logging
+        if verbose:
+            if i % 1000 == 0:
+                print("\t\tgenes processed:",i)
+        SNR = stat['SNRs'][-1]
+        s_pos = len(row[row_mask_pos])
+        s_neg = len(row[row_mask_neg])
+        if plot and ((abs(SNR) > plot_SNR_thr and max(s_pos,s_neg)>0) or gene in show_fits):
+            print("Gene %s: SNR=%s, pos=%s, neg=%s"%(gene, round(SNR,2), s_pos, s_neg))
+            row_mask_neutral = (~row_mask_pos) & (~row_mask_neg)
+
+            plt.hist(row[row_mask_neutral], bins=n_bins, alpha=0.5, color='grey')
+            plt.hist(row[row_mask_neg], bins=n_bins, alpha=0.5, color='blue')
+            plt.hist(row[row_mask_pos], bins=n_bins, alpha=0.5, color='red')
+            plt.show()
+ 
+    def _remove_empty_rows(df):
+        # thx https://stackoverflow.com/a/22650162/7647325
+        return df.loc[~(df==0).all(axis=1)]
+    df_p = _remove_empty_rows(pd.DataFrame(mask_pos, index=exprs.index)).T
+    df_n = _remove_empty_rows(pd.DataFrame(mask_neg, index=exprs.index)).T
+
+    # logging
+    if verbose:
+        print("\tGMM binarization for {} features completed in {:.2f} s".format(len(exprs),time()-t0))
+        print("\tup-regulated features:", df_p.shape[1])
+        print("\tdown-regulated features:", df_n.shape[1])
+        print("\tambiguous features:", stat['n_inexplicit'])
+
+    return {"UP":df_p, "DOWN":df_n}
+
+def binarize(exprs=None, binarized_fname_prefix = None, method='GMM',
+             save = True, prefix = "",
+             min_n_samples = 10, snr_pval = 0.01,
+             plot_all = True, plot_SNR_thr= np.inf,show_fits = [],
+             verbose= True,seed=42):
+    '''if binarized is None, exprs is a dataframe with normalized features to be binarized;
+       otherwise binarized is a basename of binarized data file;
+       prefix = out_dir +"/"+basename'''
+    t0 = time()
+    if type(binarized_fname_prefix)==str:
         # load from file binarized genes
-        binarized_expressions = {}
+        binarized_data = {}
 
         for d in ["UP","DOWN"]:
-            suffix  = ".pv="+str(snr_pval)+",method="+method+",direction="+d
-            fname =prefix+ suffix +".bin_exprs.tsv"
-            print("Load binarized gene expressions from",fname,file = sys.stdout)
+            fname = binarized_fname_prefix +"."+method+".binarized_"+d+".tsv"
+            print("Load binarized features from",fname,file = sys.stdout)
             df = pd.read_csv(fname, sep ="\t",index_col=0)
-            #df.index = range(0,df.shape[0])
-            binarized_expressions[d] = df
-    else:
+            binarized_data[d] = df
+        print("",file = sys.stdout)
+    elif exprs is not None:
         start_time = time()
         if verbose:
             print("\nBinarization started ....\n")
@@ -163,28 +265,31 @@ def binarize(exprs, method='Jenks',
             print("\tSNR thresholds for individual features computed in {:.2f} seconds".format(time()-t0))
 
         if method=="Jenks":
-            binarized_expressions, stats = jenks_binarization(exprs, get_min_snr,min_n_samples,verbose = verbose,
+            binarized_data, stats = jenks_binarization(exprs, get_min_snr,min_n_samples,verbose = verbose,
                                                   plot=plot_all, plot_SNR_thr=plot_SNR_thr, show_fits = show_fits)
         elif method=="GMM":
-            from method2 import GM_binarization
-            binarized_expressions = GM_binarization(exprs,get_min_snr,min_n_samples,verbose = verbose,
+            binarized_data = GM_binarization(exprs,get_min_snr,min_n_samples,verbose = verbose,
                                                     plot=plot_all, plot_SNR_thr= plot_SNR_thr, show_fits = show_fits,
                                                     seed = seed)
         else:
             print("Method must be either 'GMM' or 'Jenks'.",file=sys.stderr)
             return
         
+        if verbose:
+                print("\tbinarization runtime: {:.2f} s".format(time()-start_time ),file = sys.stdout)
         if save:
             # save to file binarized data
             sample_names = exprs.columns
             for d in ["UP","DOWN"]:
-                df = binarized_expressions[d]
+                df = binarized_data[d]
                 df.index = sample_names
-                suffix  = ".pv="+str(snr_pval)+",method="+method+",direction="+d
-                fname = prefix+ suffix +".bin_exprs.tsv"
+                fname = prefix +"."+method+".binarized_"+d+".tsv"
                 print("Binarized gene expressions are saved to",fname,file = sys.stdout)
                 df.to_csv(fname, sep ="\t")
-    return binarized_expressions
+    else:
+        print("Provide either raw or binarized data.", file=sys.stderr)
+        return None
+    return binarized_data
 
 ######## Clustering #########
 
@@ -201,7 +306,7 @@ def run_WGCNA(fname,p1=10,p2=10,verbose = False):
     #print(module_file)
     modules_df = pd.read_csv(module_file,sep = "\t",index_col=0)
     if verbose:
-        print("\tmodules detected in in {:.2f} s.".format(time()-t0))
+        print("\tWGCNA runtime: modules detected in {:.2f} s.".format(time()-t0))
     
     # read WGCNA output
     modules = []
@@ -333,7 +438,7 @@ def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
         biclusters[d].index = range(0,biclusters[d].shape[0])
 
         if result_file_name:
-            suffix  = ".pv="+str(snr_pval)+",method="+bin_method+",direction="+d+"."+clust_method
+            suffix  = ".bin="+bin_method+",clust="+clust_method+"."+d
             write_bic_table(biclusters[d], result_file_name+suffix+".biclusters.tsv")
 
         print(d,": {} features clustered into {} modules, {} - not clustered.".format(biclusters[d]["n_genes"].sum(),

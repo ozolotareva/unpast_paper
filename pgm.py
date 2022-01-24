@@ -401,8 +401,6 @@ def get_consensus_modules(gene2module_history, f = 0.25, verbose = False):
     # consensus module -> genes 
     consensus = [[] for i in range(0,K)]
     
-    # genes in many modules
-    n_mult_genes = 0
     for gene_ndx in range(0,K):
         unique, counts = np.unique(labels[:,gene_ndx], return_counts=True)
         
@@ -414,12 +412,8 @@ def get_consensus_modules(gene2module_history, f = 0.25, verbose = False):
             new_ndxs  = [unique[i] for i in range(len(freqs)) if freqs[i]>=f]
             for i in new_ndxs:
                 consensus[i].append(gene_ndx) 
-            if len(new_ndxs)>1 and verbose:
-                n_mult_genes +=1 
-                #print("Gene %s -> [%s]" %(gene_ndx, ",".join(map(str,new_ndxs))),file= sys.stdout)
-                #print(gene_ndx ,":",unique, freqs)
             consensus.append(new_ndxs)
-    print("Genes assigned to more than 1 module:",n_mult_genes, file =sys.stderr)
+            
     if verbose:
         print()
         print("size(genes)\tn_modules")
