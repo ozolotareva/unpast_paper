@@ -408,7 +408,8 @@ def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
     for d in directions:
         biclusters[d] = {}
         exprs_bin = binarized_expressions[d]
-        modules, not_clustered[d] = clustering_results[d]
+        modules  = clustering_results[d][0].copy()
+        not_clustered[d] = clustering_results[d][1].copy()
 
         for genes in modules:
             bicluster,excluded_genes = make_biclsuter_jenks(exprs.loc[genes,:], exprs_bin.loc[:,genes],
@@ -438,10 +439,20 @@ def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
         biclusters[d].index = range(0,biclusters[d].shape[0])
 
         if result_file_name:
-            suffix  = ".bin="+bin_method+",clust="+clust_method+"."+d
-            write_bic_table(biclusters[d], result_file_name+suffix+".biclusters.tsv")
+            suffix  = ".bin="+bin_method+",clust="+clust_method
+            write_bic_table(biclusters[d], result_file_name+suffix+"."+d+".biclusters.tsv")
 
-        print(d,": {} features clustered into {} modules, {} - not clustered.".format(biclusters[d]["n_genes"].sum(),
+        print("{}: {} features clustered into {} modules, {} - not clustered.".format(d,biclusters[d]["n_genes"].sum(),
                                                                                       biclusters[d].shape[0],
                                                                                       len(not_clustered[d])))
-    return biclusters, not_clustered
+        
+    amigouos_genes = set(not_clustered["UP"]).intersection(set(not_clustered["DOWN"]))
+    df_up = binarized_expressions["UP"].T
+    df_down = binarized_expressions["DOWN"].T
+    nc_features = pd.concat([df_up.loc[not_clustered["UP"],:],df_down.loc[set(not_clustered["DOWN"]).difference(amigouos_genes),:] ])
+    print("Unique not clustered: {}".format(nc_features.shape[0]),file=sys.stdout)
+    
+    if result_file_name:
+        nc_features.to_csv(result_file_name+suffix+".not_clustered.tsv",sep = "\t")
+        
+    return biclusters, nc_features
