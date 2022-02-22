@@ -296,7 +296,9 @@ def sampling(LP,gene2Module, gene2Samples,nOnesPerPatientInModules,moduleSizes,
         t_0 = time()
         t_1=t_0
         i = 1
-        for gene_ndx in range(0, K):
+        gene_ndxs = np.arange(K)
+        np.random.shuffle(gene_ndxs)
+        for gene_ndx in gene_ndxs:
             # adjust LogP and sample a new module
             P_adj = adjust_lp(LP[gene_ndx,:], n_exp_orders=7)
             curr_module = gene2Module[gene_ndx]

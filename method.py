@@ -11,6 +11,11 @@ from sklearn.mixture import GaussianMixture
 from scipy.interpolate import interp1d
 import jenkspy
 
+from sklearn.cluster import KMeans
+from method2 import calc_bic_SNR , identify_opt_sample_set
+
+
+
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 
@@ -29,7 +34,7 @@ def rand_norm_splits(N, min_n_samples, snr_pval = 0.01,seed = 42,verbose = True)
     sizes = np.arange(min_n_samples,int(N/2)+min_n_samples+1)#.shape
     if verbose:
         print("\tGenerate empirical distribuition of SNR depending on the bicluster size ...")
-        print("\t\ttotal samples: %s, min_n_samples: %s - %s, n_permutations: %s"%(N,sizes[0],sizes[-1],n_perm))
+        print("\t\ttotal samples: %s, number of samples in bicluster: %s - %s, n_permutations: %s"%(N,sizes[0],sizes[-1],n_perm))
     snr_thresholds = np.zeros(sizes.shape)
     np.random.seed(seed=seed)
     for s in sizes:
@@ -234,16 +239,17 @@ def GM_binarization(exprs, get_min_snr, min_n_samples, verbose=True, plot=True, 
 
     return {"UP":df_p, "DOWN":df_n}
 
-def binarize(exprs=None, binarized_fname_prefix = None, method='GMM',
-             save = True, prefix = "",
+def binarize(binarized_fname_prefix, exprs=None, method='GMM',
+             save = True, load = False,
              min_n_samples = 10, snr_pval = 0.01,
              plot_all = True, plot_SNR_thr= np.inf,show_fits = [],
              verbose= True,seed=42):
-    '''if binarized is None, exprs is a dataframe with normalized features to be binarized;
-       otherwise binarized is a basename of binarized data file;
-       prefix = out_dir +"/"+basename'''
+    '''
+       binarized_fname_prefix is a basename of binarized data file;
+       exprs is a dataframe with normalized features to be binarized.
+    '''
     t0 = time()
-    if type(binarized_fname_prefix)==str:
+    if load:
         # load from file binarized genes
         binarized_data = {}
 
@@ -253,7 +259,9 @@ def binarize(exprs=None, binarized_fname_prefix = None, method='GMM',
             df = pd.read_csv(fname, sep ="\t",index_col=0)
             binarized_data[d] = df
         print("",file = sys.stdout)
+        
     elif exprs is not None:
+        # compute from expressions
         start_time = time()
         if verbose:
             print("\nBinarization started ....\n")
@@ -283,7 +291,7 @@ def binarize(exprs=None, binarized_fname_prefix = None, method='GMM',
             for d in ["UP","DOWN"]:
                 df = binarized_data[d]
                 df.index = sample_names
-                fname = prefix +"."+method+".binarized_"+d+".tsv"
+                fname = binarized_fname_prefix +"."+method+".binarized_"+d+".tsv"
                 print("Binarized gene expressions are saved to",fname,file = sys.stdout)
                 df.to_csv(fname, sep ="\t")
     else:
@@ -395,6 +403,7 @@ def write_bic_table(bics_dict_or_df, results_file_name,to_str=True):
     bics.to_csv(results_file_name ,sep = "\t")
     
     
+from method import make_biclsuter_jenks, write_bic_table
 def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
                             min_SNR = 0.0,min_n_samples=20,
                             snr_pval=0.01,
@@ -424,10 +433,12 @@ def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
                                                                 min_SNR = min_SNR,min_n_samples=min_n_samples,
                                                                 plot=plot,verbose = verbose)
                 not_clustered[d]+=excluded_genes
-                genes = bicluster["genes"]
+                if bicluster["n_genes"] > 0:
+                    genes = bicluster["genes"]
 
             if bicluster["n_genes"] > 1:
                 bicluster["direction"] = d
+                
                 biclusters[d][i] = bicluster
                 i+=1
             elif bicluster["n_genes"] == 1:
@@ -438,13 +449,18 @@ def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
         biclusters[d] = biclusters[d].sort_values(by = ["avgSNR","n_genes","n_samples"],ascending = [False,False, False])
         biclusters[d].index = range(0,biclusters[d].shape[0])
 
-        if result_file_name:
-            suffix  = ".bin="+bin_method+",clust="+clust_method
-            write_bic_table(biclusters[d], result_file_name+suffix+"."+d+".biclusters.tsv")
-
         print("{}: {} features clustered into {} modules, {} - not clustered.".format(d,biclusters[d]["n_genes"].sum(),
                                                                                       biclusters[d].shape[0],
                                                                                       len(not_clustered[d])))
+        
+    
+    biclusters = pd.concat([biclusters["UP"],biclusters["DOWN"]],axis =0)
+    biclusters = biclusters.sort_values(by=["avgSNR"],ascending=[False])
+    biclusters.index = range(0,biclusters.shape[0])
+        
+    if result_file_name:
+        suffix  = ".bin="+bin_method+",clust="+clust_method
+        write_bic_table(biclusters, result_file_name+suffix+".biclusters.tsv")
         
     amigouos_genes = set(not_clustered["UP"]).intersection(set(not_clustered["DOWN"]))
     df_up = binarized_expressions["UP"].T
@@ -456,3 +472,105 @@ def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
         nc_features.to_csv(result_file_name+suffix+".not_clustered.tsv",sep = "\t")
         
     return biclusters, nc_features
+
+
+#### K-means based biclustering
+
+def identify_opt_sample_set(bic_genes,exprs_bin,exprs_data,min_n_samples=8):
+    # identify optimal samples set given gene set
+    N, exprs_sums, exprs_sq_sums = exprs_data
+    e = exprs_bin[bic_genes,:]
+    
+    labels = KMeans(n_clusters=2, random_state=0).fit(e.T).labels_
+    ndx0 = np.where(labels == 0)[0]
+    ndx1 = np.where(labels == 1)[0]
+    if min(len(ndx1),len(ndx0))< min_n_samples:
+        return {"avgSNR":-1}
+    if len(ndx1) > len(ndx0):
+        samples = ndx0
+    else: 
+        samples = ndx1
+    
+    avgSNR = calc_bic_SNR(bic_genes, samples, exprs_bin, N, exprs_sums, exprs_sq_sums)
+    if avgSNR >0:
+        direction = "UP"
+    else:
+        direction = "DOWN"
+
+    if len(samples)>=min_n_samples: # len(samples)<N*0.5*1.1 - allow bicluster to be a little bit bigger than N/2
+        bic = {"gene_ids":set(bic_genes),"n_genes":len(bic_genes),
+               "sample_ids":set(samples),"n_samples":len(samples),
+               "avgSNR":abs(avgSNR),"direction":direction}
+        return bic
+    else:
+        return {"avgSNR":False}
+    
+def genesets2biclusters(modules, genes, exprs_np, exprs_data, ints2g_names, ints2s_names,
+                        min_SNR = 0,min_n_samples=10, min_n_genes=2,
+                        verbose = True):
+    # Identify optimal sample set for each module: split samples into two sets in a subspace of each module
+    # Filter out bad biclusters with too few genes or samples, or with low SNR
+    t0 = time()
+    filtered_bics = {}
+    wrong_sample_number = 0
+    low_SNR = 0
+    i = 0
+    
+    for mid in range(0,len(modules)):
+        gene_ids = modules[mid]
+        if len(gene_ids) >= min_n_genes: # makes sense to take 2+
+            try:
+                gene_ids = [genes[x] for x in gene_ids]
+            except:
+                print(mid,gene_ids)
+                gene_ids = [genes[x] for x in gene_ids]
+            bic = identify_opt_sample_set(gene_ids, exprs_np, exprs_data,
+                                          min_n_samples=min_n_samples)
+            avgSNR = bic["avgSNR"]
+            if avgSNR == False:  # exclude biclusters with too few samples
+                wrong_sample_number+=1
+            elif avgSNR < min_SNR: # exclude biclusters with low avg. SNR 
+                low_SNR += 1
+            else:
+                bic["id"] = i
+                filtered_bics[i] = bic
+                i+=1
+      
+    if verbose:
+        print("time:\tIdentified optimal sample sets for %s modules in %s s." %(len(modules),round(time()-t0,2)))
+        print("Passed biclusters (>=%s genes, > %s SNR): %s"%(min_n_genes,min_SNR,i-1), file = sys.stdout)
+        print("\tModules with not enough or too many samples:",wrong_sample_number, file = sys.stdout)      
+        print("\tModules not passed avg. |SNR| threshold:", low_SNR, file = sys.stdout)
+        print()
+        
+    # rename bicluster genes and samples 
+    
+    for i in filtered_bics.keys():
+        bic = filtered_bics[i]
+        bic["genes"] = set([ints2g_names[x] for x in bic["gene_ids"]])
+        bic["samples"] = set([ints2s_names[x] for x in bic["sample_ids"]])
+        if len(bic["genes"])>=min_n_genes and bic["avgSNR"]>min_SNR and verbose:
+            print("\t".join(map(str,[str(bic["n_genes"])+"x"+str(bic["n_samples"]),
+                                     round(bic["avgSNR"],3)," ".join(sorted(bic["genes"]))])),file = sys.stdout)
+    return filtered_bics
+    
+def calc_bic_SNR(genes, samples, exprs, N, exprs_sums,exprs_sq_sums):
+    bic = exprs[genes,:][:,samples]
+    bic_sums = bic.sum(axis=1)
+    bic_sq_sums = np.square(bic).sum(axis=1)
+
+    bg_counts = N - len(samples)
+    bg_sums = exprs_sums[genes]-bic_sums
+    bg_sq_sums = exprs_sq_sums[genes]-bic_sq_sums
+    
+    bic_mean, bic_std = calc_mean_std_by_powers((len(samples),bic_sums,bic_sq_sums))
+    bg_mean, bg_std = calc_mean_std_by_powers((bg_counts,bg_sums,bg_sq_sums))
+    
+    return  np.mean((bic_mean - bg_mean)/ (bic_std + bg_std))
+
+def calc_mean_std_by_powers(powers):
+    count, val_sum, sum_sq = powers
+
+    mean = val_sum / count  # what if count == 0?
+    std = np.sqrt((sum_sq / count) - mean*mean)
+    return mean, std
