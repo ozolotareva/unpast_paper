@@ -20,37 +20,53 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 
 
+def validate_input_matrix(exprs, tol=0.01):
+    m = exprs.mean(axis=1)
+    std = exprs.std(axis=1)
+    mean_passed = np.all(np.abs(m)<tol)
+    std_passed = np.all(np.abs(std-1)<tol)
+    if not (mean_passed and std_passed):
+        print("Input is not standardized.",file = sys.stderr)
+        return False
+    if len(set(exprs.index.values)) < exprs.shape[0]:
+        print("Row names are not unique.",file = sys.stderr)
+        return False
+    return True
+
+
 
 def calc_SNR(ar1, ar2):
     return (np.mean(ar1) - np.mean(ar2)) / (np.std(ar1) + np.std(ar2))
 
 ######### Binarization #########
 
-def rand_norm_splits(N, min_n_samples, snr_pval = 0.01,seed = 42,verbose = True):
+def random_splits(exprs, min_n_samples, snr_pval = 0.01,seed = 42,verbose = True):
     # empirical distribuition of SNR depending on the bicluster size 
-    # generates normal samples of matching size and split them into bicluster and background
-    min_n_perm = int(5*1.0/snr_pval)
-    n_perm = max(min_n_perm,int(100000/N))
-    sizes = np.arange(min_n_samples,int(N/2)+min_n_samples+1)#.shape
+    # samples N values from expression matrix, and split them into bicluster  background
+    N = exprs.shape[1]
+    values = exprs.values.reshape(-1)
+    n_perm = 5*int(1.0/snr_pval)
+    sizes = np.arange(min_n_samples,int(N/2)+min_n_samples+1)
     if verbose:
         print("\tGenerate empirical distribuition of SNR depending on the bicluster size ...")
         print("\t\ttotal samples: %s, number of samples in bicluster: %s - %s, n_permutations: %s"%(N,sizes[0],sizes[-1],n_perm))
-    snr_thresholds = np.zeros(sizes.shape)
+        print("\tp-val cutoff:", snr_pval)
+    thresholds = np.zeros(sizes.shape)
     np.random.seed(seed=seed)
     for s in sizes:
         snrs = np.zeros(n_perm)
         for i in range(0,n_perm):
-            x = np.random.normal(size = N)
+            x = np.random.choice(values,size=exprs.shape[1]) 
             x.sort()
-            snrs[i] = calc_SNR(x[s:], x[:s]) #(x[s:].mean()-x[:s].mean())/(x[s:].std()+x[:s].std())
-        snr_thresholds[s-min_n_samples]=np.quantile(snrs,q=1-0.05)
-    return sizes, snr_thresholds
+            snrs[i] = calc_SNR(x[s:], x[:s]) 
+        thresholds[s-min_n_samples]=np.quantile(snrs,q=1-snr_pval)
+    return sizes, thresholds
 
 def get_trend(sizes, thresholds, plot= True):
     # smoothens the trend and retunrs a function min_SNR(size; p-val. cutoff)
     lowess = sm.nonparametric.lowess
-    lowess_curve = lowess(sizes, thresholds,frac=0.25,return_sorted=True,is_sorted=False)
-    get_min_snr = interp1d(lowess_curve[:,1],lowess_curve[:,0],kind="nearest",fill_value="extrapolate")
+    lowess_curve = lowess(thresholds,sizes,frac=0.25,return_sorted=True,is_sorted=False)
+    get_min_snr = interp1d(lowess_curve[:,0],lowess_curve[:,1])#,kind="nearest-up",fill_value="extrapolate")
     if plot:
         plt.plot(sizes, thresholds,"b--",lw=2)
         plt.plot(sizes,get_min_snr(sizes),"r-",lw=2)
@@ -152,13 +168,13 @@ def select_pos_neg(row, get_min_snr, min_n_samples, min_diff_samples, stat,seed=
         np.random.seed(seed=seed)
         labels = GaussianMixture(
             n_components=2, init_params="kmeans",
-            max_iter=300, n_init = 1, 
+            max_iter=len(row), n_init = 1, 
             covariance_type = "spherical",
             random_state = seed
         ).fit(row2d).predict(row2d) # Bayesian
         
         sig_snr = calc_SNR(row[labels==0], row[labels==1])
-        stat['SNRs'].append(sig_snr) 
+        stat['SNRs'].append(abs(sig_snr)) 
     
     # let labels == 1 be the bigger half
     if np.sum(labels == 0) > np.sum(labels == 1): 
@@ -167,10 +183,10 @@ def select_pos_neg(row, get_min_snr, min_n_samples, min_diff_samples, stat,seed=
     n1 = np.sum(labels == 1)
     assert n0 + n1 == len(row)
 
-    # min_SNR threshold depends on biclister size
-    min_SNR = get_min_snr(n0) 
     signal_pretendents = []
-    if min_n_samples < n0: 
+    if min_n_samples < n0:
+        # min_SNR threshold depends on biclister size 
+        min_SNR = get_min_snr(n0)
         # signal (bicluster) should be big enough
         signal_pretendents.append(labels==0)
         if n1 - n0 < min_diff_samples:
@@ -217,6 +233,8 @@ def GM_binarization(exprs, get_min_snr, min_n_samples, verbose=True, plot=True, 
         s_neg = len(row[row_mask_neg])
         if plot and ((abs(SNR) > plot_SNR_thr and max(s_pos,s_neg)>0) or gene in show_fits):
             print("Gene %s: SNR=%s, pos=%s, neg=%s"%(gene, round(SNR,2), s_pos, s_neg))
+            #if max(s_pos,s_neg)>0:
+            #    print(get_min_snr(max(s_pos,s_neg)))
             row_mask_neutral = (~row_mask_pos) & (~row_mask_neg)
 
             plt.hist(row[row_mask_neutral], bins=n_bins, alpha=0.5, color='grey')
@@ -243,7 +261,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
              save = True, load = False,
              min_n_samples = 10, snr_pval = 0.01,
              plot_all = True, plot_SNR_thr= np.inf,show_fits = [],
-             verbose= True,seed=42):
+             verbose= True,seed=random.randint(0,100000)):
     '''
        binarized_fname_prefix is a basename of binarized data file;
        exprs is a dataframe with normalized features to be binarized.
@@ -267,7 +285,8 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
             print("\nBinarization started ....\n")
 
         t0 = time()
-        sizes,thresholds = rand_norm_splits(exprs.shape[1],min_n_samples, snr_pval = snr_pval,seed=seed)
+        #sizes,thresholds = rand_norm_splits(exprs.shape[1],min_n_samples, snr_pval = snr_pval,seed=seed)
+        sizes,thresholds = random_splits(exprs, min_n_samples, snr_pval = snr_pval,seed =seed,verbose = verbose)
         get_min_snr = get_trend(sizes,thresholds, plot = plot_all)
         if verbose:
             print("\tSNR thresholds for individual features computed in {:.2f} seconds".format(time()-t0))
@@ -306,7 +325,7 @@ def run_WGCNA(fname,p1=10,p2=10,verbose = False):
     if verbose:
         t0 = time()
         print("Running WGCNA for", fname, "...")
-    process = subprocess.Popen(['Rscript','run_WGCNA.R', '10','10',fname],
+    process = subprocess.Popen(['Rscript','run_WGCNA.R', str(p1),str(p2),fname],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     stdout = stdout.decode('utf-8')
