@@ -3,9 +3,7 @@ suppressPackageStartupMessages(library("WGCNA"))
 
 args <- commandArgs(trailingOnly = TRUE)
 
-#p1 <- as.numeric(args[[1]]) # power for TOM, e.g. 10
-#p2 <- as.numeric(args[[2]]) # power for detectCutHeight, e.g. 10
-fileBinExprs <- args[[1]]# e.g. "/home/olya/TUM/DESMOND/DESMOND2/tmp_results/TCGA-BRCA.pv=0.01,method=GMM,direction=DOWN.bin_exprs.tsv"
+fileBinExprs <- args[[1]]
 
 fileModules <- paste0(sub(".tsv","",fileBinExprs),".modules.tsv")
 

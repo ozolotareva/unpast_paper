@@ -452,36 +452,8 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
 
     return binarized_data, stats, empirical_snr
 
-######## Clustering #########
+######## Make biclusters #########
 
-def run_WGCNA(fname,verbose = False):
-    # run Rscript
-    if verbose:
-        t0 = time()
-        print("Running WGCNA for", fname, "...")
-    process = subprocess.Popen(['Rscript','run_WGCNA.R', fname],
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    stdout = stdout.decode('utf-8')
-    module_file = fname.replace(".tsv",".modules.tsv")#stdout.rstrip()
-    #print(module_file)
-    modules_df = pd.read_csv(module_file,sep = "\t",index_col=0)
-    if verbose:
-        print("\tWGCNA runtime: modules detected in {:.2f} s.".format(time()-t0))
-    
-    # read WGCNA output
-    modules = []
-    not_clustered = []
-    module_dict = modules_df.T.to_dict()
-    for i in module_dict.keys():
-        genes =  module_dict[i]["genes"].strip().split()
-        if i == 0:
-            not_clustered = genes
-        else:
-            modules.append(genes)
-    if verbose:
-        print("\t{} modules and {} not clustered genes".format(len(modules),len(not_clustered)))
-    return (modules,not_clustered)
 
 def make_biclsuter_jenks(exprs, bin_exprs,min_SNR =0,min_n_samples=-1,
                           verbose= True, plot=True):
@@ -608,47 +580,7 @@ def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
     return biclusters, nc_features
 
 
-#### K-means based biclustering
-
-def write_bic_table(bics_dict_or_df, results_file_name,to_str=True,
-                    add_metadata=False,
-                    seed = None, min_n_samples =None,
-                    bin_method = None, clust_method = None, pval = None,
-                    alpha=None, beta_K = None,r = None, p1=None, p2=None):
-    if add_metadata:
-        metadata = "#seed="+str(seed)+"; "+"pval="+str(pval)+"; "+"min_n_samples="+str(min_n_samples)+"; "
-        metadata = metadata + "b="+bin_method+"; "
-        metadata = metadata + "c="+clust_method+"; "
-        if clust_method == "Louvain":
-            metadata = metadata + "r="+str(r)+"; "
-        elif clust_method == "WGCNA":
-            metadata = metadata + "p1="+str(p1)+"; " + "p2="+str(p2)+"; "
-        elif clust_method == "DESMOND":
-            metadata = metadata + "alpha="+str(alpha)+"; " + "beta_K="+str(beta_K)+"; "
-        with open(results_file_name, 'w') as f:
-            f.write(metadata+"\n")
-        write_mode = 'a'
-    else:
-        write_mode = 'w'
-            
-    bics = bics_dict_or_df.copy()
-    if len(bics) ==0:
-        print("No biclusters found",file=sys.stderr)
-    else:
-        if not type(bics) == type(pd.DataFrame()):
-            bics = pd.DataFrame.from_dict(bics)
-        if to_str:
-            bics["genes"] = bics["genes"].apply(lambda x:" ".join(map(str,sorted(x))))
-            bics["samples"] = bics["samples"].apply(lambda x:" ".join(map(str,sorted(x))))
-            bics["gene_ids"] = bics["gene_ids"].apply(lambda x:" ".join(map(str,sorted(x))))
-            bics["sample_ids"] = bics["sample_ids"].apply(lambda x:" ".join(map(str,sorted(x))))
-        bics = bics.sort_values(by=["avgSNR","n_genes","n_samples"], ascending = False)
-        bics.index = range(0,bics.shape[0])
-        bics.index.name = "id"
-        cols =  bics.columns.values
-        first_cols = ["avgSNR","n_genes","n_samples","direction","genes","samples"]
-        bics = bics.loc[:,first_cols+sorted(list(set(cols).difference(first_cols)))]
-    bics.to_csv(results_file_name ,sep = "\t", mode = write_mode)
+#### K-means based biclustering #####
     
 def run_2means(bic_genes,exprs,min_n_samples=10,seed=0):
     # identify identify bicluster and backgound groups using 2-means
@@ -774,6 +706,39 @@ def calc_bic_SNR(genes, samples, exprs, N, exprs_sums,exprs_sq_sums):
     snr_dist = calc_snr_per_row(s,N, bic, exprs_sums[genes],exprs_sq_sums[genes])
     return  np.mean(np.abs(snr_dist))
 
+
+#### Cluster binarized genes #####
+
+def run_WGCNA(fname,verbose = False):
+    # run Rscript
+    if verbose:
+        t0 = time()
+        print("Running WGCNA for", fname, "...")
+    process = subprocess.Popen(['Rscript','run_WGCNA.R', fname],
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    stdout = stdout.decode('utf-8')
+    module_file = fname.replace(".tsv",".modules.tsv")#stdout.rstrip()
+    #print(module_file)
+    modules_df = pd.read_csv(module_file,sep = "\t",index_col=0)
+    if verbose:
+        print("\tWGCNA runtime: modules detected in {:.2f} s.".format(time()-t0))
+    
+    # read WGCNA output
+    modules = []
+    not_clustered = []
+    module_dict = modules_df.T.to_dict()
+    for i in module_dict.keys():
+        genes =  module_dict[i]["genes"].strip().split()
+        if i == 0:
+            not_clustered = genes
+        else:
+            modules.append(genes)
+    if verbose:
+        print("\t{} modules and {} not clustered genes".format(len(modules),len(not_clustered)))
+    return (modules,not_clustered)
+
+
 def run_Louvain(similarity,verbose = True):
     t0 = time()
     gene_names = similarity.index.values
@@ -894,6 +859,8 @@ def get_similarity_corr(df,r=0):
     return corr
 
 
+#### reading and writing #####
+
 def read_bic_table(file_name, parse_metadata = False):
     if not os.path.exists(file_name):
         return pd.DataFrame()
@@ -916,3 +883,45 @@ def read_bic_table(file_name, parse_metadata = False):
             metadata = dict([x.split("=") for x in metadata])
             return biclusters, metadata 
     return biclusters
+
+def write_bic_table(bics_dict_or_df, results_file_name,to_str=True,
+                    add_metadata=False,
+                    seed = None, min_n_samples =None,
+                    bin_method = None, clust_method = None, pval = None,
+                    alpha=None, beta_K = None,r = None):
+    if add_metadata:
+        metadata = "#seed="+str(seed)+"; "+"pval="+str(pval)+"; "+"min_n_samples="+str(min_n_samples)+"; "
+        metadata = metadata + "b="+bin_method+"; "
+        metadata = metadata + "c="+clust_method+"; "
+        if clust_method == "Louvain":
+            metadata = metadata + "r="+str(r)+"; "
+        elif clust_method == "WGCNA":
+            pass#metadata = metadata + "p1="+str(p1)+"; " + "p2="+str(p2)+"; "
+        elif clust_method == "DESMOND":
+            metadata = metadata + "alpha="+str(alpha)+"; " + "beta_K="+str(beta_K)+"; "
+        else:
+            print("Unknown 'clust_method'",clust_method,file= sys.stderr)
+        with open(results_file_name, 'w') as f:
+            f.write(metadata+"\n")
+        write_mode = 'a'
+    else:
+        write_mode = 'w'
+            
+    bics = bics_dict_or_df.copy()
+    if len(bics) ==0:
+        print("No biclusters found",file=sys.stderr)
+    else:
+        if not type(bics) == type(pd.DataFrame()):
+            bics = pd.DataFrame.from_dict(bics)
+        if to_str:
+            bics["genes"] = bics["genes"].apply(lambda x:" ".join(map(str,sorted(x))))
+            bics["samples"] = bics["samples"].apply(lambda x:" ".join(map(str,sorted(x))))
+            bics["gene_ids"] = bics["gene_ids"].apply(lambda x:" ".join(map(str,sorted(x))))
+            bics["sample_ids"] = bics["sample_ids"].apply(lambda x:" ".join(map(str,sorted(x))))
+        bics = bics.sort_values(by=["avgSNR","n_genes","n_samples"], ascending = False)
+        bics.index = range(0,bics.shape[0])
+        bics.index.name = "id"
+        cols =  bics.columns.values
+        first_cols = ["avgSNR","n_genes","n_samples","direction","genes","samples"]
+        bics = bics.loc[:,first_cols+sorted(list(set(cols).difference(first_cols)))]
+    bics.to_csv(results_file_name ,sep = "\t", mode = write_mode)
