@@ -21,6 +21,19 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from statsmodels.stats.multitest import fdrcorrection
 
+# optimizer
+TRY_USE_NUMBA=True
+def jit_if_available(func):
+    # default "do nothing" decorator with the numba-like interface
+    def decorated(*args, **kwargs):
+        return func(*args, **kwargs)
+    return decorated
+if TRY_USE_NUMBA:
+    try:
+        from numba import jit  # as jit_if_available
+        jit_if_available = jit()
+    except:
+        print("Numba is not available. Install numba for a bit faster calculations")
 
 def validate_input_matrix(exprs, tol=0.01):
     m = exprs.mean(axis=1)
@@ -35,34 +48,66 @@ def validate_input_matrix(exprs, tol=0.01):
         return False
     return True
 
+
+def calc_snr_per_row(s, N, exprs, exprs_sums,exprs_sq_sums):
+    bic = exprs[:,:s]
+    bic_sums = bic.sum(axis=1)
+    bic_sq_sums = np.square(bic).sum(axis=1)
+
+    bg_counts = N - s
+    bg_sums = exprs_sums - bic_sums
+    bg_sq_sums = exprs_sq_sums - bic_sq_sums
+
+    bic_mean, bic_std = calc_mean_std_by_powers((s,bic_sums,bic_sq_sums))
+    bg_mean, bg_std = calc_mean_std_by_powers((bg_counts,bg_sums,bg_sq_sums))
+
+    snr_dist = (bic_mean - bg_mean)/ (bic_std + bg_std)
+    
+    return snr_dist
+
+def calc_mean_std_by_powers(powers):
+    count, val_sum, sum_sq = powers
+
+    mean = val_sum / count  # what if count == 0?
+    std = np.sqrt((sum_sq / count) - mean*mean)
+    return mean, std
+
 def calc_SNR(ar1, ar2):
     return (np.mean(ar1) - np.mean(ar2)) / (np.std(ar1) + np.std(ar2))
 
+
 ######### Binarization #########
 
-def random_splits(exprs, min_n_samples,n_permutations = 1000, seed = 42,verbose = True,pval = 0.001):
-    # empirical distribuition of SNR depending on the bicluster size 
+def generate_null_dist(exprs, min_n_samples,n_permutations = 10000,pval = 0.001,
+                       seed = 42,verbose = True):
     # samples N values from expression matrix, and split them into bicluster  background
-    # returns distributions
-    n_permutations = max(1000,int(1.0/pval))*5
+    # returns bicluster sizes tested, SNR thresholds for each size, the distribution of SNR for each size
+    
+    #n_permutations = max(1000,int(1.0/pval))*5
     N = exprs.shape[1]
-    values = exprs.values.reshape(-1)
     
     sizes = np.arange(min_n_samples,int(N/2)+1)
     if verbose:
         print("\tGenerate empirical distribuition of SNR depending on the bicluster size ...")
         print("\t\ttotal samples: %s,\n\t\tnumber of samples in a bicluster: %s - %s,\n\t\tn_permutations: %s"%(N,sizes[0],sizes[-1],n_permutations))
         print("snr_pval threshold:",pval)
-    empirical_snr = np.zeros((sizes.shape[0],n_permutations))
-    #thresholds = np.zeros(sizes.shape[0])
+        
+    exprs =  np.zeros((n_permutations,N)) # generate random expressions from st.normal
+    #values = exprs.values.reshape(-1) # random samples from expression matrix
+    #exprs = np.random.choice(values,size=exprs.shape[1])
     np.random.seed(seed=seed)
+    for i in range(n_permutations):
+        exprs[i,] = sorted(np.random.normal(size=N))
+    
+    exprs_sums = exprs.sum(axis=1)
+    exprs_sq_sums = np.square(exprs).sum(axis=1)
+
+    sizes = np.arange(min_n_samples,int(N/2)+1)
+    empirical_snr = np.zeros((sizes.shape[0],n_permutations))
+    
     for s in sizes:
-        snrs = np.zeros(n_permutations)
-        for i in range(0,n_permutations):
-            x = np.random.normal(size = exprs.shape[1]) # np.random.choice(values,size=exprs.shape[1]) #
-            x.sort()
-            #x = (x - np.mean(x))/np.std(x)
-            empirical_snr[s-min_n_samples,i] = calc_SNR(x[s:], x[:s])
+        empirical_snr[s-min_n_samples,:] = -1*calc_snr_per_row(s, N, exprs, exprs_sums,exprs_sq_sums)
+
     thresholds = np.quantile(empirical_snr,q=1-pval,axis=1)
     return sizes,thresholds, empirical_snr
 
@@ -306,7 +351,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
             print("\nBinarization started ....\n")
 
         t0 = time()
-        sizes,thresholds,empirical_snr = random_splits(exprs, min_n_samples,
+        sizes,thresholds,empirical_snr = generate_null_dist(exprs, min_n_samples,
                                                        pval = pval,
                                                        seed =seed,verbose = verbose)
  
@@ -409,12 +454,12 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
 
 ######## Clustering #########
 
-def run_WGCNA(fname,p1=10,p2=10,verbose = False):
+def run_WGCNA(fname,verbose = False):
     # run Rscript
     if verbose:
         t0 = time()
         print("Running WGCNA for", fname, "...")
-    process = subprocess.Popen(['Rscript','run_WGCNA.R', str(p1),str(p2),fname],
+    process = subprocess.Popen(['Rscript','run_WGCNA.R', fname],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     stdout = stdout.decode('utf-8')
@@ -489,46 +534,6 @@ def make_biclsuter_jenks(exprs, bin_exprs,min_SNR =0,min_n_samples=-1,
     bicluster["n_genes"] = len(genes)
     bicluster["avgSNR"] = avgSNR
     return bicluster, excluded_genes
-
-
-
-def write_bic_table(bics_dict_or_df, results_file_name,to_str=True,
-                    add_metadata=False,
-                    seed = None, min_n_samples =None,
-                    bin_method = None, clust_method = None, pval = None,
-                    alpha=None, beta_K = None,r = None, p1=None, p2=None):
-    if add_metadata:
-        metadata = "# seed="+str(seed)+"; "+"pval="+str(pval)+"; "+"min_n_samples="+str(min_n_samples)+"; "
-        metadata = metadata + "b="+bin_method+"; "
-        metadata = metadata + "c="+clust_method+"; "
-        if clust_method == "Louvain":
-            metadata = metadata + "r="+str(r)+"; "
-        elif clust_method == "WGCNA":
-            metadata = metadata + "p1="+str(p1)+"; " + "p2="+str(p2)+"; "
-        elif clust_method == "DESMOND":
-            metadata = metadata + "alpha="+str(alpha)+"; " + "beta_K="+str(beta_K)+"; "
-        with open(results_file_name, 'w') as f:
-            f.write(metadata+"\n")
-        write_mode = 'a'
-    else:
-        write_mode = 'w'
-            
-    bics = bics_dict_or_df.copy()
-    if len(bics) ==0:
-        print("No biclusters found",file=sys.stderr)
-    else:
-        if not type(bics) == type(pd.DataFrame()):
-            bics = pd.DataFrame.from_dict(bics)
-        if to_str:
-            bics["genes"] = bics["genes"].apply(lambda x:" ".join(map(str,sorted(x))))
-            bics["samples"] = bics["samples"].apply(lambda x:" ".join(map(str,sorted(x))))
-        bics = bics.sort_values(by=["avgSNR","n_genes","n_samples"], ascending = False)
-        bics.index = range(0,bics.shape[0])
-        bics.index.name = "id"
-        cols =  bics.columns.values
-        first_cols = ["avgSNR","n_genes","n_samples","direction","genes","samples"]
-        bics = bics.loc[:,first_cols+sorted(list(set(cols).difference(first_cols)))]
-    bics.to_csv(results_file_name ,sep = "\t", mode = write_mode)
     
 def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
                             min_SNR = 0.0,min_n_samples=20,
@@ -605,6 +610,46 @@ def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
 
 #### K-means based biclustering
 
+def write_bic_table(bics_dict_or_df, results_file_name,to_str=True,
+                    add_metadata=False,
+                    seed = None, min_n_samples =None,
+                    bin_method = None, clust_method = None, pval = None,
+                    alpha=None, beta_K = None,r = None, p1=None, p2=None):
+    if add_metadata:
+        metadata = "#seed="+str(seed)+"; "+"pval="+str(pval)+"; "+"min_n_samples="+str(min_n_samples)+"; "
+        metadata = metadata + "b="+bin_method+"; "
+        metadata = metadata + "c="+clust_method+"; "
+        if clust_method == "Louvain":
+            metadata = metadata + "r="+str(r)+"; "
+        elif clust_method == "WGCNA":
+            metadata = metadata + "p1="+str(p1)+"; " + "p2="+str(p2)+"; "
+        elif clust_method == "DESMOND":
+            metadata = metadata + "alpha="+str(alpha)+"; " + "beta_K="+str(beta_K)+"; "
+        with open(results_file_name, 'w') as f:
+            f.write(metadata+"\n")
+        write_mode = 'a'
+    else:
+        write_mode = 'w'
+            
+    bics = bics_dict_or_df.copy()
+    if len(bics) ==0:
+        print("No biclusters found",file=sys.stderr)
+    else:
+        if not type(bics) == type(pd.DataFrame()):
+            bics = pd.DataFrame.from_dict(bics)
+        if to_str:
+            bics["genes"] = bics["genes"].apply(lambda x:" ".join(map(str,sorted(x))))
+            bics["samples"] = bics["samples"].apply(lambda x:" ".join(map(str,sorted(x))))
+            bics["gene_ids"] = bics["gene_ids"].apply(lambda x:" ".join(map(str,sorted(x))))
+            bics["sample_ids"] = bics["sample_ids"].apply(lambda x:" ".join(map(str,sorted(x))))
+        bics = bics.sort_values(by=["avgSNR","n_genes","n_samples"], ascending = False)
+        bics.index = range(0,bics.shape[0])
+        bics.index.name = "id"
+        cols =  bics.columns.values
+        first_cols = ["avgSNR","n_genes","n_samples","direction","genes","samples"]
+        bics = bics.loc[:,first_cols+sorted(list(set(cols).difference(first_cols)))]
+    bics.to_csv(results_file_name ,sep = "\t", mode = write_mode)
+    
 def run_2means(bic_genes,exprs,min_n_samples=10,seed=0):
     # identify identify bicluster and backgound groups using 2-means
     e = exprs[bic_genes,:].T
@@ -721,28 +766,13 @@ def make_biclusters(clustering_results,binarized_expressions,exprs,
 
     ### TBD - merge similar up- and down-regulted
     return biclusters
+    
 
 def calc_bic_SNR(genes, samples, exprs, N, exprs_sums,exprs_sq_sums):
+    s = len(samples)
     bic = exprs[genes,:][:,samples]
-    bic_sums = bic.sum(axis=1)
-    bic_sq_sums = np.square(bic).sum(axis=1)
-
-    bg_counts = N - len(samples)
-    bg_sums = exprs_sums[genes]-bic_sums
-    bg_sq_sums = exprs_sq_sums[genes]-bic_sq_sums
-    
-    bic_mean, bic_std = calc_mean_std_by_powers((len(samples),bic_sums,bic_sq_sums))
-    bg_mean, bg_std = calc_mean_std_by_powers((bg_counts,bg_sums,bg_sq_sums))
-    
-    return  np.mean((bic_mean - bg_mean)/ (bic_std + bg_std))
-
-def calc_mean_std_by_powers(powers):
-    count, val_sum, sum_sq = powers
-
-    mean = val_sum / count  # what if count == 0?
-    std = np.sqrt((sum_sq / count) - mean*mean)
-    return mean, std
-
+    snr_dist = calc_snr_per_row(s,N, bic, exprs_sums[genes],exprs_sq_sums[genes])
+    return  np.mean(np.abs(snr_dist))
 
 def run_Louvain(similarity,verbose = True):
     t0 = time()
@@ -801,6 +831,7 @@ def run_MCL(similarity, inflations = list(np.arange(11,30)/10)+[3,3.5,4,5],verbo
     return [modules, not_clustered]
 
 def get_similarity_jaccard(df,qval=0.01,J=0.33):
+    from fisher import pvalue
     # based on jaccard similarity
     t0 =  time()
     genes = df.columns.values
@@ -861,3 +892,27 @@ def get_similarity_corr(df,r=0):
     corr = corr[corr>r] 
     corr = corr.fillna(0)
     return corr
+
+
+def read_bic_table(file_name, parse_metadata = False):
+    if not os.path.exists(file_name):
+        return pd.DataFrame()
+    biclusters = pd.read_csv(file_name,sep = "\t",index_col=0,comment="#")
+    if len(biclusters) ==0:
+        return pd.DataFrame()
+    else:
+        biclusters["genes"] = biclusters["genes"].apply(lambda x: set(x.split(" ")))
+        biclusters["samples"] = biclusters["samples"].apply(lambda x: set(x.split(" ")))
+        biclusters["gene_ids"] = biclusters["gene_ids"].apply(lambda x: map(int, set(x.split(" "))))
+        biclusters["sample_ids"] = biclusters["sample_ids"].apply(lambda x: map(int, set(x.split(" "))))
+    #resulting_bics.set_index("id",inplace=True)
+    if parse_metadata:
+        f = open(file_name, 'r')
+        metadata = f.readline()
+        f.close()
+        if metadata.startswith("#"):
+            metadata = metadata.replace("#","").rstrip()
+            metadata = metadata.split("; ") 
+            metadata = dict([x.split("=") for x in metadata])
+            return biclusters, metadata 
+    return biclusters
