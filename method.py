@@ -492,7 +492,27 @@ def make_biclsuter_jenks(exprs, bin_exprs,min_SNR =0,min_n_samples=-1,
 
 
 
-def write_bic_table(bics_dict_or_df, results_file_name,to_str=True):
+def write_bic_table(bics_dict_or_df, results_file_name,to_str=True,
+                    add_metadata=False,
+                    seed = None, min_n_samples =None,
+                    bin_method = None, clust_method = None, pval = None,
+                    alpha=None, beta_K = None,r = None, p1=None, p2=None):
+    if add_metadata:
+        metadata = "# seed="+str(seed)+"; "+"pval="+str(pval)+"; "+"min_n_samples="+str(min_n_samples)+"; "
+        metadata = metadata + "b="+bin_method+"; "
+        metadata = metadata + "c="+clust_method+"; "
+        if clust_method == "Louvain":
+            metadata = metadata + "r="+str(r)+"; "
+        elif clust_method == "WGCNA":
+            metadata = metadata + "p1="+str(p1)+"; " + "p2="+str(p2)+"; "
+        elif clust_method == "DESMOND":
+            metadata = metadata + "alpha="+str(alpha)+"; " + "beta_K="+str(beta_K)+"; "
+        with open(results_file_name, 'w') as f:
+            f.write(metadata+"\n")
+        write_mode = 'a'
+    else:
+        write_mode = 'w'
+            
     bics = bics_dict_or_df.copy()
     if len(bics) ==0:
         print("No biclusters found",file=sys.stderr)
@@ -508,7 +528,7 @@ def write_bic_table(bics_dict_or_df, results_file_name,to_str=True):
         cols =  bics.columns.values
         first_cols = ["avgSNR","n_genes","n_samples","direction","genes","samples"]
         bics = bics.loc[:,first_cols+sorted(list(set(cols).difference(first_cols)))]
-    bics.to_csv(results_file_name ,sep = "\t")
+    bics.to_csv(results_file_name ,sep = "\t", mode = write_mode)
     
 def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
                             min_SNR = 0.0,min_n_samples=20,
@@ -566,7 +586,10 @@ def modules2biclsuters_jenks(clustering_results,exprs,binarized_expressions,
         
     if result_file_name:
         suffix  = ".bin="+bin_method+",clust="+clust_method
-        write_bic_table(biclusters, result_file_name+suffix+".biclusters.tsv")
+        write_bic_table(biclusters, result_file_name+suffix+".biclusters.tsv",to_str=True,
+                    add_metadata=True, seed = seed, min_n_samples = min_n_samples, pval = pval,
+                    bic_method = bic_method, clust_method = clust_method, 
+                    alpha=alpha, beta_K = beta_K,r = r, p1=p1, p2=p2)
         
     amigouos_genes = set(not_clustered["UP"]).intersection(set(not_clustered["DOWN"]))
     df_up = binarized_expressions["UP"].T
@@ -655,9 +678,8 @@ def modules2biclusters(modules, genes2ids, exprs,
 def make_biclusters(clustering_results,binarized_expressions,exprs,
                     min_n_samples=10, min_n_genes=2,
                     seed = 42,
-                    save=False,out_dir="./",basename="",bin_method="",clust_method="",
                     cluster_binary = False):
-    filtered_bics = []
+    biclusters = []
     for d in ["UP","DOWN"]:
         genes = binarized_expressions[d].columns.values
         genes2ids = dict(zip(genes,range(0,len(genes))))
@@ -691,20 +713,14 @@ def make_biclusters(clustering_results,binarized_expressions,exprs,
         bics = pd.DataFrame.from_dict(bics).T
         bics.index = bics["id"]
         print(bics.shape)
-        filtered_bics.append(bics)
-    filtered_bics = pd.concat(filtered_bics,axis =0)
-    filtered_bics = filtered_bics.sort_values(by=["avgSNR"],ascending=[False])
-    filtered_bics.drop("id",inplace=True,axis=1)
-    filtered_bics.index = range(0,filtered_bics.shape[0])
+        biclusters.append(bics)
+    biclusters = pd.concat(biclusters,axis =0)
+    biclusters = biclusters.sort_values(by=["avgSNR"],ascending=[False])
+    biclusters.drop("id",inplace=True,axis=1)
+    biclusters.index = range(0,biclusters.shape[0])
 
     ### TBD - merge similar up- and down-regulted
-
-    if save:
-        from method2 import write_bic_table
-        suffix  = ".bin="+bin_method+",clust="+clust_method
-        write_bic_table(filtered_bics, out_dir+basename+suffix+".biclusters.tsv")
-        print(out_dir+basename+suffix+".biclusters.tsv")
-    return filtered_bics   
+    return biclusters
 
 def calc_bic_SNR(genes, samples, exprs, N, exprs_sums,exprs_sq_sums):
     bic = exprs[genes,:][:,samples]
