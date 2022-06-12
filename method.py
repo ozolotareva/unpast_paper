@@ -11,11 +11,11 @@ from sklearn.mixture import GaussianMixture
 from scipy.interpolate import interp1d
 from scipy.sparse.csr import csr_matrix
 from sknetwork.clustering import Louvain, modularity
-import markov_clustering as mc
+#import markov_clustering as mc
 import jenkspy
 
 from sklearn.cluster import KMeans
-from method2 import calc_bic_SNR , identify_opt_sample_set
+#from method2 import calc_bic_SNR , identify_opt_sample_set
 
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
