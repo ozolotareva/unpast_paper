@@ -11,8 +11,9 @@ Major modifications:
  * SNR threshold is authomatically determined based on bicluster size and user-defined p-value cutoff
 
 ## Requirements:
- * tested for Python 3.8.3
+ * tested for Python 3.8.3 and R 3.6.1.
 <pre>
+Python:
     fisher==0.1.9
     jenkspy==0.2.0
     pandas==1.4.2
@@ -24,6 +25,9 @@ Major modifications:
     scikit-network==0.24.0
     scipy==1.7.1
     statsmodels==0.13.2
+
+R:
+    WGCNA==1.70-3
 </pre>
 ## Jupyter notebooks
 * Easy-to-run random data example [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ozolotareva/DESMOND2/blob/main/random_data_example.ipynb)
