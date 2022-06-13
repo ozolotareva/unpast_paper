@@ -7,15 +7,12 @@ import pandas as pd
 import numpy as np
 from time import time
 
-from sklearn.mixture import GaussianMixture
 from scipy.interpolate import interp1d
 from scipy.sparse.csr import csr_matrix
-from sknetwork.clustering import Louvain, modularity
-#import markov_clustering as mc
-import jenkspy
 
+from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
-#from method2 import calc_bic_SNR , identify_opt_sample_set
+import jenkspy
 
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
@@ -35,18 +32,29 @@ if TRY_USE_NUMBA:
     except:
         print("Numba is not available. Install numba for a bit faster calculations")
 
-def validate_input_matrix(exprs, tol=0.01):
+def validate_input_matrix(exprs, tol=0.01,standradize=True):
     m = exprs.mean(axis=1)
     std = exprs.std(axis=1)
     mean_passed = np.all(np.abs(m)<tol)
     std_passed = np.all(np.abs(std-1)<tol)
     if not (mean_passed and std_passed):
         print("Input is not standardized.",file = sys.stderr)
-        return False
+        if standradize:
+            if not mean_passed:
+                print("Centering mean to 0",file= sys.stderr)
+                exprs = exprs.T-m
+                exprs = exprs.T
+                std = exprs.std(axis=1)
+                std_passed = np.all(np.abs(std-1)<tol)
+            if not std_passed:
+                print("Centering std to 1",file= sys.stderr)
+                exprs = exprs.T/std
+                exprs = exprs.T
     if len(set(exprs.index.values)) < exprs.shape[0]:
         print("Row names are not unique.",file = sys.stderr)
-        return False
-    return True
+        # TBD - keep only the first occurence
+        # TBD - the same for samples
+    return exprs
 
 
 def calc_snr_per_row(s, N, exprs, exprs_sums,exprs_sq_sums):
@@ -689,7 +697,6 @@ def make_biclusters(clustering_results,binarized_expressions,exprs,
 
         bics = pd.DataFrame.from_dict(bics).T
         bics.index = bics["id"]
-        print(bics.shape)
         biclusters.append(bics)
     biclusters = pd.concat(biclusters,axis =0)
     biclusters = biclusters.sort_values(by=["avgSNR"],ascending=[False])
@@ -710,10 +717,10 @@ def calc_bic_SNR(genes, samples, exprs, N, exprs_sums,exprs_sq_sums):
 #### Cluster binarized genes #####
 
 def run_WGCNA(fname,verbose = False):
-    # run Rscript
     if verbose:
         t0 = time()
         print("Running WGCNA for", fname, "...")
+    # run Rscript
     process = subprocess.Popen(['Rscript','run_WGCNA.R', fname],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
@@ -740,6 +747,7 @@ def run_WGCNA(fname,verbose = False):
 
 
 def run_Louvain(similarity,verbose = True):
+    from sknetwork.clustering import Louvain, modularity
     t0 = time()
     gene_names = similarity.index.values
     louvain = Louvain(modularity = 'newman') # 'potts','dugue', 'newman'
@@ -762,6 +770,7 @@ def run_Louvain(similarity,verbose = True):
 
 
 def run_MCL(similarity, inflations = list(np.arange(11,30)/10)+[3,3.5,4,5],verbose = True):
+    import markov_clustering as mc
     t0 = time()
     # MCL accepts positive similarity matrix
     gene_names = similarity.index.values
