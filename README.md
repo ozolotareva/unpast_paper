@@ -1,14 +1,12 @@
 # DESMOND2
 
-DESMOND2 is a novel method for identification of differentially expressed biclusters.
-It is an unconstrained version of DESMOND [repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true)
+DESMOND2 is a novel method for identification of differentially expressed biclusters in gene expression matrix. It searches for sets of genes up- or down-regulated in subsets of samples:
 
-Major modifications:
- * does not require the network 
- * DESMOND2 clusters individual genes instead of gene pairs
- * uses Gaussian mixture models for binarization of gene expressions
- * a gene may be assigned to multiple biclusters where it spent more than f time during the sampling phase
- * SNR threshold is authomatically determined based on bicluster size and user-defined p-value cutoff
+![alt text](./poster/DESMOND2_steps2.png)
+
+
+Webserver: TBD
+
 
 ## Requirements:
 <pre>
@@ -46,7 +44,7 @@ python run_desmond.py -h
 </pre>
 
 ## Outputs
-* <basename>.bin=[GMM|Jenks],clust=[Louvain|WGCNA|DESMOND].biclusters.tsv - a .tsv table with fond biclsuters.
+* [basename].bin=[GMM|Jenks],clust=[Louvain|WGCNA|DESMOND].biclusters.tsv - a .tsv table with fond biclsuters.
     - avgSNR is average SNR over all genes in the biclusters
     - columns "n_genes" and "n_samples" provide the numbers of genes and samples, respectively 
     - "gene","sample" contain gene and sample ids respectively
@@ -54,5 +52,17 @@ python run_desmond.py -h
 * binarized expressions [if clustering is WGCNA,  or  '--save_binary' flag is added]
 * modules found by WGCNA [if clustering is WGCNA]
 
-## Poster
+## About 
+It is an unconstrained version of DESMOND [repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true)
+
+Major modifications:
+ * does not require the network 
+ * DESMOND2 clusters individual genes instead of gene pairs
+ * uses Gaussian mixture models for binarization of gene expressions
+ * a gene may be assigned to multiple biclusters where it spent more than f time during the sampling phase
+ * SNR threshold is authomatically determined based on bicluster size and user-defined p-value cutoff
+
+### Poster CDCS workshop'22
+![./poster/DESMOND2_poster_v5.png](./poster/DESMOND2_poster_v5.png)
+### Poster ISMB and MCCMB'21
 ![./poster/DESMOND2.pdf](./poster/DESMOND2.png)
