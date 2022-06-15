@@ -44,7 +44,7 @@ python run_desmond.py -h
 </pre>
 
 ## Outputs
-* [basename].bin=[GMM|Jenks],clust=[Louvain|WGCNA|DESMOND].biclusters.tsv - a .tsv table with fond biclsuters.
+* \<basename\>.bin=[GMM|Jenks],clust=[Louvain|WGCNA|DESMOND].biclusters.tsv - a .tsv table with fond biclsuters.
     - avgSNR is average SNR over all genes in the biclusters
     - columns "n_genes" and "n_samples" provide the numbers of genes and samples, respectively 
     - "gene","sample" contain gene and sample ids respectively
@@ -53,7 +53,7 @@ python run_desmond.py -h
 * modules found by WGCNA [if clustering is WGCNA]
 
 ## About 
-It is an unconstrained version of DESMOND [repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true)
+It is an unconstrained version of DESMOND ([repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true))
 
 Major modifications:
  * does not require the network 
