@@ -113,7 +113,7 @@ def parse_args():
     parser = argparse.ArgumentParser("DESMOND2 identifies differentially expressed biclusters in gene expression data.")
     parser.add_argument('--exprs', metavar="exprs.z.tsv", required=True, 
                         help=".tsv file with standardized gene expressions. The first column and row must contain unique gene and sample ids respectively.")
-    parser.add_argument('--out_dir', metavar=".", default="./", help  = 'output folder')
+    parser.add_argument('--out_dir', metavar=".", default=".", help  = 'output folder')
     parser.add_argument('--basename', metavar="biclusters.tsv", default = False, type=str, help  = 'output files basename. If not specified, will be set to "results_"yy.mm.dd_HH:MM:SS""')
     parser.add_argument('-s','--min_n_samples', metavar=10, default=-1, type=int, help  = 'minimal number of samples in a bicluster.If not specified, will be automatically defined based on input sample size')
     parser.add_argument('-b','--binarization', metavar="GMM", default="GMM", type=str,
