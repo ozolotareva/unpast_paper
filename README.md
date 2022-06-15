@@ -1,7 +1,7 @@
 # DESMOND2
 
 DESMOND2 is a novel method for identification of differentially expressed biclusters.
-It is an unconstrained version of DESMOND: https://github.com/ozolotareva/DESMOND
+It is an unconstrained version of DESMOND [https://github.com/ozolotareva/DESMOND][repository],  [https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true][publication]
 
 Major modifications:
  * does not require the network 
@@ -11,7 +11,6 @@ Major modifications:
  * SNR threshold is authomatically determined based on bicluster size and user-defined p-value cutoff
 
 ## Requirements:
- * tested for Python 3.8.3 and R 3.6.1.
 <pre>
 Python:
     fisher==0.1.9
@@ -31,7 +30,7 @@ R:
 </pre>
 
 ## Examples
-* DESMOND2 requires a tab-separated file with standardized expressions of genes (or transcripts) in rows, amd samples in columns. Gene and sample IDs must be unique. 
+* DESMOND2 requires a tab-separated file with standardized expressions of genes (or transcripts) in rows, and samples in columns. Gene and sample IDs must be unique. 
 * A subset of 200 randomly chosen samples from TCGA-BRCA and DESMOND2 output:
 <url>https://drive.google.com/file/d/1GXR_1ErIPtQkEOxE66at0uqQN76qNG7a/view?usp=sharing</url>
 
