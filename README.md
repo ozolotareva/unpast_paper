@@ -29,10 +29,31 @@ Python:
 R:
     WGCNA==1.70-3
 </pre>
-## Jupyter notebooks
-* Easy-to-run random data example [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ozolotareva/DESMOND2/blob/main/random_data_example.ipynb)
-* Real data example [DESMOND2_step_by_step.ipynb](DESMOND2_step_by_step.ipynb)
 
+## Examples
+* DESMOND2 requires a tab-separated file with standardized expressions of genes (or transcripts) in rows, amd samples in columns. Gene and sample IDs must be unique. 
+* A subset of 200 randomly chosen samples from TCGA-BRCA and DESMOND2 output:
+<url>https://drive.google.com/file/d/1GXR_1ErIPtQkEOxE66at0uqQN76qNG7a/view?usp=sharing</url>
+
+<pre>
+# running DESMOND2 with default parameters on example data
+python run_desmond.py --exprs TCGA_200.exprs_z.tsv --basename TCGA_200_results
+
+# with different binarization and clustering methods
+python run_desmond.py --exprs standardized_expressions.tsv --basename results --binarization Jenks --clustering WGCNA
+
+# help
+python run_desmond.py -h
+</pre>
+
+## Outputs
+* <basename>.bin=[GMM|Jenks],clust=[Louvain|WGCNA|DESMOND].biclusters.tsv - a .tsv table with fond biclsuters.
+    - avgSNR is average SNR over all genes in the biclusters
+    - columns "n_genes" and "n_samples" provide the numbers of genes and samples, respectively 
+    - "gene","sample" contain gene and sample ids respectively
+    - "gene_i" and  "sample_i" - gene and sample indices in the input matrix,  
+* binarized expressions [if clustering is WGCNA,  or  '--save_binary' flag is added]
+* modules found by WGCNA [if clustering is WGCNA]
 
 ## Poster
 ![./poster/DESMOND2.pdf](./poster/DESMOND2.png)
