@@ -2,7 +2,7 @@
 
 DESMOND2 is a novel method for identification of differentially expressed biclusters in gene expression matrix. It searches for sets of genes up- or down-regulated in subsets of samples:
 
-![alt text](./poster/DESMOND2_steps2.png)
+![alt text](./poster/DESMOND2_steps2.png | width=500)
 
 
 Webserver: TBD
@@ -44,7 +44,7 @@ python run_desmond.py -h
 </pre>
 
 ## Outputs
-* \<basename\>.bin=[GMM|Jenks],clust=[Louvain|WGCNA|DESMOND].biclusters.tsv - a .tsv table with fond biclsuters.
+* \<basename\>.bin=[GMM|Jenks],clust=[Louvain|WGCNA|DESMOND].biclusters.tsv - a .tsv table with found biclsuters, where 
     - avgSNR is average SNR over all genes in the biclusters
     - columns "n_genes" and "n_samples" provide the numbers of genes and samples, respectively 
     - "gene","sample" contain gene and sample ids respectively
