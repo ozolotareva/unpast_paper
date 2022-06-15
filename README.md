@@ -33,7 +33,7 @@ R:
 [data](https://drive.google.com/file/d/1GXR_1ErIPtQkEOxE66at0uqQN76qNG7a/view?usp=sharing)
 
 <pre>
-# running DESMOND2 with default parameters on example data
+# running DESMOND2 with default parameters and example data
 python run_desmond.py --exprs TCGA_200.exprs_z.tsv --basename TCGA_200_results
 
 # with different binarization and clustering methods
