@@ -1,7 +1,7 @@
 # DESMOND2
 
 DESMOND2 is a novel method for identification of differentially expressed biclusters.
-It is an unconstrained version of DESMOND [https://github.com/ozolotareva/DESMOND][repository],  [https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true][publication]
+It is an unconstrained version of DESMOND [repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true)
 
 Major modifications:
  * does not require the network 
@@ -32,7 +32,7 @@ R:
 ## Examples
 * DESMOND2 requires a tab-separated file with standardized expressions of genes (or transcripts) in rows, and samples in columns. Gene and sample IDs must be unique. 
 * A subset of 200 randomly chosen samples from TCGA-BRCA and DESMOND2 output:
-<url>https://drive.google.com/file/d/1GXR_1ErIPtQkEOxE66at0uqQN76qNG7a/view?usp=sharing</url>
+[data](https://drive.google.com/file/d/1GXR_1ErIPtQkEOxE66at0uqQN76qNG7a/view?usp=sharing)
 
 <pre>
 # running DESMOND2 with default parameters on example data
