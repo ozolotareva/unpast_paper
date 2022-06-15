@@ -25,7 +25,7 @@ def run_DESMOND(exprs_file, basename, out_dir="",
     else: 
         from datetime import datetime
         now = datetime.now()
-        basename = "results_" + now.strftime("%y.%d.%m_%H:%M:%S")
+        basename = "results_" + now.strftime("%y.%m.%d_%H:%M:%S")
         print("set output basename to", basename, file = sys.stdout)
         
     # read inputs
@@ -110,11 +110,11 @@ def run_DESMOND(exprs_file, basename, out_dir="",
     return biclusters    
 
 def parse_args():
-    seed = random.randint(0,1000000)
     parser = argparse.ArgumentParser("DESMOND2 identifies differentially expressed biclusters in gene expression data.")
-    parser.add_argument('--exprs', metavar="exprs.z.tsv", help=".tsv file with standardized gene expressions. The first column and row must contain unique gene and sample ids respectively.")
+    parser.add_argument('--exprs', metavar="exprs.z.tsv", required=True, 
+                        help=".tsv file with standardized gene expressions. The first column and row must contain unique gene and sample ids respectively.")
     parser.add_argument('--out_dir', metavar=".", default="./", help  = 'output folder')
-    parser.add_argument('--basename', metavar="biclusters.tsv", default = False, type=str, help  = 'output files basename')
+    parser.add_argument('--basename', metavar="biclusters.tsv", default = False, type=str, help  = 'output files basename. If not specified, will be set to "results_"yy.mm.dd_HH:MM:SS""')
     parser.add_argument('-s','--min_n_samples', metavar=10, default=-1, type=int, help  = 'minimal number of samples in a bicluster.If not specified, will be automatically defined based on input sample size')
     parser.add_argument('-b','--binarization', metavar="GMM", default="GMM", type=str,
                         choices=['GMM', 'Jenks'], help='bianrization method')
@@ -129,6 +129,7 @@ def parse_args():
     parser.add_argument('--plot', action='store_true', help = "show plots")
     parser.add_argument('--save_binary', action='store_true', help = "saves binarized expressions for up- and down-requlated genes to files named as <basename>.<binarization method>.binarized_[UP|DOWN].tsv. If WGCNA is clustering method, binarized expressions are always saved.")
     parser.add_argument('--verbose', action='store_true')
+    seed = random.randint(0,1000000)
     parser.add_argument('--seed',metavar=seed, default=seed, type=int, help="random seed")
     
     return parser.parse_args()

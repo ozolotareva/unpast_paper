@@ -608,16 +608,16 @@ def run_2means(bic_genes,exprs,min_n_samples=10,seed=0):
     else: 
         samples = ndx1
 
-    bic = {"gene_ids":set(bic_genes),"n_genes":len(bic_genes),
-           "sample_ids":set(samples),"n_samples":len(samples)}
+    bic = {"gene_indexes":set(bic_genes),"n_genes":len(bic_genes),
+           "sample_indexes":set(samples),"n_samples":len(samples)}
     return bic
 
 def add_SNR_to_biclusters(bics, exprs, exprs_data):
     # calculates SNR for each bicluster in a list
     N, exprs_sums, exprs_sq_sums = exprs_data
     for i in range(len(bics)):
-        gene_ids = list(bics[i]['gene_ids'])
-        sample_ids = list(bics[i]['sample_ids'])
+        gene_ids = list(bics[i]['gene_indexes'])
+        sample_ids = list(bics[i]['sample_indexes'])
         # calcluate SNR 
         avgSNR = calc_bic_SNR(gene_ids, sample_ids, exprs, N, exprs_sums, exprs_sq_sums)
         bics[i]["avgSNR"] = abs(avgSNR) 
@@ -642,12 +642,7 @@ def modules2biclusters(modules, genes2ids, exprs,
         if len(gene_ids) >= min_n_genes: 
             gene_ids = [genes2ids[x] for x in gene_ids]
             # define bicluster and background
-            try:
-                bic = run_2means(gene_ids,exprs,min_n_samples=min_n_samples,seed=seed)
-            except:
-                print(gene_ids)
-                print(exprs)
-                bic = run_2means(gene_ids,exprs,min_n_samples=min_n_samples,seed=seed)
+            bic = run_2means(gene_ids,exprs,min_n_samples=min_n_samples,seed=seed)
             if len(bic)>0:
                 bic["id"] = i
                 bics[i] = bic
@@ -692,8 +687,8 @@ def make_biclusters(clustering_results,binarized_expressions,exprs,
         bics = add_SNR_to_biclusters(bics, exprs.loc[genes,:].values, exprs_data)
         # rename genes and samples
         for i in range(len(bics)):
-            bics[i]["genes"] = set([ints2g_names[x] for x in bics[i]["gene_ids"]])
-            bics[i]["samples"] = set([ints2s_names[x] for x in bics[i]["sample_ids"]])
+            bics[i]["genes"] = set([ints2g_names[x] for x in bics[i]["gene_indexes"]])
+            bics[i]["samples"] = set([ints2s_names[x] for x in bics[i]["sample_indexes"]])
 
         bics = pd.DataFrame.from_dict(bics).T
         bics.index = bics["id"]
@@ -879,8 +874,8 @@ def read_bic_table(file_name, parse_metadata = False):
     else:
         biclusters["genes"] = biclusters["genes"].apply(lambda x: set(x.split(" ")))
         biclusters["samples"] = biclusters["samples"].apply(lambda x: set(x.split(" ")))
-        biclusters["gene_ids"] = biclusters["gene_ids"].apply(lambda x: map(int, set(x.split(" "))))
-        biclusters["sample_ids"] = biclusters["sample_ids"].apply(lambda x: map(int, set(x.split(" "))))
+        biclusters["gene_indexes"] = biclusters["gene_indexes"].apply(lambda x: set(map(int, set(x.split(" ")))))
+        biclusters["sample_indexes"] = biclusters["sample_indexes"].apply(lambda x: set(map(int, set(x.split(" ")))))
     #resulting_bics.set_index("id",inplace=True)
     if parse_metadata:
         f = open(file_name, 'r')
@@ -925,8 +920,8 @@ def write_bic_table(bics_dict_or_df, results_file_name,to_str=True,
         if to_str:
             bics["genes"] = bics["genes"].apply(lambda x:" ".join(map(str,sorted(x))))
             bics["samples"] = bics["samples"].apply(lambda x:" ".join(map(str,sorted(x))))
-            bics["gene_ids"] = bics["gene_ids"].apply(lambda x:" ".join(map(str,sorted(x))))
-            bics["sample_ids"] = bics["sample_ids"].apply(lambda x:" ".join(map(str,sorted(x))))
+            bics["gene_indexes"] = bics["gene_indexes"].apply(lambda x:" ".join(map(str,sorted(x))))
+            bics["sample_indexes"] = bics["sample_indexes"].apply(lambda x:" ".join(map(str,sorted(x))))
         bics = bics.sort_values(by=["avgSNR","n_genes","n_samples"], ascending = False)
         bics.index = range(0,bics.shape[0])
         bics.index.name = "id"

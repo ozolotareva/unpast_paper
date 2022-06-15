@@ -2,7 +2,7 @@
 
 DESMOND2 is a novel method for identification of differentially expressed biclusters in gene expression matrix. It searches for sets of genes up- or down-regulated in subsets of samples:
 
-![alt text](./poster/DESMOND2_steps2.png|width=500px)
+![alt text](./poster/DESMOND2_steps2.png)
 
 
 Webserver: TBD
@@ -28,7 +28,7 @@ R:
 </pre>
 
 ## Examples
-* DESMOND2 requires a tab-separated file with standardized expressions of genes (or transcripts) in rows, and samples in columns. Gene and sample IDs must be unique. 
+* DESMOND2 requires a tab-separated file with standardized expressions of genes (or transcripts) in rows, and samples in columns. Gene and sample names must be unique. 
 * A subset of 200 randomly chosen samples from TCGA-BRCA and DESMOND2 output:
 [data](https://drive.google.com/file/d/1GXR_1ErIPtQkEOxE66at0uqQN76qNG7a/view?usp=sharing)
 
@@ -47,8 +47,8 @@ python run_desmond.py -h
 * \<basename\>.bin=[GMM|Jenks],clust=[Louvain|WGCNA|DESMOND].biclusters.tsv - a .tsv table with found biclsuters, where 
     - avgSNR is average SNR over all genes in the biclusters
     - columns "n_genes" and "n_samples" provide the numbers of genes and samples, respectively 
-    - "gene","sample" contain gene and sample ids respectively
-    - "gene_i" and  "sample_i" - gene and sample indices in the input matrix,  
+    - "gene","sample" contain gene and sample names respectively
+    - "gene_indexes" and  "sample_indexes" - 0-based gene and sample indexes in the input matrix.
 * binarized expressions [if clustering is WGCNA,  or  '--save_binary' flag is added]
 * modules found by WGCNA [if clustering is WGCNA]
 
