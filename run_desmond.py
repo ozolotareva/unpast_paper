@@ -35,7 +35,7 @@ def run_DESMOND(exprs_file, basename, out_dir="",
         print("\t{} features x {} samples".format(exprs.shape[0],exprs.shape[1]) ,file=sys.stdout)
 
     #check if expressions are standardized (mean=0, std =1)
-    from method import validate_input_matrix
+    from utils.method import validate_input_matrix
     exprs = validate_input_matrix(exprs)
 
     # define minimal number of samples
@@ -44,36 +44,36 @@ def run_DESMOND(exprs_file, basename, out_dir="",
     if verbose:
         print("Mininal number of samples in a bicluster:",min_n_samples ,file=sys.stdout)
     if min_n_samples < 10:
-        print("min_n_samples is recommended to be >= 10", file= sys.stderr)    
-    
+        print("min_n_samples is recommended to be >= 10", file= sys.stderr)
+
     ######### binarization #########
-    from method import binarize
+    from utils.method import binarize
     binarized_expressions,stats,empirical_snr = binarize(out_dir+"/"+basename, exprs=exprs,
                                  method=bin_method, save = save, load=load,
                                  min_n_samples = min_n_samples,pval=pval,
                                  plot_all = plot_all,show_fits = show_fits,
                                  verbose= verbose,seed=seed)
-    
+
     ######### gene clustering #########
     if clust_method == "Louvain":
-        from method import run_Louvain, get_similarity_corr
+        from utils.method import run_Louvain, get_similarity_corr
 
         clustering_results = {}
         for d in ["UP","DOWN"]:
             similarity = get_similarity_corr(binarized_expressions[d],r = r)
-            clustering_results[d] = run_Louvain(similarity, verbose = True) 
+            clustering_results[d] = run_Louvain(similarity, verbose = True)
 
     elif clust_method == "WGCNA":
-        from method import run_WGCNA
+        from utils.method import run_WGCNA
 
         clustering_results = {}
         for d in ["UP","DOWN"]:
             fname = out_dir+"/"+basename+ "."+bin_method+".binarized_"+d +".tsv"
             clustering_results[d] = run_WGCNA(fname, verbose = verbose)
-            
+
     elif clust_method == "DESMOND":
-        from pgm import run_sampling
-        
+        from utils.pgm import run_sampling
+
         # convergence
         n_steps_averaged = 10
         n_points_fit=10
@@ -89,14 +89,14 @@ def run_DESMOND(exprs_file, basename, out_dir="",
                         verbose =verbose,plot_all=plot_all)
     else:
         print("'clust_method' must be 'WGCNA' or 'DESMOND'.",file=sys.stderr)
-        
+
     ######### making biclusters #########
-    from method import make_biclusters 
+    from utils.method import make_biclusters
     biclusters = make_biclusters(clustering_results,binarized_expressions,exprs,
                                 min_n_samples=min_n_samples, min_n_genes=2,
                                 seed = seed,cluster_binary=cluster_binary)
 
-    from method import write_bic_table
+    from utils.method import write_bic_table
     suffix  = ".bin="+bin_method+",clust="+clust_method
     write_bic_table(biclusters, out_dir+basename+suffix+".biclusters.tsv",to_str=True,
                     add_metadata=True, seed = seed, min_n_samples = min_n_samples, pval = pval,

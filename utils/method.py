@@ -716,7 +716,7 @@ def run_WGCNA(fname,verbose = False):
         t0 = time()
         print("Running WGCNA for", fname, "...")
     # run Rscript
-    process = subprocess.Popen(['Rscript', sys.argv[0].replace("run_desmond.py", "")+'run_WGCNA.R', fname], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(['Rscript', os.path.realpath(__file__).replace("method.py","")+'run_WGCNA.R', fname], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     stdout = stdout.decode('utf-8')
     module_file = fname.replace(".tsv",".modules.tsv")#stdout.rstrip()
