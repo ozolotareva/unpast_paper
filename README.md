@@ -30,7 +30,7 @@ R:
 ## Examples
 * DESMOND2 requires a tab-separated file with standardized expressions of genes (or transcripts) in rows, and samples in columns. Gene and sample names must be unique. 
 * A subset of 200 randomly chosen samples from TCGA-BRCA and DESMOND2 output:
-[data](https://drive.google.com/file/d/1GXR_1ErIPtQkEOxE66at0uqQN76qNG7a/view?usp=sharing)
+[test data](https://drive.google.com/file/d/1GXR_1ErIPtQkEOxE66at0uqQN76qNG7a/view?usp=sharing)
 
 <pre>
 # running DESMOND2 with default parameters and example data
@@ -53,14 +53,13 @@ python run_desmond.py -h
 * modules found by WGCNA [if clustering is WGCNA]
 
 ## About 
-It is an unconstrained version of DESMOND ([repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true))
+DESMOND2 is an unconstrained version of DESMOND method ([repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true))
 
 Major modifications:
- * does not require the network 
+ * it does not require the network of gene interactions 
  * DESMOND2 clusters individual genes instead of gene pairs
- * uses Gaussian mixture models for binarization of gene expressions
- * a gene may be assigned to multiple biclusters where it spent more than f time during the sampling phase
- * SNR threshold is authomatically determined based on bicluster size and user-defined p-value cutoff
+ * uses Gaussian mixture models or Jenks method for binarization of individual gene expressions
+ * SNR threshold is authomatically determined; it depends on bicluster size in samples and user-defined p-value cutoff
 
 ### Poster CDCS workshop'22
 ![./poster/DESMOND2_poster_v5.png](./poster/DESMOND2_poster_v5.png)
