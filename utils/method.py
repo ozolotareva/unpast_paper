@@ -86,13 +86,12 @@ def calc_SNR(ar1, ar2):
 
 ######### Binarization #########
 
-def generate_null_dist(exprs, min_n_samples,n_permutations = 10000,pval = 0.001,
+def generate_null_dist(N, min_n_samples,n_permutations = 10000,pval = 0.001,
                        seed = 42,verbose = True):
-    # samples N values from expression matrix, and split them into bicluster  background
+    # samples N values from standard normal distribution, and split them into bicluster  background
     # returns bicluster sizes tested, SNR thresholds for each size, the distribution of SNR for each size
     
-    #n_permutations = max(1000,int(1.0/pval))*5
-    N = exprs.shape[1]
+    n_permutations = max(n_permutations,int(1.0/pval))
     
     sizes = np.arange(min_n_samples,int(N/2)+1)
     if verbose:
@@ -359,11 +358,12 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
             print("\nBinarization started ....\n")
 
         t0 = time()
-        sizes,thresholds,empirical_snr = generate_null_dist(exprs, min_n_samples,
+        sizes,thresholds,empirical_snr = generate_null_dist(exprs.shape[1], min_n_samples,
                                                        pval = pval,
                                                        seed =seed,verbose = verbose)
  
         size_snr_trend = get_trend(sizes, thresholds, plot= False)
+    
         if verbose:
             print("\tSNR thresholds for individual features computed in {:.2f} seconds".format(time()-t0))
 
@@ -612,14 +612,21 @@ def run_2means(bic_genes,exprs,min_n_samples=10,seed=0):
            "sample_indexes":set(samples),"n_samples":len(samples)}
     return bic
 
+
 def add_SNR_to_biclusters(bics, exprs, exprs_data):
     # calculates SNR for each bicluster in a list
     N, exprs_sums, exprs_sq_sums = exprs_data
     for i in range(len(bics)):
         gene_ids = list(bics[i]['gene_indexes'])
         sample_ids = list(bics[i]['sample_indexes'])
-        # calcluate SNR 
-        avgSNR = calc_bic_SNR(gene_ids, sample_ids, exprs, N, exprs_sums, exprs_sq_sums)
+        bg_sample_ids = [i for i in range(N) if i not in sample_ids]
+        e = exprs[gene_ids,:]
+        bic = e[:,sample_ids]
+        bg = e[:,bg_sample_ids]
+        m = bic.mean(axis=1) - bg.mean(axis=1)
+        s = bic.std(axis=1) + bg.std(axis=1)
+        avgSNR = np.mean(np.abs(m/s))
+        
         bics[i]["avgSNR"] = abs(avgSNR) 
         # direction
         if avgSNR >0:
@@ -663,17 +670,18 @@ def make_biclusters(clustering_results,binarized_expressions,exprs,
     for d in ["UP","DOWN"]:
         genes = binarized_expressions[d].columns.values
         genes2ids = dict(zip(genes,range(0,len(genes))))
-
+        
         if cluster_binary:
-            exprs_np = binarized_expressions[d].T # binarized expressions
+            exprs_to_cluster = binarized_expressions[d].loc[:,:].T # binarized expressions
         else:
-            exprs_np = exprs.loc[genes,:] # z-scoes
-        ints2g_names = exprs_np.index.values
-        ints2s_names = exprs_np.columns.values
-        exprs_np = exprs_np.values    
+            exprs_to_cluster = exprs.loc[genes,:] # z-scoes
+        
+        ints2g_names = exprs_to_cluster.index.values
+        ints2s_names = exprs_to_cluster.columns.values
+        exprs_to_cluster = exprs_to_cluster.values    
         modules = clustering_results[d][0]
 
-        bics = modules2biclusters(modules, genes2ids, exprs_np,
+        bics = modules2biclusters(modules, genes2ids, exprs_to_cluster,
                                 min_n_samples=min_n_samples, min_n_genes=2,
                                 verbose = False,seed=seed)
 
@@ -701,14 +709,6 @@ def make_biclusters(clustering_results,binarized_expressions,exprs,
     ### TBD - merge similar up- and down-regulted
     return biclusters
     
-
-def calc_bic_SNR(genes, samples, exprs, N, exprs_sums,exprs_sq_sums):
-    s = len(samples)
-    bic = exprs[genes,:][:,samples]
-    snr_dist = calc_snr_per_row(s,N, bic, exprs_sums[genes],exprs_sq_sums[genes])
-    return  np.mean(np.abs(snr_dist))
-
-
 #### Cluster binarized genes #####
 
 def run_WGCNA(fname,verbose = False):

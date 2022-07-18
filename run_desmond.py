@@ -11,7 +11,7 @@ def run_DESMOND(exprs_file, basename, out_dir="",
                 r = 1/3,
                 alpha=1,beta_K = 1, 
                 max_n_steps= 100, n_steps_for_convergence = 5,
-                seed = random.randint(0,1000000),
+                seed = -1,
                 verbose = True, plot_all = False):
     
     import sys
@@ -19,7 +19,11 @@ def run_DESMOND(exprs_file, basename, out_dir="",
     import pandas as pd
     
     start_time = time()
-
+    
+    if seed == -1:
+        seed = random.randint(0,1000000)
+        print("seed=",seed,file = sys.stdout)
+        
     if basename:
         basename = basename
     else: 
@@ -123,7 +127,7 @@ def parse_args():
                         choices=['Louvain', 'WGCNA', 'DESMOND'], help='feature clustering method')
     parser.add_argument('-r', default=1/3, metavar="1/3", type=float, help='Pearsons correlation cutoff for similarity matrix (Louvain clustering)')
     parser.add_argument('--alpha', metavar=1.0, default=1.0, type=float, help = 'alpha parameter, positive float  (DESMOND clustering) ')
-    parser.add_argument('--beta_K', metavar=1.0, default=1.0, type=float, help = 'beta/K parameter, positive float.  (DESMOND clustering)')
+    parser.add_argument('--beta_K', metavar=1.0, default=1.0, type=float, help = 'beta/K parameter, positive float (DESMOND clustering)')
     parser.add_argument('--max_n_steps', metavar=200, default=200, type=int, help = 'maximal number of Gibbs sampling steps (DESMOND clustering)')
     parser.add_argument('--n_steps_for_convergence', metavar=5, default=5, type=int, help  = 'the number of Gibbs sampling steps when the convergence condition must hold (DESMOND clustering)')
     parser.add_argument('--plot', action='store_true', help = "show plots")

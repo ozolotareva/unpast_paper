@@ -1,6 +1,6 @@
 # DESMOND2
 
-DESMOND2 is a novel method for identification of differentially expressed biclusters in gene expression matrix. It searches for sets of genes up- or down-regulated in subsets of samples:
+DESMOND2 is a novel method for identification of differentially expressed biclusters in gene expression matrix. It searches for gene sets up- or down-regulated in subsets of samples:
 
 ![alt text](./poster/DESMOND2_steps2.png)
 
