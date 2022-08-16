@@ -3,8 +3,9 @@
 import argparse
 import random
 
-def run_DESMOND(exprs_file, basename, out_dir="",  
+def run_DESMOND(exprs_file, basename, out_dir="./",  
                 binarized_data = None, save=True, load = False,
+                ceiling = 3,
                 bin_method = "GMM", clust_method = "Louvain", cluster_binary=False, 
                 min_n_samples = -1, show_fits = [],
                 pval = 0.001,
@@ -41,6 +42,11 @@ def run_DESMOND(exprs_file, basename, out_dir="",
     #check if expressions are standardized (mean=0, std =1)
     from utils.method import validate_input_matrix
     exprs = validate_input_matrix(exprs)
+    
+    #set extreme z-scores to -x and x, e.g. -3,3
+    if ceiling:
+        exprs[exprs>ceiling] = ceiling
+        exprs[exprs<-ceiling] = -ceiling
 
     # define minimal number of samples
     if min_n_samples == -1:
@@ -116,7 +122,7 @@ def run_DESMOND(exprs_file, basename, out_dir="",
 def parse_args():
     parser = argparse.ArgumentParser("DESMOND2 identifies differentially expressed biclusters in gene expression data.")
     parser.add_argument('--exprs', metavar="exprs.z.tsv", required=True, 
-                        help=".tsv file with standardized gene expressions. The first column and row must contain unique gene and sample ids respectively.")
+                        help=".tsv file with standardized gene expressions. The first column and row must contain unique gene and sample ids, respectively.")
     parser.add_argument('--out_dir', metavar=".", default=".", help  = 'output folder')
     parser.add_argument('--basename', metavar="biclusters.tsv", default = False, type=str, help  = 'output files basename. If not specified, will be set to "results_"yy.mm.dd_HH:MM:SS""')
     parser.add_argument('-s','--min_n_samples', metavar=10, default=-1, type=int, help  = 'minimal number of samples in a bicluster.If not specified, will be automatically defined based on input sample size')
@@ -152,7 +158,7 @@ if __name__ == "__main__":
                 cluster_binary=False, 
                 min_n_samples = args.min_n_samples, show_fits = [],
                 r = args.r, 
-                alpha = args.alpha,beta_K = args.beta_K, # DESMOND
+                alpha = args.alpha,beta_K = args.beta_K, 
                 max_n_steps = args.max_n_steps, 
                 n_steps_for_convergence = args.n_steps_for_convergence,
                 seed = args.seed,

@@ -11,6 +11,7 @@ from scipy.interpolate import interp1d
 from scipy.sparse.csr import csr_matrix
 
 from sklearn.mixture import GaussianMixture
+#from sklearn.mixture import BayesianGaussianMixture
 from sklearn.cluster import KMeans
 import jenkspy
 
@@ -32,6 +33,20 @@ if TRY_USE_NUMBA:
     except:
         print("Numba is not available. Install numba for a bit faster calculations")
 
+def zscore(df):
+    m = df.mean(axis=1)
+    df = df.T - m
+    df = df.T
+    s = df.std(axis=1)
+    df = df.T/s
+    df = df.T
+    # set to 0 not variable genes 
+    zero_var_genes = s[s==0].index.values
+    if len(zero_var_genes)>0:
+        print(len(zero_var_genes),"zero variance rows detected, assign zero z-scores ",file = sys.stderr)
+    df.loc[zero_var_genes,:] = 0
+    return df
+        
 def validate_input_matrix(exprs, tol=0.01,standradize=True):
     m = exprs.mean(axis=1)
     std = exprs.std(axis=1)
@@ -40,16 +55,13 @@ def validate_input_matrix(exprs, tol=0.01,standradize=True):
     if not (mean_passed and std_passed):
         print("Input is not standardized.",file = sys.stderr)
         if standradize:
+            exprs = zscore(exprs)
             if not mean_passed:
                 print("Centering mean to 0",file= sys.stderr)
-                exprs = exprs.T-m
-                exprs = exprs.T
-                std = exprs.std(axis=1)
-                std_passed = np.all(np.abs(std-1)<tol)
             if not std_passed:
-                print("Centering std to 1",file= sys.stderr)
-                exprs = exprs.T/std
-                exprs = exprs.T
+                print("Scaling std to 1",file= sys.stderr)
+    else:
+        print("Input is standardized.",file = sys.stderr)
     if len(set(exprs.index.values)) < exprs.shape[0]:
         print("Row names are not unique.",file = sys.stderr)
         # TBD - keep only the first occurence
@@ -91,7 +103,7 @@ def generate_null_dist(N, min_n_samples,n_permutations = 10000,pval = 0.001,
     # samples N values from standard normal distribution, and split them into bicluster  background
     # returns bicluster sizes tested, SNR thresholds for each size, the distribution of SNR for each size
     
-    n_permutations = max(n_permutations,int(1.0/pval))
+    n_permutations = max(n_permutations,int(1.0/pval*10+1))
     
     sizes = np.arange(min_n_samples,int(N/2)+1)
     if verbose:
@@ -163,14 +175,14 @@ def jenks_binarization(exprs, empirical_snr,min_n_samples,verbose = True,
         down_group = values[neg_mask]
         up_group = values[pos_mask]
         
-        SNR, size, e_pval = np.nan,np.nan,np.nan
+        snr, size, e_pval = np.nan,np.nan,np.nan
         if min(len(down_group),len(up_group)) >= min_n_samples:
             # calculate SNR, size and empirical p-val
-            SNR = calc_SNR(up_group,down_group)
+            snr = calc_SNR(up_group,down_group)
             size = min(len(down_group),len(up_group)) 
             # SNR p-val depends on biclister size 
             e_snr_dist = empirical_snr[size - min_n_samples,]
-            e_pval =  (len(e_snr_dist[e_snr_dist>=abs(SNR)])+1)/(empirical_snr.shape[1]+1)
+            e_pval =  (len(e_snr_dist[e_snr_dist>=abs(snr)])+1)/(empirical_snr.shape[1]+1)
             
             # in case of insignificant difference 
             # the bigger half is treated as signal too
@@ -185,7 +197,7 @@ def jenks_binarization(exprs, empirical_snr,min_n_samples,verbose = True,
             if len(up_group)-len(down_group) >= -min_n_samples:
                 binarized_expressions["DOWN"][gene] = neg_mask.astype(int)
                 down_color='blue'
-        stats[gene] = {"SNR":SNR,"size": size,"pval":e_pval}
+        stats[gene] = {"SNR":snr,"size": size,"pval":e_pval}
    
         
         # logging
@@ -193,8 +205,9 @@ def jenks_binarization(exprs, empirical_snr,min_n_samples,verbose = True,
             if i % 1000 == 0:
                 print("\t\tgenes processed:",i)
                 
-        if gene in show_fits or SNR > plot_SNR_thr:
-            print("Gene {}: SNR={:.2f}, pos={}, neg={}".format(gene, SNR, len(up_group), len(down_group)))
+        if gene in show_fits or abs(snr) > plot_SNR_thr:
+            print("Gene {}: SNR={:.2f}, neg={}, pos={}, p-val={:.2e}".format(
+                gene,snr,len(down_group),len(up_group),e_pval))
             plt.hist(down_group, bins=n_bins, alpha=0.5, color=down_color,range=hist_range)
             plt.hist(up_group, bins=n_bins, alpha=0.5, color=up_color,range=hist_range)
             plt.show()
@@ -202,9 +215,7 @@ def jenks_binarization(exprs, empirical_snr,min_n_samples,verbose = True,
     stats = pd.DataFrame.from_dict(stats).T
     stats = stats.dropna(subset = ["pval"])
     binarized_expressions["UP"] = pd.DataFrame.from_dict(binarized_expressions["UP"])
-    #binarized_expressions["UP"] =  binarized_expressions["UP"].loc[:,stats.index]
     binarized_expressions["DOWN"] = pd.DataFrame.from_dict(binarized_expressions["DOWN"])
-    #binarized_expressions["DOWN"] = binarized_expressions["DOWN"].loc[:,stats.index]
     
     
     # logging
@@ -216,64 +227,73 @@ def jenks_binarization(exprs, empirical_snr,min_n_samples,verbose = True,
     
     return binarized_expressions, stats
 
-def select_pos_neg(row, empirical_snr, min_n_samples, seed=42):
+def select_pos_neg(row, empirical_snr, min_n_samples, seed=42, prob_cutoff=0.5):
     """ find 'higher' (positive), and 'lower' (negative) signal in vals. 
         vals are found with GM binarization
     """
-
     with warnings.catch_warnings(): # this is to ignore convergence warnings 
         warnings.simplefilter('ignore')
         
         row2d = row[:, np.newaxis]  # adding mock axis for GM interface
         np.random.seed(seed=seed)
-        model = GaussianMixture(
-            n_components=2, init_params="kmeans",
-            max_iter=len(row), n_init = 1, 
-            covariance_type = "spherical",
-            random_state = seed
-        ).fit(row2d)
+        model = GaussianMixture(n_components=2, init_params="kmeans",
+                max_iter=len(row), n_init = 1, 
+                covariance_type = "spherical",
+                random_state = seed).fit(row2d)
+
+    p0 = model.predict_proba(row2d)[:,0]
+    labels = np.zeros(len(row),dtype=bool)
         
-        labels = model.predict(row2d) 
+    # let labels == True be always the smaller half
+    if len(labels[p0>=prob_cutoff]) < len(labels)/2: 
+        labels[p0>=prob_cutoff] = True
+        labels[p0<prob_cutoff] = False
+    else: 
+        labels[p0>=prob_cutoff] = False
+        labels[p0<prob_cutoff] = True
         
-        sig_snr = calc_SNR(row[labels==0], row[labels==1])
-        
+    if len(row[labels])>0 and np.median(row[labels])>=0:
+    # special treatment for cases when bic distribution is too wide and overlaps bg distribution
+    # remove from bicluster samples with the sign different from its median sign 
+        labels[row<0]=False
+    else:
+        labels[row>0]=False
+
+    n0 = len(labels[labels])
+    n1 = len(labels[~labels])
     
-    # let labels == 1 be the bigger half
-    if np.sum(labels == 0) > np.sum(labels == 1): 
-        labels = 1 - labels
-    n0 = np.sum(labels == 0)
-    n1 = np.sum(labels == 1)
     assert n0 + n1 == len(row)
 
-    signal_pretendents = []
+    sig_snr = np.nan
     e_pval = np.nan
     size = np.nan
+    mask_pos = np.zeros(len(row),dtype=bool)
+    mask_neg = np.zeros(len(row),dtype=bool)
+    
     if n0 >= min_n_samples:
+        sig_snr = calc_SNR(row[labels], row[~labels])
         size = n0
         # SNR p-val depends on biclister size 
         e_snr_dist = empirical_snr[size - min_n_samples,]
         e_pval =  (len(e_snr_dist[e_snr_dist>=abs(sig_snr)])+1)/(empirical_snr.shape[1]+1)
+        if sig_snr>0:
+            mask_pos = labels
+        else:
+            mask_neg = labels
         # signal (bicluster) should be big enough
-        signal_pretendents.append(labels==0)
-        if n1 - n0 < min_n_samples:
+        if n1 - n0 <= min_n_samples:
             # in case of insignificant difference 
             # the bigger half is treated as signal too
-            signal_pretendents.append(labels==1) 
+            if sig_snr>0:
+                mask_neg = ~labels
+            else:
+                mask_pos = ~labels
             #stat['n_inexplicit'] += 1 
-            
-    mask_pos = np.zeros_like(labels, bool)
-    mask_neg = np.zeros_like(labels, bool)
-    for mask in signal_pretendents:
-        sig_snr = calc_SNR(row[mask], row[~mask])
-        if sig_snr > 0:
-            mask_pos |= mask
-        else: 
-            mask_neg |= mask
 
     return mask_pos, mask_neg, abs(sig_snr), size, e_pval, model.converged_
 
 
-def GM_binarization(exprs,empirical_snr, min_n_samples, verbose=True, plot=True, plot_SNR_thr=2, show_fits=[],seed=1):
+def GM_binarization(exprs,empirical_snr, min_n_samples, verbose=True, plot=True, plot_SNR_thr=2, show_fits=[],seed=1,prob_cutoff=0.5):
     t0 = time()
     if verbose:
         print("\tGMM method is chosen ...")
@@ -284,26 +304,40 @@ def GM_binarization(exprs,empirical_snr, min_n_samples, verbose=True, plot=True,
     mask_pos, mask_neg = [], []
     for i, (gene, row) in enumerate(exprs.iterrows()):
         row = row.values
-        row_mask_pos, row_mask_neg, snr, size, e_pval, is_converged = select_pos_neg(row, empirical_snr, min_n_samples, seed=seed)
+        row_mask_pos, row_mask_neg, snr, size, e_pval, is_converged = select_pos_neg(row, empirical_snr, min_n_samples, seed=seed,prob_cutoff=prob_cutoff)
         mask_pos.append(row_mask_pos.astype(int))
         mask_neg.append(row_mask_neg.astype(int))
         stats[gene] = {"pval":e_pval,"SNR":snr,"size":size,"convergence":is_converged}
-
+        
         # logging
         if verbose:
             if i % 1000 == 0:
                 print("\t\tgenes processed:",i)
-        s_pos = len(row[row_mask_pos])
-        s_neg = len(row[row_mask_neg])
-        if plot and ((abs(snr) > plot_SNR_thr and max(s_pos,s_neg)>0) or gene in show_fits):
-            print("Gene %s: SNR=%s, pos=%s, neg=%s"%(gene, round(snr,2), s_pos, s_neg))
-            row_mask_neutral = (~row_mask_pos) & (~row_mask_neg)
-            if (e_pval<0.05 and max(s_pos,s_neg)>0):
-                plt.hist(row[row_mask_neutral], bins=n_bins, alpha=0.5, color='lightgrey')
-                plt.hist(row[row_mask_neg], bins=n_bins, alpha=0.5, color='blue')
-                plt.hist(row[row_mask_pos], bins=n_bins, alpha=0.5, color='red')
+                
+        #snr = abs(snr)
+        if gene in show_fits or (plot and snr > plot_SNR_thr):
+            hist_range = row.min(), row.max()
+            #up_color, down_color = "grey", "grey"
+            up_group = row[row_mask_pos]
+            down_group = row[row_mask_neg]
+            s_pos = len(up_group)
+            s_neg = len(down_group)
+            print("Gene {}: SNR={:.2f}, neg={}, pos={}, p-val={:.2e}".format(
+                gene,snr,s_neg,s_pos,e_pval))
+            if min_n_samples < s_pos  <= N/2+min_n_samples:
+                # up-regulated group is bicluster
+                plt.hist(up_group, bins=n_bins, alpha=0.5, color="red",range=hist_range)
             else:
-                plt.hist(row, bins=n_bins, alpha=0.5, color='grey')
+                up_group = row[~row_mask_neg]
+                plt.hist(up_group, bins=n_bins, alpha=0.5, color='grey',range=hist_range)
+            if min_n_samples < s_neg  <= N/2+min_n_samples:
+                #down_regulated group is bicluster
+                plt.hist(down_group, bins=n_bins, alpha=0.5, color='blue',range=hist_range)
+            else:
+                down_group = row[~row_mask_pos]
+                plt.hist(down_group, bins=n_bins, alpha=0.5, color="grey",range=hist_range)
+            
+            
             plt.show()
  
     def _remove_empty_rows(df):
@@ -315,7 +349,7 @@ def GM_binarization(exprs,empirical_snr, min_n_samples, verbose=True, plot=True,
     
     
     stats = pd.DataFrame.from_dict(stats).T
-    stats = stats.loc[list(set(df_p.columns).union(set(df_n.columns))),:]
+    #stats = stats.loc[list(set(df_p.columns).union(set(df_n.columns))),:]
 
     # logging
     if verbose:
@@ -328,7 +362,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
              save = True, load = False,
              min_n_samples = 10, pval = 0.001,
              plot_all = True, plot_SNR_thr= np.inf,show_fits = [],
-             verbose= True,seed=random.randint(0,100000)):
+             verbose= True,seed=random.randint(0,100000),prob_cutoff=0.5):
     '''
        binarized_fname_prefix is a basename of binarized data file;
        exprs is a dataframe with normalized features to be binarized.
@@ -372,9 +406,11 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
                                                        verbose = verbose, plot=plot_all,
                                                        plot_SNR_thr=plot_SNR_thr, show_fits = show_fits)
         elif method=="GMM":
-            binarized_data, stats = GM_binarization(exprs, empirical_snr,min_n_samples,verbose = verbose,
-                                             plot=plot_all, plot_SNR_thr= plot_SNR_thr, 
-                                             show_fits = show_fits, seed = seed )
+            binarized_data, stats = GM_binarization(exprs, empirical_snr,min_n_samples,
+                                                    plot=plot_all, plot_SNR_thr= plot_SNR_thr,
+                                                    prob_cutoff=prob_cutoff, 
+                                                    show_fits = show_fits,verbose = verbose,
+                                                    seed = seed)
         else:
             print("Method must be either 'GMM' or 'Jenks'.",file=sys.stderr)
             return
@@ -385,22 +421,9 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
         # keep only features with SNR above the thresholds
         stats["SNR_threshold"] = stats["size"].apply(lambda x: size_snr_trend(x))
         
-        # z-scores for SNR values
-        emean = empirical_snr.mean(axis=1)
-        estd = empirical_snr.std(axis=1)
-        
-        def calc_SNR_zscore(row,m = emean, s = estd):
-            SNR = row["SNR"]
-            size = row["size"]
-            ndx = np.where(sizes == size)[0][0]
-            z = (SNR-emean[ndx])/estd[ndx]
-            return z
-        
-        stats["z"] = stats.apply(lambda row: calc_SNR_zscore(row),axis=1)
         #binarized_data, stats = keep_binarized(binarized_data,stats,FDR=False,verbose=True)
-        bh_res, adj_pval = fdrcorrection(stats["pval"].values,alpha=0.01)
-        stats["qval"] = adj_pval
-        stats = stats.sort_values(by="z",ascending = False)
+        #bh_res, adj_pval = fdrcorrection(stats["pval"].values,alpha=0.01)
+        #stats["qval"] = adj_pval
         
         ### keep features passed binarization
         passed = set(stats.loc[stats["SNR"]>stats["SNR_threshold"],:].index)
@@ -434,15 +457,16 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
         print("Provide either raw or binarized data.", file=sys.stderr)
         return None
     
-    if plot_all:
+    if plot_all and False:
         # plot null distribution of SNR(size) - for shuffled genes n_permutation times for each size
         e_stats = []
         for i in range(empirical_snr.shape[0]):
             for j in range(empirical_snr.shape[1]):
                 e_stats.append({"size":min_n_samples+i,"SNR":empirical_snr[i,j]})
-        e_stats = pd.DataFrame.from_records(e_stats)
+        e_stats = pd.DataFrame.from_records(e_stats).sample(n=5000)
+        print(e_stats.shape)
         tmp  = plt.figure(figsize=(20,10))
-        tmp = plt.scatter(e_stats["size"],e_stats["SNR"],alpha = 1, color = "grey")
+        #tmp = plt.scatter(e_stats["size"],e_stats["SNR"],alpha = 1, color = "grey")
         
         # plot binarization results for real genes
         passed = stats.loc[stats["SNR"]> stats["SNR_threshold"],:]
@@ -625,7 +649,7 @@ def add_SNR_to_biclusters(bics, exprs, exprs_data):
         bg = e[:,bg_sample_ids]
         m = bic.mean(axis=1) - bg.mean(axis=1)
         s = bic.std(axis=1) + bg.std(axis=1)
-        avgSNR = np.mean(np.abs(m/s))
+        avgSNR = np.mean(m/s)
         
         bics[i]["avgSNR"] = abs(avgSNR) 
         # direction
@@ -680,27 +704,31 @@ def make_biclusters(clustering_results,binarized_expressions,exprs,
         ints2s_names = exprs_to_cluster.columns.values
         exprs_to_cluster = exprs_to_cluster.values    
         modules = clustering_results[d][0]
+        
+        if len(modules)>0:
+            bics = modules2biclusters(modules, genes2ids, exprs_to_cluster,
+                                    min_n_samples=min_n_samples, min_n_genes=2,
+                                    verbose = False,seed=seed)
 
-        bics = modules2biclusters(modules, genes2ids, exprs_to_cluster,
-                                min_n_samples=min_n_samples, min_n_genes=2,
-                                verbose = False,seed=seed)
+            # make exprs_data for fast SNR calculations 
+            exprs_np = exprs.loc[genes,:].values
+            exprs_sums = exprs_np.sum(axis=1)
+            exprs_sq_sums = np.square(exprs_np).sum(axis=1)
+            N = exprs.shape[1]
+            exprs_data = N, exprs_sums, exprs_sq_sums
+            # add SNR to biclsuters
+            bics = add_SNR_to_biclusters(bics, exprs.loc[genes,:].values, exprs_data)
+            # rename genes and samples
+            genes2ids = dict(zip(exprs.index.values, range(exprs.shape[0]))) # correct gene ids
+            for i in range(len(bics)):
+                bics[i]["genes"] = set([ints2g_names[x] for x in bics[i]["gene_indexes"]])
+                bics[i]["samples"] = set([ints2s_names[x] for x in bics[i]["sample_indexes"]])
+                bics[i]["gene_indexes"] = [genes2ids[x] for x in bics[i]["genes"]]
 
-        # make exprs_data for fast SNR calculations 
-        exprs_np = exprs.loc[genes,:].values
-        exprs_sums = exprs_np.sum(axis=1)
-        exprs_sq_sums = np.square(exprs_np).sum(axis=1)
-        N = exprs.shape[1]
-        exprs_data = N, exprs_sums, exprs_sq_sums
-        # add SNR and direction to biclsuters
-        bics = add_SNR_to_biclusters(bics, exprs.loc[genes,:].values, exprs_data)
-        # rename genes and samples
-        for i in range(len(bics)):
-            bics[i]["genes"] = set([ints2g_names[x] for x in bics[i]["gene_indexes"]])
-            bics[i]["samples"] = set([ints2s_names[x] for x in bics[i]["sample_indexes"]])
-
-        bics = pd.DataFrame.from_dict(bics).T
-        bics.index = bics["id"]
-        biclusters.append(bics)
+            bics = pd.DataFrame.from_dict(bics).T
+            #bics["direction"] = d
+            bics.index = bics["id"]
+            biclusters.append(bics)
     biclusters = pd.concat(biclusters,axis =0)
     biclusters = biclusters.sort_values(by=["avgSNR"],ascending=[False])
     biclusters.drop("id",inplace=True,axis=1)
@@ -741,6 +769,8 @@ def run_WGCNA(fname,verbose = False):
 
 
 def run_Louvain(similarity,verbose = True):
+    if similarity.shape[0] == 0:
+        return [[], []]
     from sknetwork.clustering import Louvain, modularity
     t0 = time()
     gene_names = similarity.index.values
@@ -764,6 +794,8 @@ def run_Louvain(similarity,verbose = True):
 
 
 def run_MCL(similarity, inflations = list(np.arange(11,30)/10)+[3,3.5,4,5],verbose = True):
+    if similarity.shape[0] == 0:
+        return [[], []]
     import markov_clustering as mc
     t0 = time()
     # MCL accepts positive similarity matrix
@@ -798,7 +830,7 @@ def run_MCL(similarity, inflations = list(np.arange(11,30)/10)+[3,3.5,4,5],verbo
         print("\t\tinflation:", best_inflation, "modularity:", round(best_Q,3), round(time()-t0),"s.")
     return [modules, not_clustered]
 
-def get_similarity_jaccard(df,qval=0.01,J=0.33):
+def get_similarity_jaccard_signif(df,qval=0.01,J=0.33):
     from fisher import pvalue
     # based on jaccard similarity
     t0 =  time()
@@ -854,6 +886,35 @@ def get_similarity_jaccard(df,qval=0.01,J=0.33):
     similarity = similarity.fillna(0)
     similarity = similarity.loc[sorted(similarity.index),sorted(similarity.index)]
     return similarity
+
+def get_similarity_jaccard(binary_df,J=0.33):
+    # based on jaccard similarity
+    t0 =  time()
+    genes = binary_df.columns.values
+    n_samples = binary_df.shape[0]
+    n_genes = binary_df.shape[1]
+    df = np.array(binary_df.T, dtype=bool)
+    results = np.zeros((n_genes,n_genes))
+    for i in range(0,n_genes-1):
+        results[i,i] = 1
+        g1= df[i]
+        for j in range(i+1,n_genes):
+            g2= df[j]
+            o = g1 * g2 
+            overlap = o.sum()
+            if overlap > 0:
+                u = g1 + g2 
+                union = u.sum()
+                jaccard = overlap/union
+                if jaccard>= J:
+                    results[i,j] = jaccard
+                    results[j,i] = jaccard
+                    
+    results[j,j] = 1
+    results = pd.DataFrame(data = results,index = genes, columns = genes)
+    return results
+
+
 
 def get_similarity_corr(df,r=0):
     corr = df.corr()
