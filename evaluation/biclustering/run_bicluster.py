@@ -27,4 +27,4 @@ j_weighted = eval_bicluster_methods.run_eval(expr_file=expr_file, result_file=re
 os.system(f'rm {result_file}')
 print(f"J_weighted for {tool_name} and {expr_file}: {j_weighted}")
 with open(score_file, 'w') as fw:
-    fw.write(j_weighted)
+    fw.write(str(j_weighted))
