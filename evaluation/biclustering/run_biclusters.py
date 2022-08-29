@@ -1,5 +1,7 @@
 import os
 import subprocess
+import sys
+import time
 
 test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
 script_folder = "./"
@@ -23,6 +25,7 @@ for mode in os.listdir(test_case_folder):
         elif "biclusters" in case_file:
             bicluster_files[prefix] = file_path
 
+
 def get_output_file(tool_name, case_prefix):
     return os.path.join("/tmp/", f'{case_prefix}_{tool_name}-default.tsv')
 
@@ -32,15 +35,33 @@ if os.path.exists(result_dir):
     os.system(f"rm -rf {result_dir}")
 os.system(f"mkdir {result_dir}")
 
+commands = list()
+running = list()
 
 for test_case in expr_files.keys():
     expr_file = expr_files[test_case]
     true_file = bicluster_files[test_case]
     for tool_name in tool_list.keys():
-        score_dir = os.path.join(result_dir,tool_name)
+        score_dir = os.path.join(result_dir, tool_name)
         if not os.path.exists(score_dir):
-            os.system("mkdir "+score_dir)
+            os.system("mkdir " + score_dir)
         out_file = get_output_file(tool_name, test_case)
-        subprocess.Popen(['python3','run_bicluster.py',tool_name, os.path.join(script_folder,tool_list[tool_name]), expr_file, true_file, out_file, os.path.join(score_dir,f'{test_case}_default.tsv')])
+        commands.append(
+            ['python3', 'run_bicluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file,
+             true_file, out_file, os.path.join(score_dir, f'{test_case}_default.tsv')])
 
+parallel_execs = int(sys.argv[1])
 
+while len(commands) > 0 and len(running) > 0:
+    if len(running) > parallel_execs and len(commands) > 0:
+        command = commands[0]
+        commands = commands[1:]
+        running.append(subprocess.Popen(command))
+    done = []
+    for i in range(0, len(running)):
+        if running[i].poll() is not None:
+            done.append(i)
+    for i in done:
+        del running[i]
+
+print(f"All done, result scores are in {result_dir}")
