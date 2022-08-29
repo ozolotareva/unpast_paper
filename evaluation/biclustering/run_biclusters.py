@@ -32,9 +32,9 @@ def get_output_file(tool_name, case_prefix):
 
 for test_case in expr_files.keys():
     expr_file = expr_files[test_case]
+    true_file = bicluster_files[test_case]
     for tool_name in tool_list.keys():
         out_file = get_output_file(tool_name, test_case)
-        subprocess.check_call(
-            get_command(tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file, out_file))
+        subprocess.check_call(['python3','run_bicluster.py',tool_name, os.path.join(script_folder,tool_list[tool_name]), expr_file, true_file, out_file])
 
 

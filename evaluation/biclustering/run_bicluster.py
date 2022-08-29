@@ -1,5 +1,5 @@
 import subprocess
-import sys
+import sys, os
 from .eval_bicluster_methods import run_eval
 
 args = sys.argv
@@ -23,4 +23,5 @@ def get_command(tool_name, script_location, expr_file, out_file):
 
 subprocess.check_call(get_command(tool_name, script, expr_file, result_file))
 j_weighted = run_eval(expr_file=expr_file, result_file=result_file, ground_truth_file=truth_file)
+os.system(f'rm {result_file}')
 print(f"J_weighted for {tool_name} and {expr_file}: {j_weighted}")
