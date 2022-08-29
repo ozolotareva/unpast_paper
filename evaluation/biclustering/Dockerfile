@@ -27,6 +27,6 @@ WORKDIR "DESMOND2"
 RUN python setup.py install
 
 WORKDIR "evaluation/biclustering"
-#RUN pip install -r requirements.txt
+RUN pip install -r requirements.txt
 
 ENTRYPOINT ["tail", "-f", "/dev/null"]
