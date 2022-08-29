@@ -51,17 +51,19 @@ for test_case in expr_files.keys():
              true_file, out_file, os.path.join(score_dir, f'{test_case}_default.tsv')])
 
 parallel_execs = int(sys.argv[1])
-
-while len(commands) > 0 and len(running) > 0:
-    if len(running) > parallel_execs and len(commands) > 0:
+while len(commands) > 0 or len(running) > 0:
+    if len(running) < parallel_execs and len(commands) > 0:
         command = commands[0]
+        print(f'starting command: {command}')
         commands = commands[1:]
-        running.append(subprocess.Popen(command))
+        p = subprocess.Popen(command)
+        running.append(p)
     done = []
     for i in range(0, len(running)):
         if running[i].poll() is not None:
             done.append(i)
     for i in done:
         del running[i]
+    time.sleep(1)
 
 print(f"All done, result scores are in {result_dir}")
