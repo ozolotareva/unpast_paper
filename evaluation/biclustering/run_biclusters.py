@@ -18,11 +18,10 @@ for mode in os.listdir(test_case_folder):
     for case_file in os.listdir(mode_path):
         file_path = os.path.join(mode_path, case_file)
         prefix = case_file.split(".")[0]
-        if "exprs.tsv" in case_file:
+        if "exprs" in case_file:
             expr_files[prefix] = file_path
-        elif "biclusters.tsv" in case_file:
+        elif "biclusters" in case_file:
             bicluster_files[prefix] = file_path
-
 
 def get_output_file(tool_name, case_prefix):
     return os.path.join("/tmp/", f'{case_prefix}_{tool_name}-default.tsv')
@@ -31,6 +30,7 @@ def get_output_file(tool_name, case_prefix):
 
 
 for test_case in expr_files.keys():
+    print(test_case)
     expr_file = expr_files[test_case]
     true_file = bicluster_files[test_case]
     for tool_name in tool_list.keys():
