@@ -10,7 +10,6 @@ results_dir = args[2]
 # input_file = '/Users/fernando/Documents/Research/DESMOND2/datasets/DESMOND2_data_simulated/simulated/A/example.tsv'
 dimreduced_input = input_file.replace('.tsv', '_MEs.tsv')
 
-if not os.path.exists(dimreduced_input):
-    print('Running R WGCNA script')
-    os.system(f"Rscript --vanilla run_WGCNA.R {input_file}")
+print('Running R WGCNA script')
+os.system(f"Rscript --vanilla run_WGCNA.R {input_file}")
 os.system(f"python3 run_kmeans.py {dimreduced_input} {results_dir}")

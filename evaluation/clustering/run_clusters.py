@@ -3,10 +3,9 @@ import subprocess
 import sys
 import time
 import collect_results
-#os.chdir('/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/clustering')
-test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
-test_case_folder = "/Users/fernando/Documents/Research/DESMOND2/datasets/DESMOND2_data_simulated/simulated"
 
+# os.chdir('/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/clustering')
+test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
 script_folder = "./"
 
 tool_list = {
@@ -48,13 +47,12 @@ for test_case in expr_files.keys():
         score_dir = os.path.join(result_dir, tool_name)
         if not os.path.exists(score_dir):
             os.system("mkdir " + score_dir)
-        score_dir = os.path.join(score_dir,'default')
+        score_dir = os.path.join(score_dir, 'default')
         if not os.path.exists(score_dir):
             os.system("mkdir "+score_dir)
         out_file = get_output_file(tool_name, test_case)
-        for r in range(1,6):
-            commands.append(['python3', 'run_cluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file,
-             true_file, out_file, os.path.join(score_dir, f'{test_case}_default-run{r}.tsv')])
+        for r in range(1, 6):
+            commands.append(['python3', 'run_cluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file, true_file, out_file, os.path.join(score_dir, f'{test_case}_default-run{r}.tsv')])
 
 parallel_execs = int(sys.argv[1])
 while len(commands) > 0 or len(running) > 0:

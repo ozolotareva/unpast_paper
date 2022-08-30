@@ -1,8 +1,8 @@
 import pandas as pd
 from utils.eval import find_best_matches
 
-def run_eval(expr_file, ground_truth_file, result_file):
 
+def run_eval(expr_file, ground_truth_file, result_file):
     # expression file
     exprs = pd.read_csv(expr_file, sep = "\t", index_col=0, header=0)
     N = len(exprs.columns)
