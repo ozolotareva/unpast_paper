@@ -1,0 +1,11 @@
+sklearn
+fisher
+jenkspy
+matplotlib-venn
+numba
+numpy
+scipy
+statsmodels
+pandas
+python-louvain
+
