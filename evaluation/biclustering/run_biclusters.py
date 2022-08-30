@@ -50,9 +50,10 @@ for test_case in expr_files.keys():
         if not os.path.exists(score_dir):
             os.system("mkdir "+score_dir)
         out_file = get_output_file(tool_name, test_case)
-        commands.append(
+        for r in range(1,6):
+            commands.append(
             ['python3', 'run_bicluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file,
-             true_file, out_file, os.path.join(score_dir, f'{test_case}_default.tsv')])
+             true_file, out_file, os.path.join(score_dir, f'{test_case}_default-run{r}.tsv')])
 
 parallel_execs = int(sys.argv[1])
 while len(commands) > 0 or len(running) > 0:
