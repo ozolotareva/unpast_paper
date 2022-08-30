@@ -8,4 +8,6 @@ scipy
 statsmodels
 pandas
 python-louvain
-
+tqdm
+kneed
+matplotlib
