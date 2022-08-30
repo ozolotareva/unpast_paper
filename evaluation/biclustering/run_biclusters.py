@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import time
+import collect_results
 
 test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
 script_folder = "./"
@@ -19,7 +20,7 @@ for mode in os.listdir(test_case_folder):
     mode_path = os.path.join(test_case_folder, mode)
     for case_file in os.listdir(mode_path):
         file_path = os.path.join(mode_path, case_file)
-        prefix = case_file.split(".")[0]
+        prefix = case_file.split(".")[0]+"."+case_file.split(".")[1]
         if "exprs" in case_file:
             expr_files[prefix] = file_path
         elif "biclusters" in case_file:
@@ -45,6 +46,9 @@ for test_case in expr_files.keys():
         score_dir = os.path.join(result_dir, tool_name)
         if not os.path.exists(score_dir):
             os.system("mkdir " + score_dir)
+        score_dir = os.path.join(score_dir,'default')
+        if not os.path.exists(score_dir):
+            os.system("mkdir "+score_dir)
         out_file = get_output_file(tool_name, test_case)
         commands.append(
             ['python3', 'run_bicluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file,
@@ -67,3 +71,4 @@ while len(commands) > 0 or len(running) > 0:
     time.sleep(1)
 
 print(f"All done, result scores are in {result_dir}")
+collect_results.collect(result_dir)

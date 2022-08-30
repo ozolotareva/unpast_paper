@@ -29,4 +29,4 @@ RUN python setup.py install
 WORKDIR "evaluation/biclustering"
 RUN pip install -r requirements.txt
 
-ENTRYPOINT ["tail","-f","/dev/null"]
+ENTRYPOINT "python run_biclusters2.py 1 ; tail -f /dev/null"
