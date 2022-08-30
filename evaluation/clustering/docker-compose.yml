@@ -1,0 +1,13 @@
+version: '3.3'
+
+services:
+  app:
+    image: desmond2_eval_container_clustering
+    container_name: desmond2_eval_container_clustering
+    build: .
+    ports:
+      - 8001:8000
+    volumes:
+      - desmond2-eval-volume:/tmp
+volumes:
+  desmond2-eval-volume:
