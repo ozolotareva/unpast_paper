@@ -29,4 +29,6 @@ RUN python setup.py install
 WORKDIR "evaluation/biclustering"
 RUN pip install -r requirements.txt
 
-ENTRYPOINT "python run_biclusters2.py 1 ; tail -f /dev/null"
+RUN mkdir -p "/local/DESMOND2_data_simulated/"
+
+ENTRYPOINT ["tail","-f","/dev/null"]
