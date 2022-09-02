@@ -1,11 +1,12 @@
-sklearn
-fisher
-jenkspy
-matplotlib-venn
-numba
-numpy
-scipy
-statsmodels
-pandas
-python-louvain
+fisher==0.1.10
+jenkspy==0.3.1
+matplotlib-venn==0.11.7
+numba==0.56.0
+numpy==1.22.4
+pandas==1.4.4
+python-louvain==0.16
+scipy==1.9.1
+sklearn==0.0
+statsmodels==0.13.2
+
 
