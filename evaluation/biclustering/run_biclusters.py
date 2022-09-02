@@ -8,11 +8,11 @@ test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
 script_folder = "./"
 
 tool_list = {
-    'fabia': 'run_fabia.R',
-    'isa2': 'run_isa2.R',
-    'qubic': 'run_qubic.R',
-    'debi': './debi',
-    'qubic2': 'qubic2-master/qubic'
+    'fabia': {'name': 'run_fabia.R', 'deterministic': False},
+    'isa2': {'name': 'run_isa2.R', 'deterministic': False},
+    'qubic': {'name': 'run_qubic.R', 'deterministic': True},
+    'debi': {'name': './debi', 'deterministic': True},
+    'qubic2': {'name': 'qubic2-master/qubic', 'deterministic': False}
 }
 
 expr_files = {}
@@ -52,10 +52,18 @@ for test_case in expr_files.keys():
         if not os.path.exists(score_dir):
             os.system("mkdir " + score_dir)
         out_file = get_output_file(tool_name, test_case)
-        for r in range(1, 6):
+
+        if tool_list[tool_name]['deterministic']:
             commands.append(
-                ['python3', 'run_bicluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file,
-                 true_file, out_file, os.path.join(score_dir, f'{test_case}_default-run{r}.tsv')])
+                ['python3', 'run_bicluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]['name']),
+                 expr_file,
+                 true_file, out_file, os.path.join(score_dir, f'{test_case}_default.tsv')])
+        else:
+            for r in range(1, 6):
+                commands.append(
+                    ['python3', 'run_bicluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]['name']),
+                     expr_file,
+                     true_file, out_file, os.path.join(score_dir, f'{test_case}_default-run{r}.tsv')])
 
 parallel_execs = int(sys.argv[1])
 while len(commands) > 0 or len(running) > 0:

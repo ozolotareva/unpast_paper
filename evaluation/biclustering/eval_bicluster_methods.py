@@ -42,4 +42,5 @@ def run_eval(tool_name, expr_file, ground_truth_file, result_file):
     result = read_results(tool_name, result_file)
 
     best_matches = find_best_matches(result, known_groups, N, FDR=0.05)
+    print(best_matches)
     return best_matches["J_weighted"].sum()
