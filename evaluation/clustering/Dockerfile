@@ -18,9 +18,7 @@ RUN ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN conda install -c conda-forge -y r-base=4.2.1
 
 RUN git clone https://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@github.com/ozolotareva/DESMOND2.git
-
-RUN R -e "chooseCRANmirror(ind=1) ; install.packages('BiocManager') ; BiocManager::install('mosbi') ;  BiocManager::install('WGCNA')"
-
+RUN R -e "chooseCRANmirror(ind=1) ; install.packages('BiocManager') ;  BiocManager::install('WGCNA')"
 WORKDIR "DESMOND2"
 
 #RUN apt install -y python3.9
@@ -29,7 +27,5 @@ RUN python setup.py install
 WORKDIR "evaluation/clustering"
 COPY . ./
 RUN pip install -r requirements.txt
-
 RUN mkdir -p "/local/DESMOND2_data_simulated/"
-
 ENTRYPOINT ["tail","-f","/dev/null"]
