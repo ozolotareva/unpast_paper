@@ -14,20 +14,23 @@ score_file = args[6]
 
 def get_command(tool_name, script_location, expr_file, out_file):
     command = []
+    if tool_name == 'qubic2':
+        disc_file = os.path.join(os.path.split(out_file)[0], os.path.split(expr_file)[1])
+        os.system(f'cp {expr_file} {disc_file}')
+        expr_file = expr_file.replace(".chars", "")
+        command.extend([script_location, '-i', disc_file])
     if tool_name in ['isa2', 'fabia', 'qubic']:
         command.append("Rscript")
 
-    if tool_name in ['isa2', 'fabia', 'qubic', 'debi', 'qubic2']:
+    if tool_name in ['isa2', 'fabia', 'qubic', 'debi']:
         command.append(script_location)
-        if tool_name == 'qubic2':
-            command.append("-i")
         command.append(expr_file)
         if tool_name in ['isa2', 'fabia', 'qubic', 'debi']:
             command.append(out_file)
     if tool_name == 'debi':
         command.append("-b2")
     if tool_name == 'qubic2':
-        command.extend(['-F', '-R'])
+        command.append('-d')
     return command
 
 
