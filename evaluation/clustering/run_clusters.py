@@ -5,9 +5,9 @@ import time
 # import collect_results
 
 # os.chdir('/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/clustering')
-test_case_folder = "/Users/fernando/Documents/Research/DESMOND2/DESMOND2/data/simulated"
+# test_case_folder = "/Users/fernando/Documents/Research/DESMOND2/DESMOND2/data/simulated"
 
-# test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
+test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
 script_folder = "./"
 
 tool_list = {
@@ -39,7 +39,7 @@ def get_output_file(tool_name, case_prefix):
     return os.path.join("/tmp/", f'{case_prefix}_{tool_name}.tsv')
 
 
-result_dir = "/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/clustering/results"
+result_dir = "./results"
 if os.path.exists(result_dir):
     os.system(f"rm -rf {result_dir}")
 os.system(f"mkdir {result_dir}")
