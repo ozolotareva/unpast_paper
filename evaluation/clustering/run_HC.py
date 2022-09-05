@@ -23,18 +23,29 @@ def reformat_cluster_results(clusters, input_df):
 
 args = sys.argv
 input_file = args[1]
-results_dir = args[2]
-# results_dir = '/Users/fernando/Documents/Research/DESMOND2/methods/results/results_HC/'
-# input_file = '/Users/fernando/Documents/Research/DESMOND2/datasets/DESMOND2_data_simulated/simulated/A/example.tsv'
-# input_file = '/Users/fernando/Documents/Research/DESMOND2/datasets/DESMOND2_data_simulated/simulated/A/example_MEs.tsv'
-df = pd.read_csv(input_file, sep='\t', index_col=0).T
+result_file = args[2]
+'''
+input_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/data/simulated/A/A.n_genes=5,m=4,std=1,overlap=no.exprs_z.tsv'
+result_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/clustering/results/HC/clusters/A.n_genes=5,m=4,std=1,overlap=no_run1.tsv'
+'''
+#
 
-for method in ['single', 'complete']:
-    mergings = linkage(df, method=method, metric='euclidean')
-    # dendrogram(mergings)
-    # plt.show()
-    for k in tqdm(range(1, 21)):
-        cluster_labels = cut_tree(mergings, n_clusters=k).reshape(-1, )
-        #print(cluster_labels)
-        result_k = reformat_cluster_results(clusters=pd.DataFrame({'sample': df.index, 'label': cluster_labels}), input_df=df)
-        result_k.to_csv(results_dir + input_file.split('/')[-1].replace('.tsv', f'_method_{method}_k_{k}.tsv'), sep='\t')
+
+df = pd.read_csv(input_file, sep='\t', index_col=0).T
+distance_metrics = ['braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correlation', 'cosine', 'dice', 'euclidean', 'hamming', 'jaccard', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule']
+# distance_metrics = ['braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correlation', 'cosine', 'dice', 'euclidean', 'hamming', 'jaccard', 'jensenshannon', 'kulczynski1', 'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule']
+distance_methods = ['single', 'complete', 'average', 'weighted', 'centroid', 'median', 'ward']
+
+for method in distance_methods:
+    for distance_metric in distance_metrics:
+        print(method, distance_metric)
+        if method in ['centroid', 'median', 'ward']:
+            distance_metric = 'euclidean'
+        mergings = linkage(df, method=method, metric=distance_metric)
+        # dendrogram(mergings)
+        # plt.show()
+        for k in tqdm(range(1, 21)):
+            cluster_labels = cut_tree(mergings, n_clusters=k).reshape(-1, )
+            # print(cluster_labels)
+            result_k = reformat_cluster_results(clusters=pd.DataFrame({'sample': df.index, 'label': cluster_labels}), input_df=df)
+            result_k.to_csv(result_file.replace('.tsv', f'_method_{method}_distance_{distance_metric}_k_{k}.tsv'), sep='\t')

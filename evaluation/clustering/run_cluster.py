@@ -1,8 +1,9 @@
 import os
 import subprocess
 import sys
-from eval_cluster_methods import run_eval
+from DESMOND2.evaluation.clustering.eval_cluster_methods import run_eval
 import glob
+from tqdm import tqdm
 
 args = sys.argv
 tool_name = args[1]
@@ -28,6 +29,13 @@ expr_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/data/simulated
 truth_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/data/simulated/B/B.n_genes=5,m=4,std=1,overlap=yes.biclusters.tsv'
 result_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/clustering/results/WGCNAkmeans/clusters/B.n_genes=5,m=4,std=1,overlap=yes_run5.tsv'
 score_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/clustering/results/WGCNAkmeans/WGCNAkmeans_scores.txt'
+
+script = './run_HC.py'
+expr_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/data/simulated/A/A.n_genes=5,m=4,std=1,overlap=no.exprs_z.tsv'
+truth_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/data/simulated/A/A.n_genes=5,m=4,std=1,overlap=no.biclusters.tsv'
+result_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/clustering/results/HC/clusters/A.n_genes=5,m=4,std=1,overlap=no_run4.tsv'
+score_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/clustering/results/HC/HC_scores.txt'
+
 '''
 
 
@@ -45,8 +53,8 @@ subprocess.check_call(get_command(tool_name, script, expr_file, result_file))
 listing = glob.glob(result_file[:-4] + '*')
 
 with open(score_file, 'a+') as fw:
-    for filename in listing:
+    for filename in tqdm(listing):
         # os.system(f'rm {filename}')
         j_weighted = run_eval(expr_file=expr_file, result_file=filename, ground_truth_file=truth_file)
-        print(f"J_weighted for {tool_name} and {filename}: {j_weighted}")
+        # print(f"J_weighted for {tool_name} and {filename}: {j_weighted}")
         fw.write(f"{filename.split('/')[-1]}\t{str(j_weighted)}\n")
