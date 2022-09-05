@@ -39,7 +39,8 @@ def get_output_file(tool_name, case_prefix):
     return os.path.join("/tmp/", f'{case_prefix}_{tool_name}.tsv')
 
 
-result_dir = "./results"
+result_dir = "/tmp"
+
 if os.path.exists(result_dir):
     os.system(f"rm -rf {result_dir}")
 os.system(f"mkdir {result_dir}")

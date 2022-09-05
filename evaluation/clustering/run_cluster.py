@@ -1,7 +1,7 @@
 import os
 import subprocess
 import sys
-from DESMOND2.evaluation.clustering.eval_cluster_methods import run_eval
+from eval_cluster_methods import run_eval
 import glob
 from tqdm import tqdm
 
