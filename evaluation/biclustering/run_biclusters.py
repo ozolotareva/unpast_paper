@@ -8,11 +8,11 @@ test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
 script_folder = "./"
 
 tool_list = {
-    # 'fabia': {'name': 'run_fabia.R', 'deterministic': False, 'precompute': False},
-    # 'isa2': {'name': 'run_isa2.R', 'deterministic': False, 'precompute': False},
-    # 'qubic': {'name': 'run_qubic.R', 'deterministic': True, 'precompute': False},
-    # 'debi': {'name': './debi', 'deterministic': True, 'precompute': False},
-    'qubic2': {'name': 'qubic2-master/qubic', 'deterministic': True, 'precompute': True}
+    'fabia': {'name': 'run_fabia.R', 'deterministic': False, 'precompute': False},
+    'isa2': {'name': 'run_isa2.R', 'deterministic': False, 'precompute': False},
+    'qubic': {'name': 'run_qubic.R', 'deterministic': True, 'precompute': False},
+    'debi': {'name': './debi', 'deterministic': True, 'precompute': False},
+    'qubic2': {'name': 'qubic2-master/qubic', 'deterministic': False, 'precompute': True}
 }
 
 expr_files = {}
