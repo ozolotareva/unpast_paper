@@ -12,7 +12,9 @@ script_folder = "./"
 
 tool_list = {
     'kmeans': 'run_kmeans.py',
-    'WGCNAkmeans': 'run_WGCNAkmeans.py'
+    'WGCNAkmeans': 'run_WGCNAkmeans.py',
+    'HC': 'run_HC.py',
+    'WGCNAHC': 'run_WGCNAHC.py'
 }
 
 expr_files = {}

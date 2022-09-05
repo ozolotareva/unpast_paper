@@ -33,7 +33,7 @@ score_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/cl
 
 def get_command(tool_name, script_location, expr_file, out_file):
     command = []
-    if tool_name in ['kmeans', 'WGCNAkmeans', 'WGCNAHC']:
+    if tool_name in ['kmeans', 'WGCNAkmeans', 'WGCNAHC', 'HC']:
         command.append("python3")
         command.append(script_location)
         command.append(expr_file)
