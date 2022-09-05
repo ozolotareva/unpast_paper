@@ -60,6 +60,9 @@ Major modifications:
  * DESMOND2 clusters individual genes instead of gene pairs
  * uses Gaussian mixture models or Jenks method for binarization of individual gene expressions
  * SNR threshold is authomatically determined; it depends on bicluster size in samples and user-defined p-value cutoff
+ 
+## License
+Free for non-for-profit use. For commercial use please contact the developers. 
 
 ### Poster CDCS workshop'22
 ![./poster/DESMOND2_poster_v5.png](./poster/DESMOND2_poster_v5.png)
