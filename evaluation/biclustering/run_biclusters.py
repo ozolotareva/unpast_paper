@@ -58,26 +58,26 @@ for test_case in expr_files.keys():
                 disc_dir = score_dir + "_disc"
                 if not os.path.exists(disc_dir):
                     os.system(f"mkdir {disc_dir}")
-                discretication_input = os.path.join(disc_dir, os.path.split(expr_file)[1])
-                if not os.path.exists(discretication_input+".chars"):
-                    os.system(f'cp {expr_file} {discretication_input}')
+                discretization_input = os.path.join(disc_dir, os.path.split(expr_file)[1])
+                if not os.path.exists(discretization_input + ".chars"):
+                    os.system(f'cp {expr_file} {discretization_input}')
                     commands.append(
-                        [os.path.join(script_folder, tool_list[tool_name]['name']), '-i', discretication_input, '-F', '-R'])
-                    expr_file = discretication_input + ".chars"
+                        [os.path.join(script_folder, tool_list[tool_name]['name']), '-i', discretization_input, '-F', '-R'])
+                    expr_file = discretization_input + ".chars"
                     out_file = os.path.join(score_dir, os.path.split(expr_file)[1] + ".blocks")
 
         if tool_list[tool_name]['deterministic']:
             commands.append(
                 ['python3', 'run_bicluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]['name']),
                  expr_file,
-                 true_file, out_file, os.path.join(score_dir, f'{test_case}_default.tsv')])
+                 true_file, out_file, os.path.join(score_dir, f'{test_case}_default.score')])
         else:
             for r in range(1, 6):
                 commands.append(
                     ['python3', 'run_bicluster.py', tool_name,
                      os.path.join(script_folder, tool_list[tool_name]['name']),
                      expr_file,
-                     true_file, out_file, os.path.join(score_dir, f'{test_case}_default-run{r}.tsv')])
+                     true_file, out_file, os.path.join(score_dir, f'{test_case}_default-run{r}.score')])
 
 parallel_execs = int(sys.argv[1])
 while len(commands) > 0 or len(running) > 0:
