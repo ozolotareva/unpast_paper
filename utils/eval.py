@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import pandas as pd
 from fisher import pvalue
@@ -7,7 +8,7 @@ from utils.method import zscore
 
 def make_known_groups(annot, exprs,target_col = "genefu_z"):
     samples = set(exprs.columns.values).intersection(set(annot.index.values))
-    print("Total samples:",len(samples))
+    print("Total samples:",len(samples),file = sys.stdout)
     annot = annot.loc[list(samples), :]
     groups = set(annot.loc[:,target_col].values)
 
@@ -17,50 +18,12 @@ def make_known_groups(annot, exprs,target_col = "genefu_z"):
             group_samples = set(annot.loc[annot[target_col]==group,:].index.values)
             group_samples = group_samples.intersection(samples)
             if len(group_samples)>int(len(samples)/2):
-                print("take complement of ",group)
+                print("take complement of ",group,file = sys.stderr)
                 group_samples = samples.difference(group_samples)
             known_groups[group] = group_samples #{"set":group_samples,"complement": samples.difference(group_samples)}
             print(group,round(len(group_samples)/len(samples),2),
                   len(group_samples),len(samples.difference(group_samples)))
     return known_groups
-
-def evaluate_overlaps(biclusters,known_groups,N):
-    # compute exact Fisher's p-values and Jaccard overlaps
-    pvals = {}
-    is_enriched = {}
-    jaccards = {}
-    for i in biclusters.index.values:
-        bic = biclusters.loc[i,:]
-        pvals[i] = {}
-        is_enriched[i] ={}
-        jaccards[i] = {}
-        bic_samples=bic["samples"]
-        for group in list(known_groups.keys()):
-            group_samples = known_groups[group]
-            shared = len(bic_samples.intersection(group_samples))
-            bic_only = len(bic_samples.difference(group_samples))
-            group_only = len(group_samples.difference(bic_samples))
-            union =  shared+bic_only+group_only
-            pval = pvalue(shared,bic_only,group_only,N - union)
-            if pval.right_tail<pval.left_tail:
-                pvals[i][group] = pval.right_tail
-                is_enriched[i][group] = True
-                jaccards[i][group] = shared/union
-            else:
-                # save left-tail p-value and record that this is not enrichment
-                pvals[i][group] = pval.left_tail
-                is_enriched[i][group] = False
-                # compute J for bicluster and group complement, (e.g. not_LumA instead of LumA)
-                shared_compement = len(bic_samples)-shared
-                union_compement = N-group_only
-                jaccards[i][group] = shared_compement/union_compement 
-                
-                
-    pvals = pd.DataFrame.from_dict(pvals).T
-    is_enriched = pd.DataFrame.from_dict(is_enriched).T
-    jaccards = pd.DataFrame.from_dict(jaccards).T
-    return pvals,is_enriched,jaccards
-
 
 def apply_fdr(df_pval,known_groups):
     df_fdr = {}
@@ -72,8 +35,58 @@ def apply_fdr(df_pval,known_groups):
     #df_fdr["associated"] = df_fdr.apply(lambda row: row[row<0.05].index.values,axis=1)
     return df_fdr
 
-def find_best_matches(biclusters,known_groups,N,FDR=0.05,
-                      min_SNR=False,min_n_genes=False):
+
+def evaluate_overlaps(biclusters,known_groups,all_elements,dimension = "samples"):
+    # compute exact Fisher's p-values and Jaccard overlaps for samples
+    pvals = {}
+    is_enriched = {}
+    jaccards = {}
+    N = len(all_elements)
+    # sanity check
+    for group in list(known_groups.keys()):
+        group_members = known_groups[group]
+        if not group_members.intersection(all_elements) == group_members:
+            print(group, "elements are not in 'all_elements'",file =sys.stderr)
+            return 
+    for i in biclusters.index.values:
+        bic = biclusters.loc[i,:]
+        pvals[i] = {}
+        is_enriched[i] ={}
+        jaccards[i] = {}
+        bic_members=bic[dimension]
+        # sanity check - biclusters
+        if not bic_members.intersection(all_elements) == bic_members:
+            print("bicluster {} elements {} are not in 'all_elements'".format(i," ".join(bic_members.difference(all_elements))),file =sys.stderr)
+            return 
+        for group in list(known_groups.keys()):
+            group_members = known_groups[group]
+            shared = len(bic_members.intersection(group_members))
+            bic_only = len(bic_members.difference(group_members))
+            group_only = len(group_members.difference(bic_members))
+            union =  shared+bic_only+group_only
+            pval = pvalue(shared,bic_only,group_only,N - union)
+            if pval.right_tail<pval.left_tail:
+                pvals[i][group] = pval.right_tail
+                is_enriched[i][group] = True
+                jaccards[i][group] = shared/union
+            else:
+                # save left-tail p-value and record that this is not enrichment
+                pvals[i][group] = pval.left_tail
+                is_enriched[i][group] = False
+                # compute J for bicluster and group complement, (e.g. not_LumA instead of LumA)
+                shared_compement = len(bic_members)-shared
+                union_compement = N-group_only
+                jaccards[i][group] = shared_compement/union_compement 
+                
+                
+    pvals = pd.DataFrame.from_dict(pvals).T
+    is_enriched = pd.DataFrame.from_dict(is_enriched).T
+    jaccards = pd.DataFrame.from_dict(jaccards).T
+    return pvals,is_enriched,jaccards
+
+
+def find_best_matches(biclusters,known_groups,all_elements,FDR=0.05,
+                      min_SNR=False,min_n_genes=False,dimension = "samples",verbose = False):
     # for each known group identifies the best matching bicluster - a significant match with max.Jaccard
     # if bicluster is significantly under-represented in a known group, 
     # compares bicluster to group complement (e.g. not LumA instead of LumA) and sets is_enriched = False
@@ -89,16 +102,22 @@ def find_best_matches(biclusters,known_groups,N,FDR=0.05,
         return results
     
     # calculate overlap p-vals
-    df_pval, is_enriched, df_jaccard = evaluate_overlaps(biclusters,known_groups,N)
+    try:
+        df_pval, is_enriched, df_jaccard = evaluate_overlaps(biclusters,known_groups,
+                                                         all_elements,dimension = dimension)
+    except:
+        print("failed to calculate overlap p-values",file=sys.stderr)
+        out = evaluate_overlaps(biclusters,known_groups,all_elements,dimension = dimension)
+        return
     
     # BH-adjust for multiple testing
     df_fdr = apply_fdr(df_pval,known_groups)
-    #print(df_pval)
-    #print(df_fdr)
     
     for group in sorted(list(known_groups.keys())):
         significant_matches_j = df_jaccard.loc[df_fdr[group]<=FDR,:]
         group_size = len(known_groups[group])
+        if verbose:
+            print("\t",group, "significant matches:",len(significant_matches_j),file = sys.stdout)
         if significant_matches_j.shape[0]>0:
             significant_matches_j = significant_matches_j.sort_values(by=group,ascending = False).head(1)
 
@@ -114,8 +133,8 @@ def find_best_matches(biclusters,known_groups,N,FDR=0.05,
             results[group] = {"group_size":group_size,"J": 0}
     results = pd.DataFrame.from_dict(results).T
     results.index.name = "known_group"
-    total_bicluster_samples = results["group_size"].sum()
-    results["J_weighted"] = results["J"]*results["group_size"]/total_bicluster_samples
+    total_bicluster_members = results["group_size"].sum()
+    results["J_weighted"] = results["J"]*results["group_size"]/total_bicluster_members
     return results
 
 def generate_exprs(data_sizes,g_size=5,frac_samples=[0.05,0.1,0.25,0.5],m=2.0,std=1,
