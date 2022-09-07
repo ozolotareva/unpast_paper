@@ -27,24 +27,32 @@ def read_results(tool_name, result_file):
             for line in fh.readlines():
                 if line.startswith(" Genes"):
                     genes.append(set(line.strip().split(": ")[1].split(" ")))
+                    print(genes)
                 elif line.startswith(" Conds"):
                     samples.append(set(line.strip().split(": ")[1].split(" ")))
+                    print(samples)
+
         return pd.DataFrame({'samples': samples, 'genes': genes})
+    elif tool_name == 'dataframe':
+        result = pd.read_csv(result_file, delimiter="\t", index_col=0)
+        result["samples"] = result["samples"].apply(eval)
+        result["genes"] = result["genes"].apply(eval)
+        return result
 
 
 def run_eval(tool_name, expr_file, ground_truth_file, result_file):
     # expression file
     if tool_name == 'qubic2':
         expr_file = expr_file.split(".chars")[0]
+        if "-run" in expr_file:
+            expr_file = expr_file.split("-run")[0]+".tsv"
     exprs = pd.read_csv(expr_file, sep="\t", index_col=0, header=0)
-    N = len(exprs.columns)
+    samples = list(exprs.columns)
     # read ground truth from file
     ground_truth = pd.read_csv(ground_truth_file, sep="\t", index_col=0)
     ground_truth["samples"] = ground_truth["samples"].apply(lambda x: set(x.split(" ")))
     if "genes" in ground_truth.columns.values:
         ground_truth["genes"] = ground_truth["genes"].apply(lambda x: set(x.split(" ")))
-
-    # ground_truth
 
     # prepare a dict with sample groups corresponding to known bicluster
     known_groups = {}
@@ -52,7 +60,24 @@ def run_eval(tool_name, expr_file, ground_truth_file, result_file):
         known_groups[group] = ground_truth.loc[group, "samples"]
 
     result = read_results(tool_name, result_file)
+    # print(samples)
+    if "chars.blocks" in result_file:
+        result_file = result_file.replace('.chars.blocks', '')
 
-    best_matches = find_best_matches(result, known_groups, N, FDR=0.05)
+    result.to_csv(result_file.replace('.tsv', '-biclusters_df.tsv'), sep="\t")
+    best_matches = find_best_matches(result, known_groups, samples, FDR=0.05)
+    best_matches.to_csv(result_file.replace('.tsv', '-scores_df.tsv'), sep="\t")
     print(best_matches)
-    return best_matches["J_weighted"].sum()
+    try:
+        return best_matches["J_weighted"].sum()
+    except:
+        return 0.0
+#
+#
+# name = 'dataframe'
+# expr_file = '/home/andim/Downloads/A.n_genes=50,m=4,std=1,overlap=no.exprs_z.tsv'
+# truth = '/home/andim/Downloads/A.n_genes=50,m=4,std=1,overlap=no.biclusters.tsv'
+# result = '/home/andim/Downloads/A.n_genes=50,m=4,std=1,overlap=no.exprs_z-biclusters_df.tsv'
+#
+#
+# run_eval(name, expr_file, truth, result)

@@ -27,6 +27,7 @@ for mode in os.listdir(test_case_folder):
             expr_files[prefix] = file_path
         elif "biclusters" in case_file:
             bicluster_files[prefix] = file_path
+    break
 
 
 def get_output_file(tool_name, case_prefix):
@@ -61,10 +62,17 @@ for test_case in expr_files.keys():
                 discretization_input = os.path.join(disc_dir, os.path.split(expr_file)[1])
                 if not os.path.exists(discretization_input + ".chars"):
                     os.system(f'cp {expr_file} {discretization_input}')
-                    commands.append(
-                        [os.path.join(script_folder, tool_list[tool_name]['name']), '-i', discretization_input, '-F', '-R'])
+
                     expr_file = discretization_input + ".chars"
                     out_file = os.path.join(score_dir, os.path.split(expr_file)[1] + ".blocks")
+                    commands.append(
+                            [os.path.join(script_folder, tool_list[tool_name]['name']), '-i', discretization_input,
+                             '-F',
+                             '-R'])
+                    if not tool_list[tool_name]['deterministic']:
+                        for r in range(1, 6):
+                            commands.append(
+                                ['cp', expr_file, expr_file.replace('.tsv.chars', '-run' + str(r)) + ".tsv.chars"])
 
         if tool_list[tool_name]['deterministic']:
             commands.append(
@@ -73,12 +81,19 @@ for test_case in expr_files.keys():
                  true_file, out_file, os.path.join(score_dir, f'{test_case}_default.score')])
         else:
             for r in range(1, 6):
-                commands.append(
+                if tool_name == 'qubic2':
+                    commands.append(
                     ['python3', 'run_bicluster.py', tool_name,
                      os.path.join(script_folder, tool_list[tool_name]['name']),
-                     expr_file,
-                     true_file, out_file, os.path.join(score_dir, f'{test_case}_default-run{r}.score')])
-
+                     expr_file.replace('.tsv.chars', '-run' + str(r)) + ".tsv.chars",
+                     true_file, out_file.replace('.tsv.chars.blocks', '-run' + str(r)) + ".tsv.chars.blocks", os.path.join(score_dir, f'{test_case}_default-run{r}.score')])
+                else:
+                    commands.append(
+                        ['python3', 'run_bicluster.py', tool_name,
+                         os.path.join(script_folder, tool_list[tool_name]['name']),
+                         expr_file,
+                         true_file, out_file,
+                         os.path.join(score_dir, f'{test_case}_default-run{r}.score')])
 parallel_execs = int(sys.argv[1])
 while len(commands) > 0 or len(running) > 0:
     if len(running) < parallel_execs and len(commands) > 0:

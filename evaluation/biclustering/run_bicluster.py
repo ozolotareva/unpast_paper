@@ -18,6 +18,8 @@ def get_command(tool_name, script_location, expr_file, out_file):
         disc_file = os.path.join(os.path.split(out_file)[0], os.path.split(expr_file)[1])
         os.system(f'cp {expr_file} {disc_file}')
         expr_file = expr_file.replace(".chars", "")
+        if 'run' in expr_file:
+            expr_file.replace("-run",'')
         command.extend([script_location, '-i', disc_file])
     if tool_name in ['isa2', 'fabia', 'qubic']:
         command.append("Rscript")
@@ -31,6 +33,7 @@ def get_command(tool_name, script_location, expr_file, out_file):
         command.append("-b2")
     if tool_name == 'qubic2':
         command.append('-d')
+    print(command)
     return command
 
 
