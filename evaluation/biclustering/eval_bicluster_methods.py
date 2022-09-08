@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 from utils.eval import find_best_matches
 
@@ -5,8 +7,8 @@ from utils.eval import find_best_matches
 def read_results(tool_name, result_file):
     if tool_name in ['isa2', 'fabia', 'qubic']:
         result = pd.read_csv(result_file, names=['samples', 'genes'], sep="\t")
-        result["samples"] = result["samples"].apply(lambda x: set(x.split(" ")))
-        result["genes"] = result["genes"].apply(lambda x: set(x.split(" ")))
+        result["samples"] = result["samples"].apply(lambda x: set(x.strip().split(" ")))
+        result["genes"] = result["genes"].apply(lambda x: set(x.strip().split(" ")))
         return result
     elif tool_name == 'debi':
         samples = []
@@ -16,9 +18,9 @@ def read_results(tool_name, result_file):
             for line in fh.readlines():
                 line_nr = (line_nr + 1) % 3
                 if line_nr == 1:
-                    genes.append(set(line.split(" ")))
+                    genes.append(set(line.strip().split(" ")))
                 elif line_nr == 2:
-                    samples.append(set(line.split(" ")))
+                    samples.append(set(line.strip().split(" ")))
         return pd.DataFrame({'samples': samples, 'genes': genes})
     elif tool_name == 'qubic2':
         samples = []
@@ -27,10 +29,8 @@ def read_results(tool_name, result_file):
             for line in fh.readlines():
                 if line.startswith(" Genes"):
                     genes.append(set(line.strip().split(": ")[1].split(" ")))
-                    print(genes)
                 elif line.startswith(" Conds"):
                     samples.append(set(line.strip().split(": ")[1].split(" ")))
-                    print(samples)
 
         return pd.DataFrame({'samples': samples, 'genes': genes})
     elif tool_name == 'dataframe':
@@ -43,9 +43,8 @@ def read_results(tool_name, result_file):
 def run_eval(tool_name, expr_file, ground_truth_file, result_file):
     # expression file
     if tool_name == 'qubic2':
-        expr_file = expr_file.split(".chars")[0]
-        if "-run" in expr_file:
-            expr_file = expr_file.split("-run")[0]+".tsv"
+        result_file = result_file+".blocks"
+
     exprs = pd.read_csv(expr_file, sep="\t", index_col=0, header=0)
     samples = list(exprs.columns)
     # read ground truth from file
@@ -61,17 +60,13 @@ def run_eval(tool_name, expr_file, ground_truth_file, result_file):
 
     result = read_results(tool_name, result_file)
     # print(samples)
-    if "chars.blocks" in result_file:
-        result_file = result_file.replace('.chars.blocks', '')
 
-    result.to_csv(result_file.replace('.tsv', '-biclusters_df.tsv'), sep="\t")
     best_matches = find_best_matches(result, known_groups, samples, FDR=0.05)
-    best_matches.to_csv(result_file.replace('.tsv', '-scores_df.tsv'), sep="\t")
     print(best_matches)
-    try:
-        return best_matches["J_weighted"].sum()
-    except:
-        return 0.0
+    # try:
+    return (best_matches, result)
+    # except:
+    #     return (0.0,result)
 #
 #
 # name = 'dataframe'
