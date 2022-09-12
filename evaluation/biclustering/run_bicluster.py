@@ -37,16 +37,22 @@ def get_qubic2_command(script_location, expr_file, disc_file, params):
     # os.system(f'cp -f {d_file} {disc_file}')
 
     command = [script_location, '-i', disc_file, '-o', '1000', '-d']
-    if 'c' in params:
+    if 'C' in params:
         command.append('-C')
-    if 'n' in params:
+    if 'N' in params:
         command.append('-N')
+    if 'p' in params:
+        command.append('-p')
+    if 'c' in params:
+        command.extend(['-c', params['c']])
+    if 'k' in params:
+        command.extend(['-k', params['k']])
     return command
 
 
 def get_command(tool_name, script_location, expr_file, out_file, param_file):
     command = []
-    if tool_name in ['isa2', 'fabia', 'qubic']:
+    if tool_name in ['isa2', 'fabia', 'qubic', 'xmotifs']:
         command = ["Rscript", script_location, expr_file, out_file, param_file]
     else:
         params = read_config_file(param_file)
@@ -59,15 +65,17 @@ def get_command(tool_name, script_location, expr_file, out_file, param_file):
 
 
 subprocess.check_call(get_command(tool_name, script, expr_file, result_file, config_file))
+
+if ".chars" in result_file:
+    result_file = result_file + ".blocks"
+
 (scores, result) = eval_bicluster_methods.run_eval(tool_name=tool_name, expr_file=expr_file, result_file=result_file,
                                                    ground_truth_file=truth_file)
 
-if ".chars" in result_file:
-    result_file = result_file.replace('.chars', '')
-try:
-    result.to_csv(score_file.replace('.score', '-biclusters_df.tsv'), sep="\t")
-except:
-    os.system('touch ' + score_file.replace('.score', '-biclusters_df.tsv'))
+# try:
+#     result.to_csv(score_file.replace('.score', '-biclusters_df.tsv'), sep="\t")
+# except:
+#     os.system('touch ' + score_file.replace('.score', '-biclusters_df.tsv'))
 
 j_weighted = 0.0
 try:
@@ -76,8 +84,8 @@ try:
 except:
     os.system(f'touch {score_file.replace(".score", "-scores_df.tsv")}')
 
-print(f'move result file {result_file} to {score_file.replace(".score", "-raw.output")}')
-os.system(f'mv {result_file} {score_file.replace(".score", "-raw.output")}')
+# print(f'move result file {result_file} to {score_file.replace(".score", "-raw.output")}')
+# os.system(f'mv {result_file} {score_file.replace(".score", "-raw.output")}')
 print(f"J_weighted for {tool_name} and {expr_file}: {j_weighted}")
 with open(score_file, 'w') as fw:
     fw.write(str(j_weighted))

@@ -42,8 +42,6 @@ def read_results(tool_name, result_file):
 
 def run_eval(tool_name, expr_file, ground_truth_file, result_file):
     # expression file
-    if tool_name == 'qubic2':
-        result_file = result_file+".blocks"
 
     exprs = pd.read_csv(expr_file, sep="\t", index_col=0, header=0)
     samples = list(exprs.columns)
