@@ -10,29 +10,36 @@ script_folder = "./"
 
 
 tool_list = {
-    # 'fabia': {'name': 'run_fabia.R', 'deterministic': False, 'precompute': False, 'params': {
-    #     'alpha': [0.001, 0.01, 0.05, 0.5], 'spl': [0.0, 0.5, 1.0, 2.0],
-    #     'spz': [0.0, 0.5, 1.0, 2.0],
-    #     'center': [2]
-    # }},
-    # 'isa2': {'name': 'run_isa2.R', 'deterministic': False, 'precompute': False,
-    #          'params': {"no_seeds": [1, 2, 3, 4, 5] + list(range(10, 110, 10)) + [125, 150, 200]}},
-    # 'qubic': {'name': 'run_qubic.R', 'deterministic': True, 'precompute': False, 'params': {
-    #     'r': [1, 2, 5, 10, 25], 'q': [0.04, 0.06, 0.1],
-    #     'c': [0.99, 0.95, 0.92, 0.85, 0.75], 'f': [0.5, 1, 5], 'P': False, 'C': False, 'type':['default', 'area']
-    # }},
-    # 'xmotifs': {
-    #     'name': 'run_xmotifs.R', 'deterministic': True, 'precompute': False, 'params': {
-    #         'ns': [5, 10, 25, 50, 75, 100], 'alpha': [0.001, 0.01, 0.05, 0.1, 0.15]
-    #     }
-    # },
-    # 'debi': {'name': './debi', 'deterministic': True, 'precompute': False,
-    #          'params': {'s': [0, 1, 3], 'o': [0, 0.5, 1], 'b': [-2, -1, -0.5, 0, 0.5, 1, 2], 'p': ['u']}},
+    'fabia': {'name': 'run_fabia.R', 'deterministic': False, 'precompute': False, 'params': {
+        'alpha': [0.001, 0.01, 0.05, 0.5], 'spl': [0.0, 0.5, 1.0, 2.0],
+        'spz': [0.0, 0.5, 1.0, 2.0],
+        'center': [2]
+    }},
+    'isa2': {'name': 'run_isa2.R', 'deterministic': False, 'precompute': False,
+             'params': {
+                 # "no_seeds": [1, 2, 3, 4, 5] + list(range(10, 110, 10)) + [125, 150, 200]
+             }},
+    'qubic': {'name': 'run_qubic.R', 'deterministic': True, 'precompute': False, 'params': {
+        'r': [1, 2, 5, 10, 25], 'q': [0.04, 0.06, 0.1],
+        'c': [0.99, 0.95, 0.92, 0.85, 0.75], 'f': [0.5, 1, 5], 'P': False, 'C': False, 'type':['default', 'area']
+    }},
+    'xmotifs': {
+        'name': 'run_xmotifs.R', 'deterministic': True, 'precompute': False, 'params': {
+            'ns': [5, 10, 25, 50, 75, 100], 'alpha': [0.001, 0.01, 0.05, 0.1, 0.15]
+        }
+    },
+    'debi': {'name': './debi', 'deterministic': True, 'precompute': False,
+             'params': {
+                 's': [0, 1, 3], 'o': [0, 0.5, 1], 'b': [-2, -1, -0.5, 0, 0.5, 1, 2], 'p': ['u']
+             }},
     'qubic2': {'name': 'qubic2-master/qubic', 'deterministic': True, 'precompute': True, 'discretization_files': [],
                'params': {
                    'C': True, 'N': True,
                    'k': [2,3,4,5,7, 10] + list(range(10, 50, 10)),
-                   'c': [0.5, 0.75, 1.0]}, 'params_pre': [['-F'], ['-F', '-n'], ['-F', '-R']]}
+                   'c': [0.5, 0.75, 1.0]
+               },
+               'params_pre': [['-F'], ['-F', '-n'], ['-F', '-R']]
+               }
 }
 
 
@@ -98,7 +105,6 @@ def write_params(file, params):
                 fw.write(str(k) + "\t" + str(v) + "\n")
             else:
                 fw.write(str(k) + "\t" + str(v) + "\n")
-
 
 def get_output_file(tool_name, case_prefix):
     return os.path.join("/tmp/", f'{case_prefix}_{tool_name}-.tsv')

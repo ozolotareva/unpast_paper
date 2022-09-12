@@ -15,7 +15,16 @@ P=FALSE
 C=FALSE
 type='default'
 
-params = read.table(param_file,sep="\t")
+readParamsFile <- function(file) {
+  out <- tryCatch({
+    read.table(file, sep = "\t")
+  }, error = function(cond) {
+    return(as.table(matrix(c("", ""), ncol = 2)))
+  },
+    warning = function(cond) { return(as.table(matrix(c("", ""), ncol = 2))) }) }
+
+params = readParamsFile(param_file)
+
 for(idx in c(1:length(params[,1]))){
   if(params[idx,][[1]] == 'r'){
     r = as.numeric(params[idx,][[2]])

@@ -13,7 +13,16 @@ spz=0.5
 center=2
 lap=1.0
 
-params = read.table(param_file,sep="\t")
+readParamsFile <- function(file) {
+  out <- tryCatch({
+    read.table(file, sep = "\t")
+  }, error = function(cond) {
+    return(as.table(matrix(c("", ""), ncol = 2)))
+  },
+    warning = function(cond) { return(as.table(matrix(c("", ""), ncol = 2))) }) }
+
+params = readParamsFile(param_file)
+
 for(idx in c(1:length(params[,1]))){
   if(params[idx,][[1]] == 'alpha'){
     alpha = as.double(params[idx,][[2]])
