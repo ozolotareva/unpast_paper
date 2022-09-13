@@ -1,0 +1,11 @@
+version: "3.3"
+
+services:
+    data_analysis:
+        build: .
+        container_name: data_analysis
+        tty: true
+        volumes:
+            - ~/volumes/desmond2_docker:/root/projects/data
+        ports:
+            - 8080:80
