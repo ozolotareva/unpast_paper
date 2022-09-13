@@ -4,8 +4,8 @@ import sys
 import time
 # import collect_results
 
-# os.chdir('/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/clustering')
-# test_case_folder = "/Users/fernando/Documents/Research/DESMOND2/DESMOND2/data/simulated"
+# os.chdir('/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering')
+# test_case_folder = "/Users/fernando/Documents/Research/DESMOND2_data_simulated/simulated"
 
 test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
 script_folder = "./"
@@ -48,21 +48,21 @@ os.system(f"mkdir {result_dir}")
 commands = list()
 running = list()
 
-for test_case in expr_files.keys():
-    # print(test_case)
-    expr_file = expr_files[test_case]
-    true_file = bicluster_files[test_case]
-    for tool_name in tool_list.keys():
-        score_dir = os.path.join(result_dir, tool_name)
+for tool_name in tool_list.keys():
+    score_dir = os.path.join(result_dir, tool_name)
 
-        if not os.path.exists(score_dir):
-            os.system("mkdir " + score_dir)
+    if not os.path.exists(score_dir):
+        os.system("mkdir " + score_dir)
 
-        clusters_dir = os.path.join(score_dir, 'clusters')
-        if not os.path.exists(clusters_dir):
-            os.system("mkdir " + clusters_dir)
+    clusters_dir = os.path.join(score_dir, 'clusters')
+    if not os.path.exists(clusters_dir):
+        os.system("mkdir " + clusters_dir)
 
-        scores_file = os.path.join(score_dir,  f'{tool_name}_scores.txt')
+    scores_file = os.path.join(score_dir,  f'{tool_name}_scores.txt')
+    for test_case in expr_files.keys():
+        # print(test_case)
+        expr_file = expr_files[test_case]
+        true_file = bicluster_files[test_case]
         for r in range(1, 6):
             commands.append(['python3', 'run_cluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file, true_file, os.path.join(clusters_dir, f'{test_case}_run{r}.tsv'), scores_file])
 
