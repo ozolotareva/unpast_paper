@@ -1,0 +1,34 @@
+name: renv
+channels:
+    - conda-forge
+    - bioconda
+    - defaults
+    - R
+dependencies:
+    - r-base
+    - r-data.table
+    - r-devtools
+    - r-essentials
+    - r-tidyverse
+    - bioconductor-annotate
+    - bioconductor-annotationdbi
+    - bioconductor-biocparallel
+    - bioconductor-clusterprofiler
+    - bioconductor-deseq2
+    - bioconductor-do.db
+    - bioconductor-dose
+    - bioconductor-ebseq
+    - bioconductor-edger
+    - bioconductor-gage
+    - bioconductor-genomeinfodbdata
+    - bioconductor-go.db
+    - bioconductor-goseq
+    - bioconductor-ihw
+    - bioconductor-mineica
+    - bioconductor-org.hs.eg.db=3.13.0
+    - bioconductor-pathview
+    - bioconductor-reactome.db
+    - bioconductor-reactomepa
+    - bioconductor-simpintlists
+    - bioconductor-summarizedexperiment
+    - radian
