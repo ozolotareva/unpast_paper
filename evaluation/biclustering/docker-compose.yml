@@ -5,9 +5,8 @@ services:
     image: desmond2_eval_container
     container_name: desmond2_eval_container
     build: .
-    ports:
-      - 8001:8000
     volumes:
-      - desmond2-eval-volume:/tmp
+      - desmond2-eval-volume:/tmp/q2_disc/
+      - /local/desmond2-bicluster-eval/:/tmp/desmond2_bicluster_eval_results/
 volumes:
   desmond2-eval-volume:

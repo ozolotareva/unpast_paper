@@ -13,9 +13,10 @@ RUN ssh-keyscan github.com >> ~/.ssh/known_hosts
 
 RUN conda install -c conda-forge -y r-base=4.2.1
 
-RUN git clone https://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@github.com/ozolotareva/DESMOND2.git
 
 RUN R -e "chooseCRANmirror(ind=1) ; install.packages('BiocManager') ; BiocManager::install('mosbi')"
+
+RUN git clone https://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@github.com/ozolotareva/DESMOND2.git
 
 WORKDIR "DESMOND2"
 
