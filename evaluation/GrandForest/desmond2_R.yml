@@ -7,8 +7,10 @@ channels:
 dependencies:
     - r-base
     - r-data.table
+    - r-collections
     - r-devtools
     - r-essentials
+    - r-languageserver
     - r-tidyverse
     - bioconductor-annotate
     - bioconductor-annotationdbi

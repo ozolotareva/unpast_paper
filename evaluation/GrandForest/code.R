@@ -1,5 +1,7 @@
 # Install packages
-devtools::install_github("SimonLarsen/grandforest")
+if (!requireNamespace("grandforest", quietly = TRUE)) {
+    devtools::install_github("SimonLarsen/grandforest")
+}
 
 data("HumanBioGRIDInteractionEntrezId", package = "simpIntLists")
 
@@ -39,8 +41,6 @@ ggplot2::ggplot(top25, ggplot2::aes(reorder(label, -value), value)) +
     ggplot2::theme_classic() +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)) +
     ggplot2::labs(x = "gene", y = "importance")
-
-library(geomnet)
 
 subnetwork <- filter(edges, source %in% top25$gene & target %in% top25$gene)
 
