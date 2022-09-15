@@ -23,7 +23,7 @@ RUN apt update && apt install -y locales tzdata && \
 
 # NOTE installing dependencies
 RUN apt install -y \
-    htop git make build-essential libssl-dev zlib1g-dev libbz2-dev \
+    htop git make build-essential libssl-dev zlib1g-dev libbz2-dev nano \
     libreadline-dev libsqlite3-dev wget curl llvm libncursesw5-dev \
     xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev \
     bzip2 g++ gcc gfortran libcairo2-dev libcurl4-openssl-dev libjpeg-dev \
@@ -32,7 +32,15 @@ RUN apt install -y \
     texlive-fonts-extra xorg-dev software-properties-common dirmngr \
     apt-transport-https --fix-missing
 
-RUN mkdir -p $HOME/projects/data
+RUN wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb && \
+    dpkg -i packages-microsoft-prod.deb && \
+    rm packages-microsoft-prod.deb && \
+    apt update && apt install -y dotnet-sdk-6.0
+
+# NOTE create and set workdir
+RUN mkdir -p $HOME/projects/data/real_data
+RUN mkdir -p $HOME/projects/scripts
+RUN mkdir -p $HOME/projects/outputs
 
 WORKDIR $HOME/projects
 
@@ -48,7 +56,7 @@ RUN chmod +x Miniconda3-latest-Linux-x86_64.sh && \
 
 RUN echo "export PATH=$HOME/miniconda3/bin:$PATH" >> $HOME/.bashrc && \
     echo "conda init bash" >> $HOME/.bashrc && \
-    echo "env_index <- grep('/envs/', .libPaths()) .libPaths(c(.libPaths()[env_index], .libPaths()[-env_index]))" > $HOME/.Rprofile
+    echo ".libPaths(c(.libPaths()[grep('/envs/', .libPaths())], .libPaths()[-grep('/envs/', .libPaths())]))" > $HOME/.Rprofile
 
 RUN $HOME/miniconda3/bin/conda update -n base -y -c defaults conda && \
     $HOME/miniconda3/bin/conda config --add channels defaults & \
@@ -64,8 +72,10 @@ RUN exec $SHELL && \
     conda init bash && \
     conda activate base
 
-RUN $HOME/miniconda3/bin/conda env create -f desmond2_Python.yml & \
-    $HOME/miniconda3/bin/conda env create -f desmond2_R.yml
+RUN $HOME/miniconda3/bin/conda env create -f desmond2_Python.yml && \
+    $HOME/miniconda3/bin/conda env create -f desmond2_R.yml && \
+    $HOME/miniconda3/bin/conda install -n renv bioconductor-genomeinfodbdata \
+    bioconductor-org.hs.eg.db bioconductor-simpintlists
 
 # NOTE post instalation setup
 RUN rm Miniconda3-latest-Linux-x86_64.sh
