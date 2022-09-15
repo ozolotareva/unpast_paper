@@ -26,6 +26,7 @@ RUN python setup.py install
 
 WORKDIR "evaluation/clustering"
 COPY . ./
+
 RUN pip install -r requirements.txt
 RUN mkdir -p "/local/DESMOND2_data_simulated/"
 ENTRYPOINT ["tail","-f","/dev/null"]

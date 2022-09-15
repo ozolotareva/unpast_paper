@@ -7,6 +7,6 @@ services:
     build: .
     volumes:
       - desmond2-eval-volume:/tmp/
-      - /local/desmond2-cluster-eval/:/tmp/
+      - /local/desmond2-clustering-eval/:/tmp/
 volumes:
   desmond2-eval-volume:
