@@ -6,7 +6,6 @@ services:
     container_name: desmond2_eval_container_clustering
     build: .
     volumes:
-      - desmond2-eval-volume:/tmp/
       - /local/desmond2-clustering-eval/:/tmp/
 volumes:
   desmond2-eval-volume:
