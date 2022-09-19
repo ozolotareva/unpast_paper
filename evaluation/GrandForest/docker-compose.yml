@@ -13,7 +13,7 @@ services:
               source: ~/scripts
               target: /root/projects/scripts
             - type: bind
-              source: /local/DESMOND2_data/preprocessed_z
+              source: /local/DESMOND2_data/v6/preprocessed_v6
               target: /root/projects/data/real_data
               read_only: true
         ports:

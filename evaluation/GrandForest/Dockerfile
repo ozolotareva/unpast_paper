@@ -54,8 +54,9 @@ RUN apt update -qq && \
 RUN chmod +x Miniconda3-latest-Linux-x86_64.sh && \
     bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda3
 
-RUN echo "export PATH=$HOME/miniconda3/bin:$PATH" >> $HOME/.bashrc && \
+RUN echo "export PATH='$HOME/miniconda3/bin:$PATH'" >> $HOME/.bashrc && \
     echo "conda init bash" >> $HOME/.bashrc && \
+    echo "R_HOME=/root/miniconda3/envs/renv/lib/R" >> $HOME/.bashrc && \
     echo ".libPaths(c(.libPaths()[grep('/envs/', .libPaths())], .libPaths()[-grep('/envs/', .libPaths())]))" > $HOME/.Rprofile
 
 RUN $HOME/miniconda3/bin/conda update -n base -y -c defaults conda && \
