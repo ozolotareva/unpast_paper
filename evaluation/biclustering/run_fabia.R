@@ -47,6 +47,6 @@ for(idx in c(1:length(params[,1]))){
 
 
 data_matrix = as.matrix(read.table(in_file, sep="\t", header=TRUE, row.names=1))
-BCqubic <- mosbi::run_fabia(data_matrix, p=200, cyc=cyc, alpha=alpha, spl=spl, spz=spz, center=center, lap=lap)
+BCqubic <- mosbi::run_fabia(data_matrix, p=200, cyc=cyc, alpha=alpha, spl=spl, spz=spz, center=center)
 results = sapply(BCqubic, function(x){paste(paste(x@colname, collapse= " "),paste(x@rowname, collapse= " ") , sep= "\t")})
 writeLines(results, con=out_file, sep="\n")

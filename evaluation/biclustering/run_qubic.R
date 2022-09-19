@@ -51,6 +51,6 @@ for(idx in c(1:length(params[,1]))){
 
 
 data_matrix = as.matrix(read.table(in_file, sep="\t", header=TRUE, row.names=1))
-BCqubic <- mosbi::run_qubic(data_matrix, o = 200, r=r, q=q, c=c, f=f, P=P, C=C, type=type)
+BCqubic <- mosbi::run_qubic(data_matrix, o = 1000, r=r, q=q, c=c, f=f, P=P, C=C, type=type)
 results = sapply(BCqubic, function(x){paste(paste(x@colname, collapse= " "),paste(x@rowname, collapse= " ") , sep= "\t")})
 writeLines(results, con=out_file, sep="\n")

@@ -11,6 +11,7 @@ truth_file = args[4]
 result_file = args[5]
 score_file = args[6]
 config_file = args[7]
+rerun_evaluations_only = args[8] == 'True'
 
 
 def read_config_file(file):
@@ -36,7 +37,7 @@ def get_qubic2_command(script_location, expr_file, disc_file, params):
     # disc_file = os.path.join('/tmp/qubic2_discretizations/', os.path.split(expr_file)[1])
     # os.system(f'cp -f {d_file} {disc_file}')
 
-    command = [script_location, '-i', disc_file, '-o', '1000', '-d']
+    command = [script_location, '-i', disc_file,  '-d','-o', '1000',]
     if 'C' in params:
         command.append('-C')
     if 'N' in params:
@@ -64,18 +65,38 @@ def get_command(tool_name, script_location, expr_file, out_file, param_file):
     return command
 
 
-subprocess.check_call(get_command(tool_name, script, expr_file, result_file, config_file))
+only_rerun = rerun_evaluations_only and os.path.exists(score_file)
 
-if ".chars" in result_file:
-    result_file = result_file + ".blocks"
+if only_rerun:
+    if ".chars" in result_file:
+        result_file = result_file + ".blocks"
+    try:
+        (scores, result) = eval_bicluster_methods.run_eval(tool_name='dataframe', expr_file=expr_file,
+                                                       result_file=score_file.replace('.score', '-biclusters_df.tsv'),
+                                                       ground_truth_file=truth_file)
+        print(scores)
+    except:
+        pass
+else:
+    command = get_command(tool_name, script, expr_file, result_file, config_file)
 
-(scores, result) = eval_bicluster_methods.run_eval(tool_name=tool_name, expr_file=expr_file, result_file=result_file,
-                                                   ground_truth_file=truth_file)
+    if ".chars" in result_file:
+        result_file = result_file + ".blocks"
 
-# try:
-#     result.to_csv(score_file.replace('.score', '-biclusters_df.tsv'), sep="\t")
-# except:
-#     os.system('touch ' + score_file.replace('.score', '-biclusters_df.tsv'))
+    try:
+        subprocess.check_call(command)
+        (scores, result) = eval_bicluster_methods.run_eval(tool_name=tool_name, expr_file=expr_file,
+                                                           result_file=result_file,
+                                                           ground_truth_file=truth_file)
+        print(scores)
+    except:
+        pass
+
+if not only_rerun:
+    try:
+        result.to_csv(score_file.replace('.score', '-biclusters_df.tsv'), sep="\t")
+    except:
+        os.system('touch ' + score_file.replace('.score', '-biclusters_df.tsv'))
 
 j_weighted = 0.0
 try:
@@ -89,3 +110,5 @@ except:
 print(f"J_weighted for {tool_name} and {expr_file}: {j_weighted}")
 with open(score_file, 'w') as fw:
     fw.write(str(j_weighted))
+if not only_rerun:
+    os.system(f'rm -rf {result_file}')
