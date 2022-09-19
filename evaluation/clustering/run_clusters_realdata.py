@@ -5,9 +5,9 @@ import time
 # import collect_results
 
 # os.chdir('/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering')
-# test_case_folder = "/Users/fernando/Documents/Research/DESMOND2_data_simulated/simulated"
+# test_case_folder = "/Users/fernando/Documents/Research/DESMOND2_data_simulated/real_data"
 
-test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
+test_case_folder = "/local/DESMOND2_data/v6/preprocessed_v6/"
 script_folder = "./"
 
 tool_list = {
@@ -18,21 +18,14 @@ tool_list = {
 }
 
 expr_files = {}
-bicluster_files = {}
 
-for mode in os.listdir(test_case_folder):
-    # print(mode)
-    mode_path = os.path.join(test_case_folder, mode)
-    # print(mode_path)
-    for case_file in os.listdir(mode_path):
-        # print(case_file)
-        file_path = os.path.join(mode_path, case_file)
-        # print(file_path)
-        prefix = case_file.split(".")[0]+"."+case_file.split(".")[1]
-        if "exprs" in case_file:
-            expr_files[prefix] = file_path
-        elif "biclusters" in case_file:
-            bicluster_files[prefix] = file_path
+for case_file in os.listdir(test_case_folder):
+    # print(case_file)
+    file_path = os.path.join(test_case_folder, case_file)
+    print(file_path)
+    prefix = case_file.split(".")[0]+"."+case_file.split(".")[1]
+    if "exprs" in case_file:
+        expr_files[prefix] = file_path
 
 
 def get_output_file(tool_name, case_prefix):
@@ -58,13 +51,12 @@ for tool_name in tool_list.keys():
     if not os.path.exists(clusters_dir):
         os.system("mkdir " + clusters_dir)
 
-    scores_file = os.path.join(score_dir,  f'{tool_name}_scores.txt')
+    # scores_file = os.path.join(score_dir,  f'{tool_name}_scores.txt')
     for test_case in expr_files.keys():
-        # print(test_case)
+        print(test_case)
         expr_file = expr_files[test_case]
-        true_file = bicluster_files[test_case]
         for r in range(1, 6):
-            commands.append(['python3', 'run_cluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file, true_file, os.path.join(clusters_dir, f'{test_case}_run{r}.tsv'), scores_file])
+            commands.append(['python3', 'run_cluster_realdata.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file, os.path.join(clusters_dir, f'{test_case}_run{r}.tsv')])
 
 print(f"Commands running")
 parallel_execs = int(sys.argv[1])
