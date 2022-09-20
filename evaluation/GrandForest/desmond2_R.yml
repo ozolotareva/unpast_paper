@@ -11,11 +11,13 @@ dependencies:
     - r-devtools
     - r-essentials
     - r-languageserver
+    - r-survminer
     - r-tidyverse
     - bioconductor-annotate
     - bioconductor-annotationdbi
     - bioconductor-biocparallel
     - bioconductor-clusterprofiler
+    - bioconductor-complexheatmap
     - bioconductor-deseq2
     - bioconductor-do.db
     - bioconductor-dose
@@ -34,3 +36,4 @@ dependencies:
     - bioconductor-simpintlists
     - bioconductor-summarizedexperiment
     - radian
+    - gxx_linux-64

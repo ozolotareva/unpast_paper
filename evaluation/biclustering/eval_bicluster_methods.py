@@ -25,12 +25,18 @@ def read_results(tool_name, result_file):
     elif tool_name == 'qubic2':
         samples = []
         genes = []
+        gene_lines = []
+        sample_lines = []
         with open(result_file, 'r') as fh:
             for line in fh.readlines():
                 if line.startswith(" Genes"):
-                    genes.append(set(line.strip().split(": ")[1].split(" ")))
+                    gene_lines.append(line.strip())
                 elif line.startswith(" Conds"):
-                    samples.append(set(line.strip().split(": ")[1].split(" ")))
+                    sample_lines.append(line.strip())
+        for entry in range(0, len(gene_lines)):
+            genes.append(set() if '[0]' in gene_lines[entry] else set(gene_lines[entry].split(": ")[1].strip().split(" ")))
+            samples.append(
+                set() if '[0]' in sample_lines[entry] else set(sample_lines[entry].split(": ")[1].strip().split(" ")))
 
         return pd.DataFrame({'samples': samples, 'genes': genes})
     elif tool_name == 'dataframe':
@@ -57,20 +63,23 @@ def run_eval(tool_name, expr_file, ground_truth_file, result_file):
         known_groups[group] = ground_truth.loc[group, "samples"]
 
     result = read_results(tool_name, result_file)
+    # print(result)
+    # result.to_csv("/home/andim/Downloads/A.n_genes=500,m=4,std=1,overlap=no.exprs_z.tsv.qubic2_df.tsv", sep="\t")
     # print(samples)
 
     best_matches = find_best_matches(result, known_groups, samples, FDR=0.05)
-    print(best_matches)
     # try:
     return (best_matches, result)
     # except:
     #     return (0.0,result)
+
+
 #
 #
 # name = 'dataframe'
-# expr_file = '/home/andim/Downloads/A.n_genes=50,m=4,std=1,overlap=no.exprs_z.tsv'
-# truth = '/home/andim/Downloads/A.n_genes=50,m=4,std=1,overlap=no.biclusters.tsv'
-# result = '/home/andim/Downloads/A.n_genes=50,m=4,std=1,overlap=no.exprs_z-biclusters_df.tsv'
-#
-#
-# run_eval(name, expr_file, truth, result)
+# expr_file = '/home/andim/Downloads/desmond2-eval/C.n_genes=500,m=4,std=1,overlap=yes.exprs_z.tsv'
+# truth = '/home/andim/Downloads/desmond2-eval/C.n_genes=500,m=4,std=1,overlap=yes.biclusters.tsv'
+# result = '/home/andim/Downloads/desmond2-eval/C.n_genes=500,m=4,std=1,overlap=yes_r=1-q=0.1-c=0.51-f=1-P=F-C=T-type=area-biclusters_df.tsv'
+# #
+# (scores, result) = run_eval(name, expr_file, truth, result)
+# print(scores["J_weighted"].sum())
