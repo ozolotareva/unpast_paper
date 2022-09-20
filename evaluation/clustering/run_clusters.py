@@ -7,7 +7,7 @@ import time
 # os.chdir('/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering')
 # test_case_folder = "/Users/fernando/Documents/Research/DESMOND2_data_simulated/simulated"
 
-test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
+test_case_folder = "/root/projects/data/simulated/"
 script_folder = "./"
 
 tool_list = {

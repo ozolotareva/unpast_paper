@@ -7,7 +7,11 @@ services:
     build: .
     volumes:
       - type: bind
-        source: ~/DESMOND2_benchmarking/
+        source: ~/Lareau_benchmarking/results
         target: /tmp/
+      - type: bind
+        source: /local/DESMOND2_data_simulated/simulated
+        target: /root/projects/data/simulated
+        read_only: true
 volumes:
   desmond2-eval-volume:
