@@ -2,8 +2,8 @@ version: '3.3'
 
 services:
   app:
-    image: desmond2_eval_container_clustering
-    container_name: desmond2_eval_container_clustering
+    image: desmond2_eval_container_clustering2
+    container_name: desmond2_eval_container_clustering2
     build: .
     volumes:
       - type: bind
