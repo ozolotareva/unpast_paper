@@ -7,11 +7,11 @@ import sys
 def apply_fdr(df_pval):
     df_fdr = {}
     for group in df_pval.columns.values:
-        bh_res, adj_pval = fdrcorrection(df_pval[group].values,alpha=0.05)
-        df_fdr[group] =  adj_pval
+        bh_res, adj_pval = fdrcorrection(df_pval[group].values, alpha=0.05)
+        df_fdr[group] = adj_pval
     df_fdr = pd.DataFrame.from_dict(df_fdr)
     df_fdr.index = df_pval.index
-    #df_fdr["associated"] = df_fdr.apply(lambda row: row[row<0.05].index.values,axis=1)
+    # df_fdr["associated"] = df_fdr.apply(lambda row: row[row<0.05].index.values,axis=1)
     return df_fdr
 
 
@@ -155,7 +155,7 @@ def run_eval(expr_file, ground_truth_file, result_file):
     exprs = pd.read_csv(expr_file, sep="\t", index_col=0, header=0)
     N = len(exprs.columns)
     # read ground truth from file
-    ground_truth = pd.read_csv(ground_truth_file, sep ="\t", index_col=0)
+    ground_truth = pd.read_csv(ground_truth_file, sep="\t", index_col=0)
     ground_truth["samples"] = ground_truth["samples"].apply(lambda x: set(x.split(" ")))
     if "genes" in ground_truth.columns.values:
         ground_truth["genes"] = ground_truth["genes"].apply(lambda x: set(x.split(" ")))

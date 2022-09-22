@@ -7,7 +7,7 @@ services:
     build: .
     volumes:
       - type: bind
-        source: ~/Lareau_benchmarking/results
+        source: ~/DESMOND2_benchmarking/clustering
         target: /tmp/
       - type: bind
         source: /local/DESMOND2_data_simulated/simulated
