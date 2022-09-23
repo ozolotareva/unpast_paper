@@ -9,9 +9,103 @@ from utils.method import zscore
 #from utils.eval import find_best_matches
 from fisher import pvalue
 from statsmodels.stats.multitest import fdrcorrection
-def make_known_groups(annot, exprs,target_col = "genefu_z"):
+
+def generate_exprs(data_sizes,g_size=5,frac_samples=[0.05,0.1,0.25,0.5],m=2.0,std=1,
+                       z = True,
+                       outdir = "./",outfile_basename="", 
+                       g_overlap=False,s_overlap=True,
+                       seed = 42, add_coexpressed = []):
+    n_genes,N  = data_sizes
+    biclusters = {}
+    coexpressed_modules = []
+    
+    # generate background model
+    np.random.seed(seed)
+    exprs =  pd.DataFrame(np.random.normal(loc=0,scale=1.0,size = (n_genes,N ))) 
+    exprs.columns = ["s_"+str(x) for x in exprs.columns.values] 
+    exprs.index = ["g_"+str(x) for x in exprs.index.values] 
+
+    # implant bicluster
+    N = exprs.shape[1]
+    bic_g = []
+    bic_s = []
+    bg_g = set(exprs.index.values).difference(set(bic_g))
+    bg_s = set(exprs.columns.values).difference(set(bic_s))
+    bicluster_genes = []
+    for s_frac in frac_samples:
+        s_size = int(s_frac*N)
+        # select random sets of samples and genes from the background
+        bic_genes  = list(np.random.choice(list(bg_g),size=g_size,replace=False))
+        bic_samples = list(np.random.choice(list(bg_s),size=s_size,replace=False))
+        bic_g+=bic_genes
+        bic_s+=bic_samples
+        # identify samples outside the bicluster
+        if not g_overlap:
+            bg_g = bg_g.difference(set(bic_g))
+        if not s_overlap:
+            bg_s = bg_s.difference(set(bic_s))
+        # generate bicluster
+        biclusters[s_frac] = {"genes":set(bic_genes), "samples":set(bic_samples),"frac":s_frac,
+                           "n_genes":len(bic_genes),"n_samples:":len(bic_samples)}
+        bic_exprs = np.random.normal(loc=m,scale=std,size = (g_size,s_size))
+        #implant biclusters 
+        exprs.loc[bic_genes,bic_samples] += bic_exprs
+        bicluster_genes += bic_genes
+    
+    # add modules of co-expressed genes 
+    bg_g = set(exprs.index.values).difference(set(bicluster_genes))
+    r =0.5
+    for module in add_coexpressed:
+        module_genes = list(np.random.choice(list(bg_g),size=module,replace=False))
+        n =  exprs.loc[module_genes[0],:]
+        for i in range(1,module):
+            n_i =  n*r + np.sqrt(1-r**2)*exprs.loc[module_genes[i],:]
+            exprs.loc[module_genes[i],:] = n_i
+        print("\tco-exprs. module ",module,"r=",(exprs.loc[module_genes,:].T.corr().sum().sum()-module)/(module**2/2-module))
+        coexpressed_modules.append(module_genes)
+        
+    if z:
+    # center to 0 and scale std to 1
+        exprs = zscore(exprs)
+    biclusters  = pd.DataFrame.from_dict(biclusters).T
+    #biclusters.set_index("frac",inplace = True,drop=True)
+    biclusters_ = biclusters.copy()
+    
+    if outfile_basename:
+        # overlap extension
+        if s_overlap:
+            if g_overlap:
+                overlap_ext =",overlap=yes"
+            else:
+                overlap_ext =",overlap=s"
+        elif g_overlap:
+            overlap_ext =",overlap=g"
+        else:
+            overlap_ext =",overlap=no"
+        # save expressions 
+        exprs_file = outdir+"/"+outfile_basename +".n_genes="+str(g_size)+",m="+str(m)+",std="+str(std)
+        exprs_file +=overlap_ext+".exprs_z.tsv"
+        print("expressions:",exprs_file)
+        exprs.to_csv(exprs_file,sep="\t")
+        
+        # save ground truth 
+        biclusters["n_genes"] = biclusters["genes"].apply(lambda x: len(x))
+        biclusters["n_samples"] = biclusters["samples"].apply(lambda x: len(x))
+        biclusters["genes"] = biclusters["genes"].apply(lambda x: " ".join((map(str,sorted(x)))))
+        biclusters["samples"] = biclusters["samples"].apply(lambda x: " ".join((map(str,sorted(x)))))
+        
+        biclusters_file = outdir+"/"+outfile_basename +".n_genes="+str(g_size)+",m="+str(m)+",std="+str(std)
+        biclusters_file +=overlap_ext+".biclusters.tsv"
+        biclusters.to_csv(biclusters_file,sep = "\t")
+        print("true bilusters:", biclusters_file)
+        biclusters.to_csv(biclusters_file,sep="\t")
+    
+    return exprs, biclusters_, coexpressed_modules
+
+def make_known_groups(annot, exprs,target_col = "genefu_z", verbose=False):
     samples = set(exprs.columns.values).intersection(set(annot.index.values))
-    print("Total samples:",len(samples),file = sys.stdout)
+    if verbose:
+        print("Total samples:",len(samples),file = sys.stdout)
     annot = annot.loc[list(samples), :]
     groups = set(annot.loc[:,target_col].values)
 
@@ -24,7 +118,8 @@ def make_known_groups(annot, exprs,target_col = "genefu_z"):
                 print("take complement of ",group,file = sys.stderr)
                 group_samples = samples.difference(group_samples)
             known_groups[group] = group_samples #{"set":group_samples,"complement": samples.difference(group_samples)}
-            print(group,round(len(group_samples)/len(samples),2),
+            if verbose:
+                print(group,round(len(group_samples)/len(samples),2),
                   len(group_samples),len(samples.difference(group_samples)))
     return known_groups
 
@@ -173,94 +268,78 @@ def find_best_matches(biclusters,known_groups,all_elements,FDR=0.05,
     results["J_weighted"] = results["J"]*results["group_size"]/total_bicluster_members
     return results
 
-def generate_exprs(data_sizes,g_size=5,frac_samples=[0.05,0.1,0.25,0.5],m=2.0,std=1,
-                       z = True,
-                       outdir = "./",outfile_basename="", 
-                       g_overlap=False,s_overlap=True,
-                       seed = 42, add_coexpressed = []):
-    n_genes,N  = data_sizes
-    biclusters = {}
-    coexpressed_modules = []
-    
-    # generate background model
-    np.random.seed(seed)
-    exprs =  pd.DataFrame(np.random.normal(loc=0,scale=1.0,size = (n_genes,N ))) 
-    exprs.columns = ["s_"+str(x) for x in exprs.columns.values] 
-    exprs.index = ["g_"+str(x) for x in exprs.index.values] 
-
-    # implant bicluster
-    N = exprs.shape[1]
-    bic_g = []
-    bic_s = []
-    bg_g = set(exprs.index.values).difference(set(bic_g))
-    bg_s = set(exprs.columns.values).difference(set(bic_s))
-    bicluster_genes = []
-    for s_frac in frac_samples:
-        s_size = int(s_frac*N)
-        # select random sets of samples and genes from the background
-        bic_genes  = list(np.random.choice(list(bg_g),size=g_size,replace=False))
-        bic_samples = list(np.random.choice(list(bg_s),size=s_size,replace=False))
-        bic_g+=bic_genes
-        bic_s+=bic_samples
-        # identify samples outside the bicluster
-        if not g_overlap:
-            bg_g = bg_g.difference(set(bic_g))
-        if not s_overlap:
-            bg_s = bg_s.difference(set(bic_s))
-        # generate bicluster
-        biclusters[s_frac] = {"genes":set(bic_genes), "samples":set(bic_samples),"frac":s_frac,
-                           "n_genes":len(bic_genes),"n_samples:":len(bic_samples)}
-        bic_exprs = np.random.normal(loc=m,scale=std,size = (g_size,s_size))
-        #implant biclusters 
-        exprs.loc[bic_genes,bic_samples] += bic_exprs
-        bicluster_genes += bic_genes
-    
-    # add modules of co-expressed genes 
-    bg_g = set(exprs.index.values).difference(set(bicluster_genes))
-    r =0.5
-    for module in add_coexpressed:
-        module_genes = list(np.random.choice(list(bg_g),size=module,replace=False))
-        n =  exprs.loc[module_genes[0],:]
-        for i in range(1,module):
-            n_i =  n*r + np.sqrt(1-r**2)*exprs.loc[module_genes[i],:]
-            exprs.loc[module_genes[i],:] = n_i
-        print("\tco-exprs. module ",module,"r=",(exprs.loc[module_genes,:].T.corr().sum().sum()-module)/(module**2/2-module))
-        coexpressed_modules.append(module_genes)
+def find_best_matching_biclusters(bics1, bics2, N, by="genes", adj_pval_thr = 0.05):
+    # takes two biluster dafaframes from read_bic_table
+    # by = "genes" or "samples"
+    # N - total number of objects (genes or samples)
+    # finds best matches of bics1 biclusters among bics2 biclusters
+    n_bics1 = bics1.shape[0] 
+    n_bics2 = bics2.shape[0]
+    best_matches = {}#OrderedDict({})
+    for row1 in bics1.iterrows():
+        bic1 = row1[1]
+        i1 = row1[0]
+        set1 = bic1[by]
+        s1 = len(set1)
         
-    if z:
-    # center to 0 and scale std to 1
-        exprs = zscore(exprs)
-    biclusters  = pd.DataFrame.from_dict(biclusters).T
-    #biclusters.set_index("frac",inplace = True,drop=True)
-    biclusters_ = biclusters.copy()
-    
-    if outfile_basename:
-        # overlap extension
-        if s_overlap:
-            if g_overlap:
-                overlap_ext =",overlap=yes"
-            else:
-                overlap_ext =",overlap=s"
-        elif g_overlap:
-            overlap_ext =",overlap=g"
-        else:
-            overlap_ext =",overlap=no"
-        # save expressions 
-        exprs_file = outdir+"/"+outfile_basename +".n_genes="+str(g_size)+",m="+str(m)+",std="+str(std)
-        exprs_file +=overlap_ext+".exprs_z.tsv"
-        print("expressions:",exprs_file)
-        exprs.to_csv(exprs_file,sep="\t")
+        best_matches[i1] = {}
+        bm_J = 0
+        bm_o = 0
+        bm_adj_pval = 1
+        bm_id = -1
         
-        # save ground truth 
-        biclusters["n_genes"] = biclusters["genes"].apply(lambda x: len(x))
-        biclusters["n_samples"] = biclusters["samples"].apply(lambda x: len(x))
-        biclusters["genes"] = biclusters["genes"].apply(lambda x: " ".join((map(str,sorted(x)))))
-        biclusters["samples"] = biclusters["samples"].apply(lambda x: " ".join((map(str,sorted(x)))))
+        for row2 in bics2.iterrows():
+            bic2 = row2[1]
+            i2 = row2[0]
+            set2 = bic2[by]
+            o = len(set1.intersection(set2))
+            J = 0
+            adj_pval=1
+            if o > 0:
+                s2 = len(set2)
+                s2_ = s2 - o
+                s1_ = s1 - o
+                u = s1_+s2_+o
+                bg = N - u 
+                if by=="genes":
+                    pval = pvalue(o,s1_,s2_,bg).right_tail
+                    J = o*1.0/u
+                elif by == "samples":
+                    # two-tailed pvalue is computed for samples
+                    # because bicluster and background sets can be flipped 
+                    pval = pvalue(o,s1_,s2_,bg)
+                    if pval.right_tail<=pval.left_tail:
+                        pval = pval.right_tail
+                    elif max(s1,s2)>0.4*N: # try flipping the largest bicluster if it is close to 50% of the cohort
+                        pval = pval.left_tail
+                        if s1>s2: # flip s1
+                            u = bg+s2
+                            o = s2_
+                        else:
+                            u = bg+s1
+                            o = s1_
+                    J = o*1.0/u
+                
+                adj_pval = pval * n_bics2 *n_bics1 /2
+                if adj_pval < adj_pval_thr:
+                    
+                    if J>bm_J or (J == bm_J and adj_pval < bm_adj_pval):
+                        bm_J = J
+                        bm_adj_pval  = adj_pval
+                        bm_id = i2
+                        bm_o = o
+                
         
-        biclusters_file = outdir+"/"+outfile_basename +".n_genes="+str(g_size)+",m="+str(m)+",std="+str(std)
-        biclusters_file +=overlap_ext+".biclusters.tsv"
-        biclusters.to_csv(biclusters_file,sep = "\t")
-        print("true bilusters:", biclusters_file)
-        biclusters.to_csv(biclusters_file,sep="\t")
-    
-    return exprs, biclusters_, coexpressed_modules
+        best_matches[i1][by]=set1
+        best_matches[i1]["n_"+by]=s1
+        if bm_id !=-1:
+            best_matches[i1]["bm_"+by] = bics2.loc[bm_id,by]
+            best_matches[i1]["bm_n_"+by] = bics2.loc[bm_id,"n_"+by]
+            best_matches[i1]["n_shared"]  = bm_o
+            best_matches[i1]["J"]  = bm_J
+            best_matches[i1]["adj_pval"] = bm_adj_pval
+            best_matches[i1]["shared_"+by] = bics2.loc[bm_id,by].intersection(set1)
+            #best_matches[i1]["bic_n_"+by] = bics2.loc[bm_id,"n_"+by]
+            best_matches[i1]["bm_id"] = bm_id
+    best_matches = pd.DataFrame.from_dict(best_matches).T
+    return best_matches
