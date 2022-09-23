@@ -9,7 +9,9 @@ dependencies:
     - r-data.table
     - r-collections
     - r-devtools
+    - r-domc
     - r-essentials
+    - r-factoextra
     - r-languageserver
     - r-survminer
     - r-tidyverse
