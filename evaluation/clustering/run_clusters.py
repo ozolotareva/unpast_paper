@@ -10,6 +10,7 @@ import time
 test_case_folder = "/root/projects/data/simulated/"
 script_folder = "./"
 
+
 tool_list = {
     'kmeans': 'run_kmeans.py',
     'WGCNAkmeans': 'run_WGCNAkmeans.py',
@@ -17,18 +18,20 @@ tool_list = {
     'WGCNAHC': 'run_WGCNAHC.py'
 }
 
+
 expr_files = {}
 bicluster_files = {}
 
 for mode in os.listdir(test_case_folder):
-    # print(mode)
+    print(mode)
     mode_path = os.path.join(test_case_folder, mode)
-    # print(mode_path)
+    print(mode_path)
     for case_file in os.listdir(mode_path):
-        # print(case_file)
+        print(case_file)
         file_path = os.path.join(mode_path, case_file)
-        # print(file_path)
+        print(file_path)
         prefix = case_file.split(".")[0]+"."+case_file.split(".")[1]
+        print(prefix)
         if "exprs" in case_file:
             expr_files[prefix] = file_path
         elif "biclusters" in case_file:

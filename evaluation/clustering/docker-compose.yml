@@ -10,8 +10,7 @@ services:
         source: ~/DESMOND2_benchmarking/clustering
         target: /tmp/
       - type: bind
-        source: /local/DESMOND2_data_simulated/simulated
+        source: ~/DESMOND2_benchmarking/DESMOND2_data/simulated
         target: /root/projects/data/simulated
-        read_only: true
 volumes:
   desmond2-eval-volume:
