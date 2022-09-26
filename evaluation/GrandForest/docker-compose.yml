@@ -1,0 +1,20 @@
+version: "3.3"
+
+services:
+    data_analysis:
+        build: .
+        container_name: data_analysis
+        tty: true
+        volumes:
+            - type: bind
+              source: ~/volumes/desmond2_docker
+              target: /root/projects/data
+            - type: bind
+              source: ~/scripts
+              target: /root/projects/scripts
+            - type: bind
+              source: /local/DESMOND2_data/v6/preprocessed_v6
+              target: /root/projects/data/real_data
+              read_only: true
+        ports:
+            - 8080:80
