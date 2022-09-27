@@ -5,7 +5,7 @@ import sys
 import time
 import collect_results
 
-case_folder = "/local/DESMOND2_data/"
+case_folder = "/local/DESMOND2_data/preprocessed_z"
 script_folder = "./"
 rerun_evaluations = False
 

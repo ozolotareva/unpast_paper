@@ -22,7 +22,7 @@ WORKDIR "DESMOND2"
 
 RUN python setup.py install
 
-WORKDIR "evaluation/biclustering"
+WORKDIR "evaluation/biclustering/simulated"
 RUN pip install -r requirements.txt
 
 RUN wget https://github.com/maqin2001/qubic2/archive/refs/heads/master.zip
