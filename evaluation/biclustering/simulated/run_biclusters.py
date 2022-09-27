@@ -7,17 +7,17 @@ import collect_results
 
 test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
 script_folder = "./"
-rerun_evaluations = True
+rerun_evaluations = False
 
 tool_list = {
     # deterministic False
-    'fabia': {'name': 'run_fabia.R', 'deterministic': False, 'precompute': False, 'params': {
+    'fabia': {'name': 'run_fabia.R', 'deterministic': True, 'precompute': False, 'params': {
         'alpha': [0.001, 0.01, 0.05], 'spl': [0.0, 0.5],
-        'spz': [0.0, 0.5, 1.0],
+        'spz': [0.0, 0.5, 1.0], 'cyc': [500],
         'center': [2]
     }},
     # deterministic False
-    'isa2': {'name': 'run_isa2.R', 'deterministic': False, 'precompute': False,
+    'isa2': {'name': 'run_isa2.R', 'deterministic': True, 'precompute': False,
              'params': {
                  "no_seeds": [1, 2, 3, 4, 5] + list(range(10, 110, 20)) + [100,125, 150, 200]
              }},
@@ -30,10 +30,10 @@ tool_list = {
     #         'ns': [5, 10, 25, 50, 75, 100], 'alpha': [0.001, 0.01, 0.05, 0.1, 0.15]
     #     }
     # },
-    'debi': {'name': './debi', 'deterministic': False, 'precompute': False,
-             'params': {
-                 's': [0, 1, 3], 'o': [0, 0.5, 1], 'b': [0, 0.5, 1, 2], 'p': ['u']
-             }},
+    # 'debi': {'name': './debi', 'deterministic': False, 'precompute': False,
+    #          'params': {
+    #              's': [0, 1, 3], 'o': [0, 0.5, 1], 'b': [0, 0.5, 1, 2], 'p': ['u']
+    #          }},
     'qubic2': {'name': 'qubic2-master/qubic', 'deterministic': True, 'precompute': True, 'discretization_files': [],
                'params': {
                    # 'C': True, 'N': True,
@@ -42,7 +42,12 @@ tool_list = {
                    'c': [0.51, 0.75, 0.92]
                },
                'params_pre': {'n': True, 'R': True,
-                              'q': [0.06, 0.2, 0.35], 'r': [1, 2, 5]}
+                              'q': [0.06
+                                  # , 0.2
+                                  # , 0.35
+                                    ], 'r': [1, 2
+                       # , 5
+                                                            ]}
                }
 }
 
@@ -188,23 +193,24 @@ for test_case in expr_files.keys():
                     if not os.path.exists(disc_param_dir):
                         os.system(f"mkdir {disc_param_dir}")
                     discretization_input = os.path.join(disc_param_dir, os.path.split(expr_file)[1])
-                    os.system(f'cp -f {expr_file} {discretization_input}')
-                    print(f"creating {discretization_input}")
+                    if not os.path.exists(discretization_input):
+                        print(f"creating {discretization_input}")
+                        os.system(f'cp -f {expr_file} {discretization_input}')
+                    tool_list[tool_name]['discretization_files'].append((discretization_input, name))
                     if not os.path.exists(discretization_input + ".chars"):
                         command = ['silence', os.path.join(script_folder, tool_list[tool_name]['name']), '-i',
                                    discretization_input, '-F']
-                        if 'n' in params and 'R' in params:
+                        if 'n' in params and 'R' in params and params['n'] and params['R']:
                             continue
-                        if 'n' in params:
+                        if 'n' in params and params['n']:
                             command.append('-n')
-                        elif 'R' in params:
+                        elif 'R' in params and params['R']:
                             command.append('-R')
                         if 'q' in params:
                             command.extend(['-q', str(params['q'])])
                         if 'r' in params:
                             command.extend(['-r', str(params['r'])])
                         precomputing_multi.append(command)
-                    tool_list[tool_name]['discretization_files'].append((discretization_input, name))
 
         for params in create_param_combinations(tool_name):
             param_string = str(params_to_string(params))
@@ -234,7 +240,7 @@ for test_case in expr_files.keys():
                                expr_file, true_file, out_file_params,
                                score_file,
                                param_file, str(rerun_evaluations)]
-                    if tool_name in ['isa2'] and not already_done:
+                    if tool_name in ['isa2', 'fabia'] and not already_done:
                         commands_multi_late.append(command)
                     elif tool_name in ['debi'] and not already_done:
                         debi_commands.append(command)
@@ -251,7 +257,7 @@ for test_case in expr_files.keys():
                                    true_file, out_file_params,
                                    score_file, param_file, str(rerun_evaluations)]
 
-                        if tool_name in ['isa2'] and not already_done:
+                        if tool_name in ['isa2', 'fabia'] and not already_done:
                             commands_multi_late.append(command)
                         elif tool_name in ['debi'] and not already_done:
                             debi_commands.append(command)
@@ -262,11 +268,14 @@ allowed_threads = parallel_execs = int(sys.argv[1])
 run_tasklist(precomputing_multi, 1)
 run_tasklist(commands_multi, 1)
 run_tasklist(commands, allowed_threads)
-collect_results.collect(result_dir)
+if len(commands_multi_late) > 0 and len(commands) > 0:
+    collect_results.collect(result_dir)
 run_tasklist(commands_late, allowed_threads)
-collect_results.collect(result_dir)
+if len(commands_late) > 0:
+    collect_results.collect(result_dir)
 run_tasklist(commands_multi_late, 1)
-collect_results.collect(result_dir)
+if len(commands_multi_late) > 0:
+    collect_results.collect(result_dir)
 run_tasklist(debi_commands, allowed_threads)
 collect_results.collect(result_dir)
 print(f"All done, result scores are in {result_dir}")
