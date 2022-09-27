@@ -37,7 +37,7 @@ R:
 python run_desmond.py --exprs TCGA_200.exprs_z.tsv --basename TCGA_200_results
 
 # with different binarization and clustering methods
-python run_desmond.py --exprs standardized_expressions.tsv --basename results --binarization Jenks --clustering WGCNA
+python run_desmond.py --exprs TCGA_200.exprs_z.tsv --basename results --binarization ward --clustering WGCNA
 
 # help
 python run_desmond.py -h
@@ -49,7 +49,7 @@ python run_desmond.py -h
     - columns "n_genes" and "n_samples" provide the numbers of genes and samples, respectively 
     - "gene","sample" contain gene and sample names respectively
     - "gene_indexes" and  "sample_indexes" - 0-based gene and sample indexes in the input matrix.
-* binarized expressions [if clustering is WGCNA,  or  '--save_binary' flag is added]
+* binarized expressions, background distributions of SNR for each bicluster size and binarization statistics [if clustering is WGCNA,  or  '--save_binary' flag is added]
 * modules found by WGCNA [if clustering is WGCNA]
 
 ## About 
