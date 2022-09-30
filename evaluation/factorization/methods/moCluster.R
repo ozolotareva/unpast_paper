@@ -8,7 +8,10 @@ args = commandArgs(trailingOnly=TRUE)
 exprs_file <- args[1]
 dimensions <- args[2]
 n_cluster <- args[3]
+seed <- as.numeric(args[4])
+output_folder <- args[5]
 
+set.seed(seed)
 exprs <- list(as.data.frame(as.matrix(fread(exprs_file),rownames=1)))
 
 sapply(exprs, dim) # check dimensions of expression data
@@ -27,8 +30,8 @@ scrs <- moaScore(moas)
 hcl <- hclust(dist(scrs))
 cls <- cutree(hcl, k=n_cluster)
 
-write.table(cls,file="moClusterCluster.csv", sep = ",")
+write.table(cls,file=file.path(output_folder, "mocluster_result.csv"), sep = ",")
 
-fileConn<-file("moClusterRuntime.txt")
+fileConn<-file(file.path(output_folder, "mocluster_runtime.txt"))
 writeLines(as.character(time.taken), fileConn)
 close(fileConn)

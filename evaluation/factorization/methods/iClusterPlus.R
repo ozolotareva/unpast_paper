@@ -38,12 +38,12 @@ cluster_assignment <- result$fit[[1]]$clusters
 
 lambda_n = if (is.null(lambda_n)) 'null'  else lambda_n
 n_cluster = n_cluster + 1
-file <- sprintf("%s/result.csv", output_directory)
+file <- sprintf("%s/iclusterplus_result.csv", output_directory)
 
 write.table(cluster_assignment,file = file, sep = ",")
 
 # save runtime
-runtime_file <- sprintf("%s/runtime.txt", output_directory)
+runtime_file <- sprintf("%s/iclusterplus_runtime.txt", output_directory)
 fileConn<-file(runtime_file)
 writeLines(as.character(time.taken), fileConn)
 close(fileConn)
