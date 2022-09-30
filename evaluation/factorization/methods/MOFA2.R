@@ -10,6 +10,8 @@ exprs_file <- args[1]
 n_factors <- args[2]
 n_cluster <- args[3]
 seed <- args[4]
+output_folder <- args[5]
+
 # /local/DESMOND2_data_simulated/simulated/C/C.n_genes=500,m=4,std=1,overlap=yes.exprs_z.tsv
 data <- list(as.matrix(fread(exprs_file),rownames=1))
 lapply(data,dim)
@@ -34,7 +36,8 @@ MOFAobject <- prepare_mofa(
   training_options = train_opts
 )
 
-outfile = file.path(tempdir(),"mofa2_model.hdf5")
+# outfile = file.path(tempdir(),"mofa2_model.hdf5")
+outfile = file.path(output_folder,"mofa2_model.hdf5")
 
 # train
 start.time <- Sys.time()
@@ -48,9 +51,8 @@ factors <- get_factors(MOFAobject.trained, factors = "all")
 # cluster
 # https://rdrr.io/github/bioFAM/MOFA2/man/cluster_samples.html
 clusters <- cluster_samples(MOFAobject.trained, k=n_cluster, factors=1:n_factors)
+write.table(clusters$cluster,file=file.path(output_folder, "mofa2_result.csv"), sep = ",")
 
-write.table(clusters$cluster,file="MOFA2Cluster.csv", sep = ",")
-
-fileConn<-file("MOFA2Runtime.txt")
+fileConn<-file(file.path(output_folder, "mofa2_runtime.txt"))
 writeLines(as.character(time.taken), fileConn)
 close(fileConn)
