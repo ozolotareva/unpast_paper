@@ -4,6 +4,7 @@ channels:
     - bioconda
     - defaults
     - R
+    - nclibz
 dependencies:
     - r-base
     - r-data.table
@@ -15,6 +16,7 @@ dependencies:
     - r-languageserver
     - r-survminer
     - r-tidyverse
+    - r-vscdebugger
     - bioconductor-annotate
     - bioconductor-annotationdbi
     - bioconductor-biocparallel
