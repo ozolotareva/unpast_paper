@@ -25,8 +25,8 @@ def collect(out_dir):
                     for result in os.listdir(config_path):
                         if result.endswith(".score"):
                             if "-run" in result:
-                                run = int(result.split("-")[1].split(".")[0]) - 1
-                                infile = result.split("-")[0]
+                                run = int(result.split("-run")[1].split(".")[0]) - 1
+                                infile = result.split("-run")[0]
                             else:
                                 run = 0
                                 infile = result.replace(".score", "")
@@ -35,7 +35,7 @@ def collect(out_dir):
                                     runs[infile][run] = float(line)
                         if result.endswith("-scores_df.tsv"):
                             if "-run" in result:
-                                run = int(result.split("-")[1].split(".")[0]) - 1
+                                run = int(result.split("-run")[1].split("-")[0]) - 1
                             else:
                                 run = 0
                             parts = result.split('.')

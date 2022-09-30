@@ -1,11 +1,14 @@
-# usage: Rscript run_WGCNA.R binarized_expressions.tsv 
+# usage: Rscript run_WGCNA.R binarized_expressions.tsv [deepSplit:0,1,2,3,4] [detectCutHeight:(0-1)]
 suppressPackageStartupMessages(library("WGCNA"))
 
 args <- commandArgs(trailingOnly = TRUE)
 
 fileBinExprs <- args[[1]]
-
 fileModules <- paste0(sub(".tsv","",fileBinExprs),".modules.tsv")
+
+deepSplit <- as.integer(args[[2]])
+detectCutHeight <- as.numeric(args[[3]])
+nt <- "signed hybrid" # networkType = "unsigned", "signed hybrid"
 
 datExpr <- read.table(fileBinExprs,check.names=FALSE)
 datExpr[] <- lapply(datExpr, as.numeric)
@@ -18,18 +21,25 @@ power <- NA
 while (is.na(power)){
 # Call the network topology analysis function
  sft <- pickSoftThreshold(datExpr, powerVector = powers,verbose = 0,
-                          networkType = "signed hybrid",RsquaredCut =rsqcuts[[i]])
+                          networkType = nt,RsquaredCut =rsqcuts[[i]])  
  power <- sft$powerEstimate
  i<-i+1
 }
-cat("\nR^2 threshold:",rsqcuts[[i]],"power:",power,"\n")
+
+#print(cat("\nR^2 threshold:",rsqcuts[[i]],"power:",power,"\n"))
+print(cat("networkType:",nt,"\n"))
+print(cat("maxBlockSize:",dim(datExpr)[[2]]+1,"\n"))
 
 #### find modules ####
 net = blockwiseModules(datExpr, power = power,
-TOMType = "signed", networkType = "signed hybrid", minModuleSize = 2,
+TOMType = "unsigned", 
+networkType = nt, 
+minModuleSize = 2,
 numericLabels = TRUE,
-#detectCutHeight = 1-10^(-1*power),
+maxBlockSize = 10000, #dim(datExpr)[[2]]+1,
+detectCutHeight = detectCutHeight, #detectCutHeight = 0.995,
 #mergeCutHeight = 0.05,
+deepSplit = deepSplit,
 verbose = 0)
 
 moduleLabels = net$colors
