@@ -26,6 +26,10 @@ result_file ='/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering/
 score_file = '/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering/resultsRD/kmeans/kmeans_scoresRD.txt'
 '''
 
+if not os.path.exists(score_file):
+    f = open(score_file, 'w+')
+    print('File is created')
+
 
 def get_command(tool_name, script_location, expr_file, out_file):
     command = []
@@ -54,10 +58,10 @@ results = pd.DataFrame.from_records(subt_t).T
 
 if os.stat(score_file).st_size == 0:
     print('File is empty')
-    results.to_csv(score_file, mode='a', index=False, header=True)
+    results.to_csv(score_file, mode='a', index=True, header=True, sep='\t')
 
 else:
     print('File is not empty')
-    results.to_csv(score_file, mode='a', index=False, header=False)
+    results.to_csv(score_file, mode='a', index=True, header=False, sep='\t')
 # print(f"J_weighted for {tool_name} and {filename}: {j_weighted}")
-#fw.write(f"{filename.split('/')[-1]}\t{str(j_weighted)}\n")
+# fw.write(f"{filename.split('/')[-1]}\t{str(j_weighted)}\n")

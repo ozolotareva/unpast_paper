@@ -2,14 +2,18 @@ import os
 import subprocess
 import sys
 import time
-# import collect_results
 
-# os.chdir('/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering')
-# test_case_folder = "/Users/fernando/Documents/Research/DESMOND2_data_simulated/simulated"
-
+'''
 real_data_path = '/Users/fernando/Documents/Research/DESMOND2_data_simulated/preprocessed_v6/'
 result_dir = '/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering/resultsRD/'
 script_folder = "/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering/"
+
+'''
+real_data_path = ' /root/projects/data/realdata/'
+result_dir = '/tmp/realdata_results'
+script_folder = "./"
+
+
 
 if not os.path.exists(result_dir):
     # os.system(f"rm -rf {result_dir}")
@@ -52,8 +56,8 @@ for tool_name in tool_list.keys():
     scores_file = os.path.join(score_dir,  f'{tool_name}_scoresRD.txt')
 
     for r in range(1, 6):
-        commands.append(['python3', 'run_cluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), file_metabric_expression, file_metabric_annotation, file_metabric_subtypes, os.path.join(clusters_dir, f'METABRIC_run{r}.tsv'), scores_file])
-        commands.append(['python3', 'run_cluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), file_tcga_expression, file_tcga_annotation, file_tcga_subtypes, os.path.join(clusters_dir, f'TCGABRCA_run{r}.tsv'), scores_file])
+        commands.append(['python3', 'run_cluster_rd.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), file_metabric_expression, file_metabric_annotation, file_metabric_subtypes, os.path.join(clusters_dir, f'METABRIC_run{r}.tsv'), scores_file])
+        commands.append(['python3', 'run_cluster_rd.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), file_tcga_expression, file_tcga_annotation, file_tcga_subtypes, os.path.join(clusters_dir, f'TCGABRCA_run{r}.tsv'), scores_file])
 
 
 print(f"Commands running")
