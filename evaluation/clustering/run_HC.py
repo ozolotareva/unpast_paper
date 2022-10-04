@@ -25,8 +25,8 @@ args = sys.argv
 input_file = args[1]
 result_file = args[2]
 '''
-input_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/data/simulated/A/A.n_genes=5,m=4,std=1,overlap=no.exprs_z.tsv'
-result_file = '/Users/fernando/Documents/Research/DESMOND2/DESMOND2/evaluation/clustering/results/HC/clusters/A.n_genes=5,m=4,std=1,overlap=no_run1.tsv'
+input_file = '/Users/fernando/Documents/Research/DESMOND2_data_simulated/simulated/A/A.n_genes=5,m=4,std=1,overlap=no.exprs_z.tsv'
+result_file = '/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering/results/HC/clustering/A.n_genes=5,m=4,std=1,overlap=no_run1.tsv'
 '''
 #
 
@@ -48,4 +48,10 @@ for method in distance_methods:
             cluster_labels = cut_tree(mergings, n_clusters=k).reshape(-1, )
             # print(cluster_labels)
             result_k = reformat_cluster_results(clusters=pd.DataFrame({'sample': df.index, 'label': cluster_labels}), input_df=df)
+            print(result_k)
             result_k.to_csv(result_file.replace('.tsv', f'_method_{method}_distance_{distance_metric}_k_{k}.tsv'), sep='\t')
+
+
+mergings = linkage(df, method='centroid', metric='euclidean')
+cluster_labels = cut_tree(mergings, n_clusters=2).reshape(-1, )
+result_k = reformat_cluster_results(clusters=pd.DataFrame({'sample': df.index, 'label': cluster_labels}), input_df=df)
