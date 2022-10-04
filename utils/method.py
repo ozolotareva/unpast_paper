@@ -401,9 +401,9 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     t0 = time()
     
     # a file with binarized gene expressions
-    bin_exprs_fname = binarized_fname_prefix +".seed="+str(seed)+".bin_method="+method+".pval="+str(pval)+".binarized.tsv"
+    bin_exprs_fname = binarized_fname_prefix +".seed="+str(seed)+".bin_method="+method+".binarized.tsv"
     # a file with statistics of binarization results
-    bin_stats_fname = binarized_fname_prefix +".seed="+str(seed) + ".bin_method="+ method + ".pval=" + str(pval) + ".binarization_stats.tsv"
+    bin_stats_fname = binarized_fname_prefix +".seed="+str(seed) + ".bin_method="+ method  + ".binarization_stats.tsv"
     # a file with background SNR distributions for each biclsuter size
     n_permutations = max(n_permutations,int(1.0/pval*10))
     bin_bg_fname = binarized_fname_prefix +".seed="+str(seed)+".n="+str(n_permutations)+".background.tsv"
@@ -1075,12 +1075,14 @@ def read_bic_table(file_name, parse_metadata = False):
     if len(biclusters) ==0:
         return pd.DataFrame()
     else:
+        biclusters.loc[:,["genes_up","genes_down"]] = biclusters.loc[:, ["genes_up","genes_down"]].fillna("")
         biclusters["genes"] = biclusters["genes"].apply(lambda x: set(x.split(" ")))
         biclusters["genes_up"] = biclusters["genes_up"].apply(lambda x: set(x.split(" ")))
         biclusters["genes_down"] = biclusters["genes_down"].apply(lambda x: set(x.split(" ")))
         biclusters["samples"] = biclusters["samples"].apply(lambda x: set(x.split(" ")))
         biclusters["gene_indexes"] = biclusters["gene_indexes"].apply(lambda x: set(map(int, set(x.split(" ")))))
         biclusters["sample_indexes"] = biclusters["sample_indexes"].apply(lambda x: set(map(int, set(x.split(" ")))))
+    
     #resulting_bics.set_index("id",inplace=True)
     if parse_metadata:
         f = open(file_name, 'r')
