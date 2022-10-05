@@ -5,3 +5,17 @@ channels:
     - defaults
 dependencies:
     - python=3.9
+    - autopep8
+    - fisher
+    - jenkspy
+    - matplotlib-venn
+    - numba
+    - numpy
+    - pandas
+    - pycodestyle
+    - python-louvain
+    - scikit-learn
+    - scipy
+    - seaborn
+    - statsmodels
+    - r-wgcna

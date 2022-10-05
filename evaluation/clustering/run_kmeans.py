@@ -3,7 +3,7 @@ import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
 from sklearn.cluster import KMeans
 from tqdm import tqdm
 from kneed import KneeLocator
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 os.environ["OMP_NUM_THREADS"] = "1"
 #  python3 run_kmeans.py ../datasets/DESMOND2_data_simulated/simulated/A/example.tsv  results
 

@@ -131,9 +131,9 @@ create_analysis <- function(dataset, data, par_tibble, comb_n, n = 30) {
     print(p)
     dev.off()
 
-    endo_obj <- create_endophenotypes(dataset, data, top_n, comb_n)
+    kmeans_obj <- create_endophenotypes(dataset, data, top_n, comb_n)
 
-    results_object <- list(top_n = top_n, model = model, analyses = endo_obj)
+    results_object <- list(top_n = top_n, model = model, cluster = kmeans_obj)
     return(results_object)
 }
 
@@ -153,10 +153,11 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
         "/root/projects/data/outputs",
         dataset, comb_n, "elbow_method.png"
     ))
-    ggplot2::ggplot(elbow_df, ggplot2::aes(x = k, y = tot_withinss)) +
+    plot <- ggplot2::ggplot(elbow_df, ggplot2::aes(x = k, y = tot_withinss)) +
         ggplot2::geom_line() +
         ggplot2::geom_point() +
         ggplot2::scale_x_continuous(breaks = 1:10)
+    print(plot)
     dev.off()
 
     # Silhouette Analysis
@@ -168,10 +169,11 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
         "/root/projects/data/outputs",
         dataset, comb_n, "silhouette_analysis.png"
     ))
-    ggplot2::ggplot(sil_df, ggplot2::aes(x = k, y = sil_width)) +
+    p <- ggplot2::ggplot(sil_df, ggplot2::aes(x = k, y = sil_width)) +
         ggplot2::geom_line() +
         ggplot2::geom_point() +
         ggplot2::scale_x_continuous(breaks = 2:10)
+    print(p)
     dev.off()
 
     # Gap Statistic
@@ -183,7 +185,7 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
         "/root/projects/data/outputs",
         dataset, comb_n, "gap_statistic.png"
     ))
-    factoextra::fviz_gap_stat(gap_stat)
+    print(factoextra::fviz_gap_stat(gap_stat))
     dev.off()
 
     # TODO pick the right k value automatically
@@ -195,17 +197,18 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
         "/root/projects/data/outputs",
         dataset, comb_n, "k_means.png"
     ))
-    factoextra::fviz_cluster(cl, geom = "point", data = d_scaled)
+    print(factoextra::fviz_cluster(cl, geom = "point", data = d_scaled))
     dev.off()
 
     png(file.path(
         "/root/projects/data/outputs",
         dataset, comb_n, "heatmap.png"
     ))
-    ComplexHeatmap::Heatmap(d_scaled,
+    ht <- ComplexHeatmap::Heatmap(d_scaled,
         split = cl$cluster, name = "expression",
         show_row_names = FALSE
     )
+    ComplexHeatmap::draw(ht)
     dev.off()
 
     # Label overlay
@@ -217,32 +220,36 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
     pca_df$PC2 <- pca_res$x[, 2]
     png(file.path(
         "/root/projects/data/outputs",
-        dataset, comb_n, "survival.png"
+        dataset, comb_n, "pca.png"
     ))
-    ggplot2::ggplot(ggplot2::aes(
+    plot <- ggplot2::ggplot(ggplot2::aes(
         x = PC1, y = PC2, col = cluster
     ), data = pca_df) +
         ggplot2::geom_point() +
         ggplot2::facet_grid(. ~ data$labels[, "PAM50"])
+    print(plot)
     dev.off()
 
     # survival analysis
     cl_survival <- data.frame(
-        data$surv[, c("OS", "OS.time")],
+        data$survival[, c("OS", "OS.time")],
         cluster = cl$cluster
     )
     png(file.path(
         "/root/projects/data/outputs",
         dataset, comb_n, "survival.png"
     ))
-    survminer::ggsurvplot(
+    plot <- survminer::ggsurvplot(
         survival::survfit(
             survival::Surv(OS.time, OS) ~ cluster,
             data = cl_survival
-        ),
+        ), cl_survival,
         pval = TRUE
-    )$plot
+    )
+    print(plot$plot)
     dev.off()
+
+    return(cl)
 }
 
 # NOTE Main
@@ -255,6 +262,10 @@ par_df <- purrr::cross_df(list(
     subgraph = c("bfs", "dfs", "random")
 ))
 
+par_comb <- apply(par_df, 1, function(x) {
+    paste(x, collapse = ";")
+})
+
 write.table(par_df, "/root/projects/data/outputs/par_df.tsv",
     sep = "\t",
     row.names = FALSE
@@ -263,30 +274,27 @@ write.table(par_df, "/root/projects/data/outputs/par_df.tsv",
 library(doMC)
 
 doMC::registerDoMC(nrow(par_df))
+
+time_tcga <- data.frame(par_comb = par_comb, time = rep(0, nrow(par_df)))
 res_tcga <- foreach::foreach(i = seq_len(nrow(par_df))) %dopar% {
     start <- Sys.time()
     create_analysis("GDC", data_tcga, par_df[i, ], i)
     end <- Sys.time()
-    cat("Elapsed time: \n", file = file.path(
-        "/root/projects/data/outputs/GDC", comb_n, "elapsed_time.txt"
-    ))
-    capture.output(print(end - start), file = file.path(
-        "/root/projects/data/outputs/GDC", comb_n, "elapsed_time.txt"
-    ), append = TRUE)
+    time_tcga[i, "time"] <- as.numeric(end - start)
 }
+write.csv(time_tcga, "/root/projects/data/outputs/time_tcga.tsv", sep = "\t")
 
+save.image("/root/projects/data/outputs/grandforest1.RData")
+
+time_mbr <- data.frame(par_comb = par_comb, time = rep(0, nrow(par_df)))
 res_mbr <- foreach::foreach(i = seq_len(nrow(par_df))) %dopar% {
     start <- Sys.time()
     create_analysis("Mbr", data_mbr, par_df[i, ], i)
     end <- Sys.time()
-    cat("Elapsed time: \n", file = file.path(
-        "/root/projects/data/outputs/Mbr", comb_n, "elapsed_time.txt"
-    ))
-    capture.output(print(end - start), file = file.path(
-        "/root/projects/data/outputs/Mbr", comb_n, "elapsed_time.txt"
-    ), append = TRUE)
+    time_mbr[i, "time"] <- as.numeric(end - start)
 }
+write.csv(time_mbr, "/root/projects/data/outputs/time_mbr.tsv", sep = "\t")
 
-# TODO calc metrics here
+save.image("/root/projects/data/outputs/grandforest2.RData")
 
-save.image("/root/projects/data/outputs/grandforest.RData")
+# TODO export data to calc metrics

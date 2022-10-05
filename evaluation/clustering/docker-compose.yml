@@ -10,7 +10,13 @@ services:
         source: ~/DESMOND2_benchmarking/clustering
         target: /tmp/
       - type: bind
+        source: ~/DESMOND2_benchmarking/clusteringRD
+        target: /tmp/realdata_results
+      - type: bind
         source: ~/DESMOND2_benchmarking/DESMOND2_data/simulated
         target: /root/projects/data/simulated
+      - type: bind
+        source: ~/DESMOND2_benchmarking/DESMOND2_data/preprocessed_v6
+        target: /root/projects/data/realdata
 volumes:
   desmond2-eval-volume:
