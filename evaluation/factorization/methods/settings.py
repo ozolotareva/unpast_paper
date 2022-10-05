@@ -1,7 +1,7 @@
 import numpy as np
 
 RANDOM_STATES = range(5)
-CLUSTER_RANGE = range(4, 11)
+CLUSTER_RANGE = range(4, 21)
 
 # NMF
 NMF_ALPHAS = np.linspace(-0.4, 0.4, 9)
@@ -14,10 +14,10 @@ S_PCA_TOL = [1e-8, 1e-9]
 S_PCA_METHOD = ['lars', 'cd']
 
 # MOFA2
-MOFA2_FACTORS = range(1, 11)
+MOFA2_FACTORS = range(1, 21)
 
 # MOCLUSTER
-MOCLUSTER_RANGE = range(1, 11)
+MOCLUSTER_RANGE = range(1, 21)
 MOCLUSTER_RANDOM_STATES = [1]
 
 # iCluster
