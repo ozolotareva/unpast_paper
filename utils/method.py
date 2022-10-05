@@ -410,32 +410,33 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     
     load_failed = False
     if load:
+        load_failed = False
         try:
-            
             if verbose:
-                print("Load binarized features from",bin_exprs_fname,file = sys.stdout)
-                print("",file = sys.stdout)
+                print("Load binarized features from",bin_exprs_fname,"\n",file = sys.stdout)
             # load binary expressions
             binarized_data = pd.read_csv(bin_exprs_fname, sep ="\t",index_col=0)
-
-
+        except:
+            print("file "+bin_exprs_fname+" is not found and will be created",file = sys.stderr)
+            load_failed = True
+        try:
             # load stats 
-            stats = pd.read_csv(bin_stats_fname , sep ="\t",index_col=0)
+            stats = pd.read_csv(bin_stats_fname, sep ="\t",index_col=0)
             if verbose:
-                print("Load statistics from",fname,file = sys.stdout)
-                print("",file = sys.stdout)
-
+                print("Load statistics from",bin_stats_fname,"\n",file = sys.stdout)
+        except:
+            print("file "+bin_stats_fname+" is not found and will be created",file = sys.stderr)
+            load_failed = True
+        try:  
             #load background distribution
             null_distribution = pd.read_csv(bin_bg_fname, sep ="\t",index_col=0)
             null_distribution = null_distribution.values
             if verbose:
-                print("Load background distribution from",fname,file = sys.stdout)
-                print("",file = sys.stdout)
+                print("Load background distribution from",bin_bg_fname,"\n",file = sys.stdout)
         except:
+            print("file "+bin_bg_fname+" is not found and will be created",file = sys.stderr)
             load_failed = True
-            print(bin_exprs_fname,"file is not found and will be created",file = sys.stderr)
             
-        
     if not load or load_failed:
         if exprs is None:
             print("Provide either raw or binarized data.", file=sys.stderr)
