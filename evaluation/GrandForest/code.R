@@ -70,6 +70,8 @@ read_data <- function(dataset) {
 }
 
 create_analysis <- function(dataset, data, par_tibble, comb_n, n = 30) {
+    start <- Sys.time()
+
     dir.create(file.path("/root/projects/data/outputs", dataset, comb_n),
         showWarnings = FALSE
     )
@@ -85,6 +87,8 @@ create_analysis <- function(dataset, data, par_tibble, comb_n, n = 30) {
         write.forest = FALSE,
         seed = 2022
     )
+
+    end <- Sys.time()
 
     # gene importance estimates
     values <- sort(grandforest::importance(model), decreasing = TRUE)[1:n]
@@ -133,7 +137,10 @@ create_analysis <- function(dataset, data, par_tibble, comb_n, n = 30) {
 
     kmeans_obj <- create_endophenotypes(dataset, data, top_n, comb_n)
 
-    results_object <- list(top_n = top_n, model = model, cluster = kmeans_obj)
+    results_object <- list(
+        top_n = top_n, model = model, cluster = kmeans_obj,
+        time = end - start
+    )
     return(results_object)
 }
 
@@ -257,7 +264,8 @@ data_tcga <- read_data("GDC")
 data_mbr <- read_data("Mbr")
 
 par_df <- purrr::cross_df(list(
-    num.trees = seq(1000, 10000, length.out = 3),
+    # num.trees = seq(1000, 10000, length.out = 3),
+    num.trees = seq(1000, 3000, length.out = 3),
     importance = c("impurity", "impurity_corrected", "permutation"),
     subgraph = c("bfs", "dfs", "random")
 ))
@@ -275,26 +283,34 @@ library(doMC)
 
 doMC::registerDoMC(nrow(par_df))
 
-time_tcga <- data.frame(par_comb = par_comb, time = rep(0, nrow(par_df)))
 res_tcga <- foreach::foreach(i = seq_len(nrow(par_df))) %dopar% {
-    start <- Sys.time()
     create_analysis("GDC", data_tcga, par_df[i, ], i)
-    end <- Sys.time()
-    time_tcga[i, "time"] <- as.numeric(end - start)
 }
-write.csv(time_tcga, "/root/projects/data/outputs/time_tcga.tsv", sep = "\t")
 
 save.image("/root/projects/data/outputs/grandforest1.RData")
 
-time_mbr <- data.frame(par_comb = par_comb, time = rep(0, nrow(par_df)))
 res_mbr <- foreach::foreach(i = seq_len(nrow(par_df))) %dopar% {
-    start <- Sys.time()
     create_analysis("Mbr", data_mbr, par_df[i, ], i)
-    end <- Sys.time()
-    time_mbr[i, "time"] <- as.numeric(end - start)
 }
-write.csv(time_mbr, "/root/projects/data/outputs/time_mbr.tsv", sep = "\t")
 
 save.image("/root/projects/data/outputs/grandforest2.RData")
 
-# TODO export data to calc metrics
+# export data to calc metrics
+
+load("/root/projects/data/outputs/grandforest2.RData")
+
+write.table(
+    data.frame(sapply(
+        res_tcga, function(x) x$cluster$cluster
+    )),
+    "/root/projects/data/outputs/clusters_tcga.tsv",
+    sep = "\t"
+)
+
+write.table(
+    data.frame(sapply(
+        res_mbr, function(x) x$cluster$cluster
+    )),
+    "/root/projects/data/outputs/clusters_mbr.tsv",
+    sep = "\t"
+)
