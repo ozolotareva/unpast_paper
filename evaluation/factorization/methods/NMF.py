@@ -86,11 +86,11 @@ def run_simulated(args):
     df_exprs = pd.read_csv(args['exprs_file'], sep='\t', index_col=0)
     args['exprs'] = preprocess_exprs(df_exprs)
     result, runtime = run_method(execute_algorithm, args)
+    resultsHandler.write_samples(args["output_path"], args['exprs'].columns)
     del args['exprs']
 
     # save results
     resultsHandler.save(result, runtime, args["output_path"])
-    resultsHandler.write_samples(args["output_path"], args['exprs'].columns)
     return
 
 def run_real(args):

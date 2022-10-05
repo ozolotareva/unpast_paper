@@ -27,7 +27,6 @@ def save(df_result, runtime, output_path):
     write_runtime(output_path, runtime)
     print(f'Saved {output_path}.')
 
-
 def create_or_get_result_folder(output):
     Path(output).mkdir(parents=True, exist_ok=True)
     return os.path.isfile(os.path.join(output, OUTPUT_CLUSTER))

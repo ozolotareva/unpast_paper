@@ -33,7 +33,6 @@ def generate_arg_list(exprs_file, output_folder, ground_truth_file, cluster_rang
                                         'ground_truth_file': ground_truth_file,
                                         'n_components': n_components,
                                         'random_state': m,
-                                        'transposed': False,
                                         'alpha': alpha,
                                         'ridge_alpha': ridge_alpha,
                                         'max_iter': max_iter,
@@ -59,10 +58,12 @@ def run_simulated(args):
         return
     args['exprs'] = pd.read_csv(args['exprs_file'], sep='\t', index_col=0).T
     result, runtime = run_method(execute_algorithm, args)
+    resultsHandler.write_samples(args["output_path"], args['exprs'].index)
     del args['exprs']
+
     # save results
     resultsHandler.save(result, runtime, args["output_path"])
-    resultsHandler.write_samples(args["output_path"], args['exprs'].index)
+
 
 def run_real(args):
     if resultsHandler.create_or_get_result_folder(args["output_path"]):

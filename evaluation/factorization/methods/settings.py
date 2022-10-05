@@ -18,6 +18,7 @@ MOFA2_FACTORS = range(1, 11)
 
 # MOCLUSTER
 MOCLUSTER_RANGE = range(1, 11)
+MOCLUSTER_RANDOM_STATES = [1]
 
 # iCluster
 ICLUSTER_TYPES = ["gaussian","multinomial"]  # "binomial","poisson" throw errors 

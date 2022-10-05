@@ -110,7 +110,7 @@ def find_best_matches(biclusters, known_groups, all_elements, FDR=0.05,
         df_pval, is_enriched, df_jaccard = evaluate_overlaps(biclusters, known_groups,
                                                              all_elements, dimension=dimension)
     except:
-        print("failed to calculate overlap p-values", file=sys.stderr)
+        # print("failed to calculate overlap p-values", file=sys.stderr)
         out = evaluate_overlaps(biclusters, known_groups, all_elements, dimension=dimension)
         return
 
