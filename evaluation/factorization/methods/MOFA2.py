@@ -38,6 +38,7 @@ def format_output(output_path, n_cluster):
             'n_samples': len(df_sub.index)
         }
     os.remove(os.path.join(output_path, 'mofa2_result.csv'))
+    os.remove(os.path.join(output_path, 'mofa2_model.hdf5'))
     return pd.DataFrame(cluster).T
 
 def read_runtime(output_path):

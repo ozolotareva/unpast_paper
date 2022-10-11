@@ -1,17 +1,23 @@
 import numpy as np
 
-RANDOM_STATES = range(5)
+RANDOM_STATES = range(1, 6)
 CLUSTER_RANGE = range(4, 21)
+# CLUSTER_RANGE = [10]
 
 # NMF
-NMF_ALPHAS = np.linspace(-0.4, 0.4, 9)
+NMF_ALPHAS = np.linspace(-0.2, 0.2, 5) # np.linspace(-0.4, 0.4, 9)
+NMF_BETA_LOSS = ['frobenius'] # , 'kullback-leibler' 
+NMF_SOLVER = ['cd'] # , 'mu'
+NMF_INIT = ['nndsvd', 'nndsvda', 'random']
+NMF_SHUFFLE = [True, False]
+NMF_TOL = [1e-4] 
 
 # sparse PCA
-S_PCA_ALPHA = [0.5, 1, 1.1, 5, 10, 50]
+S_PCA_ALPHA = [0.5, 1, 2.5, 5] # 1.1,
 S_PCA_RIDGE_ALPHA = [0.1, 0.01, 0.001]
 S_PCA_MAX_ITER = [5000]
-S_PCA_TOL = [1e-8, 1e-9]
-S_PCA_METHOD = ['lars', 'cd']
+S_PCA_TOL = [1e-9, 1e-8]
+S_PCA_METHOD = ['cd', 'lars']
 
 # MOFA2
 MOFA2_FACTORS = range(1, 21)
