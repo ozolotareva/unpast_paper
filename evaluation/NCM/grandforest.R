@@ -43,7 +43,7 @@ read_data <- function(dataset) {
         })) == 0)
     }
 
-    dir.create(paste0("/root/projects/data/outputs/", dataset),
+    dir.create(paste0("/root/projects/data/outputs/GF/", dataset),
         showWarnings = FALSE
     )
 
@@ -274,7 +274,7 @@ par_comb <- apply(par_df, 1, function(x) {
     paste(x, collapse = ";")
 })
 
-write.table(par_df, "/root/projects/data/outputs/par_df.tsv",
+write.table(par_df, "/root/projects/data/outputs/GF/par_df.tsv",
     sep = "\t",
     row.names = FALSE
 )
@@ -287,23 +287,23 @@ res_tcga <- foreach::foreach(i = seq_len(nrow(par_df))) %dopar% {
     create_analysis("GDC", data_tcga, par_df[i, ], i)
 }
 
-save.image("/root/projects/data/outputs/grandforest1.RData")
+save.image("/root/projects/data/outputs/GF/grandforest1.RData")
 
 res_mbr <- foreach::foreach(i = seq_len(nrow(par_df))) %dopar% {
     create_analysis("Mbr", data_mbr, par_df[i, ], i)
 }
 
-save.image("/root/projects/data/outputs/grandforest2.RData")
+save.image("/root/projects/data/outputs/GF/grandforest2.RData")
 
 # export data to calc metrics
 
-load("/root/projects/data/outputs/grandforest2.RData")
+load("/root/projects/data/outputs/GF/grandforest2.RData")
 
 write.table(
     data.frame(sapply(
         res_tcga, function(x) x$cluster$cluster
     )),
-    "/root/projects/data/outputs/clusters_tcga.tsv",
+    "/root/projects/data/outputs/GF/clusters_tcga.tsv",
     sep = "\t"
 )
 
@@ -311,6 +311,6 @@ write.table(
     data.frame(sapply(
         res_mbr, function(x) x$cluster$cluster
     )),
-    "/root/projects/data/outputs/clusters_mbr.tsv",
+    "/root/projects/data/outputs/GF/clusters_mbr.tsv",
     sep = "\t"
 )

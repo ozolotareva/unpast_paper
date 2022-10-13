@@ -78,7 +78,8 @@ RUN $HOME/miniconda3/bin/mamba env create -f desmond2_Python.yml && \
     bioconductor-org.hs.eg.db bioconductor-simpintlists
 
 # NOTE post instalation setup
-RUN rm Miniconda3-latest-Linux-x86_64.sh
+RUN rm Miniconda3-latest-Linux-x86_64.sh && \
+    echo "backend: Agg" > ~/.config/matplotlib/matplotlibrc
 RUN rm -rf /var/lib/apt/lists/*
 
 CMD ["bash"]
