@@ -11,17 +11,10 @@ for (pkg in c("grandforest", "geomnet")) {
     }
 }
 
-data("HumanBioGRIDInteractionOfficial", package = "simpIntLists")
-
-# convert edge lists into two-column data frame
-edges <- lapply(HumanBioGRIDInteractionOfficial, function(x) {
-    data.frame(
-        source = as.character(x$name),
-        target = as.character(x$interactors),
-        stringsAsFactors = FALSE
-    )
-})
-edges <- data.table::rbindlist(edges)
+edges <- read.table(
+    "/root/projects/data/outputs/BIOGRID-MV-Physical-4.4.214_filtered.tsv",
+    sep = "\t", header = TRUE
+)[, 2:3]
 
 read_data <- function(dataset) {
     file_name <- ifelse(dataset == "GDC",
@@ -264,8 +257,7 @@ data_tcga <- read_data("GDC")
 data_mbr <- read_data("Mbr")
 
 par_df <- purrr::cross_df(list(
-    # num.trees = seq(1000, 10000, length.out = 3),
-    num.trees = seq(1000, 3000, length.out = 3),
+    num.trees = seq(1000, 10000, length.out = 3),
     importance = c("impurity", "impurity_corrected", "permutation"),
     subgraph = c("bfs", "dfs", "random")
 ))
@@ -295,10 +287,10 @@ res_mbr <- foreach::foreach(i = seq_len(nrow(par_df))) %dopar% {
 
 save.image("/root/projects/data/outputs/GF/grandforest2.RData")
 
+
+# load("/root/projects/data/outputs/GF/grandforest2.RData")
+
 # export data to calc metrics
-
-load("/root/projects/data/outputs/GF/grandforest2.RData")
-
 write.table(
     data.frame(sapply(
         res_tcga, function(x) x$cluster$cluster
