@@ -35,13 +35,14 @@ end.time <- Sys.time()
 time.taken <- end.time - start.time
 
 cluster_assignment <- result$fit[[1]]$clusters
-
-write.table(cls,file=file.path(output_folder, "iclusterplus_result.csv"), sep = ",")
+write.table(cluster_assignment,file=file.path(output_directory, "iclusterplus_result.csv"), sep = ",")
 
 # save runtime
 fileConn<-file(file.path(output_directory, "iclusterplus_runtime.txt"))
 writeLines(as.character(time.taken), fileConn)
 close(fileConn)
+
+warnings()
 
 
 

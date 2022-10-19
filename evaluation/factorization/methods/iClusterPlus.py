@@ -49,10 +49,10 @@ def generate_arg_list(exprs_file, output_folder, ground_truth_file, cluster_rang
     return arguments
 
 def format_output(output_path, n_cluster):
-    df_mocluster_cluster = pd.read_csv(os.path.join(output_path, 'iclusterplus_result.csv'))
+    df_i_cluster = pd.read_csv(os.path.join(output_path, 'iclusterplus_result.csv'))
     cluster = {}
     for i in range(1, n_cluster+1):
-        df_sub = df_mocluster_cluster[df_mocluster_cluster['x']==i]
+        df_sub = df_i_cluster[df_i_cluster['x']==i]
         cluster[i] = {
             'samples': set(df_sub.index),
             'n_samples': len(df_sub.index)
@@ -80,11 +80,10 @@ def run_simulated(args):
         return
     df_exprs = pd.read_csv(args['exprs_file'], sep='\t', index_col=0).T
     result, runtime = run_method(execute_algorithm, args)
-
     # save results
     resultsHandler.save(result, runtime, args["output_path"])
     resultsHandler.write_samples(args["output_path"], df_exprs.index)
-
+    
 def run_real(args):
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
         print('Returning existing results:', args["output_path"])

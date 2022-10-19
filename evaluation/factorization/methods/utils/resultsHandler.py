@@ -19,7 +19,7 @@ def write_samples(output_path, samples):
         text_file.write(f"{samples}")
         
 def write_output(output_path, df_data):
-    df_data['samples'] = df_data['samples'].map(lambda x: ','.join(x))
+    df_data['samples'] = df_data['samples'].map(lambda x: ','.join(str(x)))
     df_data.to_csv(os.path.join(output_path, OUTPUT_CLUSTER))
 
 def save(df_result, runtime, output_path):
