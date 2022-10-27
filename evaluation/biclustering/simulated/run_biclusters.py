@@ -7,24 +7,40 @@ import collect_results
 
 test_case_folder = "/local/DESMOND2_data_simulated/simulated/"
 script_folder = "./"
-rerun_evaluations = False
+rerun_evaluations = True
 
 tool_list = {
     # deterministic False
-    'fabia': {'name': 'run_fabia.R', 'deterministic': True, 'precompute': False, 'params': {
+    'fabia': {'name': 'run_fabia.R', 'deterministic': False, 'precompute': False, 'params': {
         'alpha': [0.001, 0.01, 0.05], 'spl': [0.0, 0.5],
         'spz': [0.0, 0.5, 1.0], 'cyc': [500],
         'center': [2]
     }},
     # deterministic False
-    'isa2': {'name': 'run_isa2.R', 'deterministic': True, 'precompute': False,
+    'isa2': {'name': 'run_isa2.R', 'deterministic': False, 'precompute': False,
              'params': {
-                 "no_seeds": [1, 2, 3, 4, 5] + list(range(10, 110, 20)) + [100,125, 150, 200]
+                 "no_seeds": [1, 2, 3, 4, 5] + list(range(10, 110, 20)) + [100, 125, 150, 200]
              }},
     'qubic': {'name': 'run_qubic.R', 'deterministic': True, 'precompute': False, 'params': {
-        'r': [1, 2, 5, 10, 25], 'q': [0.04, 0.06, 0.1, 0.25],
-        'c': [0.99, 0.95, 0.92, 0.85, 0.75, 0.51], 'f': [0.5, 1, 5], 'type': ['default', 'area']
+        'r': [1,
+              2, 5, 10,
+              25], 'q': [0.04,
+                         0.06, 0.1,
+                         0.25],
+        'c': [0.99,
+              0.95, 0.92, 0.85, 0.75,
+              0.51], 'f': [0.5,
+                           1, 5
+                           ], 'type': ['default', 'area']
     }},
+    'coalesce': {
+        'name': 'run_coalesce.py', 'deterministic': True, 'precompute': False,
+        'params': {'prob_gene': [0.99, 0.95, 0.9, 0.8, 0.6],
+                   "pvalue_cond": [0.01,0.05, 0.1, 0.2],
+                   "pvalue_correl": [0.01, 0.05, 0.1, 0.2, 0.35],
+                   "zscore_cond": [0.005,0.01, 0.05, 0.1, 0.2, 0.4],
+                   }
+    },
     # 'xmotifs': {
     #     'name': 'run_xmotifs.R', 'deterministic': True, 'precompute': False, 'params': {
     #         'ns': [5, 10, 25, 50, 75, 100], 'alpha': [0.001, 0.01, 0.05, 0.1, 0.15]
@@ -34,21 +50,21 @@ tool_list = {
     #          'params': {
     #              's': [0, 1, 3], 'o': [0, 0.5, 1], 'b': [0, 0.5, 1, 2], 'p': ['u']
     #          }},
-    'qubic2': {'name': 'qubic2-master/qubic', 'deterministic': True, 'precompute': True, 'discretization_files': [],
-               'params': {
-                   # 'C': True, 'N': True,
-                   'k': [2, 3,
-                         10] + list(range(10, 50, 20)),
-                   'c': [0.51, 0.75, 0.92]
-               },
-               'params_pre': {'n': True, 'R': True,
-                              'q': [0.06
-                                  # , 0.2
-                                  # , 0.35
-                                    ], 'r': [1, 2
-                       # , 5
-                                                            ]}
-               }
+    # 'qubic2': {'name': 'qubic2-master/qubic', 'deterministic': True, 'precompute': True, 'discretization_files': [],
+    #            'params': {
+    #                # 'C': True, 'N': True,
+    #                'k': [2, 3,
+    #                      10] + list(range(10, 50, 20)),
+    #                'c': [0.51, 0.75, 0.92]
+    #            },
+    #            'params_pre': {'n': True, 'R': True,
+    #                           'q': [0.06
+    #                               , 0.2
+    #                               , 0.35
+    #                                 ], 'r': [1, 2
+    #                    , 5
+    #                                          ]}
+    #            }
 }
 
 expr_files = {}
@@ -56,6 +72,8 @@ bicluster_files = {}
 
 for mode in os.listdir(test_case_folder):
     mode_path = os.path.join(test_case_folder, mode)
+    if mode == 'results':
+        continue
     for case_file in os.listdir(mode_path):
         file_path = os.path.join(mode_path, case_file)
         prefix = case_file.split(".")[0] + "." + case_file.split(".")[1]
@@ -268,8 +286,8 @@ allowed_threads = parallel_execs = int(sys.argv[1])
 run_tasklist(precomputing_multi, 1)
 run_tasklist(commands_multi, 1)
 run_tasklist(commands, allowed_threads)
-if len(commands_multi_late) > 0 and len(commands) > 0:
-    collect_results.collect(result_dir)
+# if len(commands_multi_late) > 0 and len(commands) > 0:
+collect_results.collect(result_dir)
 run_tasklist(commands_late, allowed_threads)
 if len(commands_late) > 0:
     collect_results.collect(result_dir)

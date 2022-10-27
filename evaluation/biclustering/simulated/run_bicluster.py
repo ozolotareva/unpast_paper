@@ -37,7 +37,7 @@ def get_qubic2_command(script_location, expr_file, disc_file, params):
     # disc_file = os.path.join('/tmp/qubic2_discretizations/', os.path.split(expr_file)[1])
     # os.system(f'cp -f {d_file} {disc_file}')
 
-    command = [script_location, '-i', disc_file,  '-d','-o', '1000',]
+    command = [script_location, '-i', disc_file, '-d', '-o', '1000', ]
     if 'C' in params:
         command.append('-C')
     if 'N' in params:
@@ -55,6 +55,8 @@ def get_command(tool_name, script_location, expr_file, out_file, param_file):
     command = []
     if tool_name in ['isa2', 'fabia', 'qubic', 'xmotifs']:
         command = ["Rscript", script_location, expr_file, out_file, param_file]
+    elif tool_name in ['coalesce']:
+        command = ["python3", script_location, expr_file, out_file, param_file]
     else:
         params = read_config_file(param_file)
         if tool_name == 'debi':
@@ -72,8 +74,9 @@ if only_rerun:
         result_file = result_file + ".blocks"
     try:
         (scores, result) = eval_bicluster_methods.run_eval(tool_name='dataframe', expr_file=expr_file,
-                                                       result_file=score_file.replace('.score', '-biclusters_df.tsv'),
-                                                       ground_truth_file=truth_file)
+                                                           result_file=score_file.replace('.score',
+                                                                                          '-biclusters_df.tsv'),
+                                                           ground_truth_file=truth_file)
         print(scores)
     except:
         pass

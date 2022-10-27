@@ -32,6 +32,8 @@ WORKDIR "qubic2-master"
 RUN make
 WORKDIR "../"
 
+RUN apt install -y openjdk-8-jdk
+
 COPY . ./
 
 RUN mkdir -p "/local/DESMOND2_data/"
