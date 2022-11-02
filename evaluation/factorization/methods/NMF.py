@@ -4,7 +4,7 @@ import sklearn
 import time
 import os
 import pandas as pd
-from .settings import RANDOM_STATES, CLUSTER_RANGE, NMF_ALPHAS
+from .settings import RANDOM_STATES, CLUSTER_RANGE, NMF_ALPHAS, NMF_BETA_LOSS, NMF_SOLVER, NMF_INIT, NMF_SHUFFLE, NMF_TOL
 from .utils.miscellaneous import run_method
 
 
@@ -13,15 +13,15 @@ def generate_arg_list(exprs_file, output_folder, ground_truth_file, cluster_rang
     # NMF - not transposed
     for m in RANDOM_STATES:
         for k in cluster_range:
-            for tol in [1e-4]:
+            for tol in NMF_TOL:
                 for alpha_W in NMF_ALPHAS:
                     alpha_W = round(alpha_W, 2)
                     for alpha_H in NMF_ALPHAS:
                         alpha_H = round(alpha_H, 2)
-                        for solver in ['cd', 'mu']:
-                            for shuffle in [True, False]:
-                                for beta_loss in ['frobenius', 'kullback-leibler']:
-                                    for init in ['random', 'nndsvd', 'nndsvda']:
+                        for solver in NMF_SOLVER:
+                            for shuffle in NMF_SHUFFLE:
+                                for beta_loss in NMF_BETA_LOSS:
+                                    for init in NMF_INIT:
                                         if solver == 'cd' and beta_loss == 'kullback-leibler':
                                             continue
                                         if solver == 'mu' and init == 'nndsvd':
