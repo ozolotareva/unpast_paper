@@ -2,12 +2,18 @@ import os
 import pandas as pd
 from utils.eval import find_best_matches
 from pathlib import Path
-
+import numpy as np
 
 OUTPUT_CLUSTER = 'result.csv'
 OUTPUT_RUNTIME = 'runtime.txt'
 OUTPUT_SAMPLES = 'samples.txt'
 
+"""Something went wrong with some of the result files, maybe it was due to the scikit learn update."""
+def _fix_result(df_result_broken):
+    assert all(df_result_broken['samples'].map(lambda x: '{' in x or ('(' in x and 's' in x and 'e' in x and 't' in x and ')' in x)))
+    df_result_broken['samples'] = df_result_broken['samples'].map(lambda x: set(x.replace(',', '').replace('{', '').replace('}', '').replace("'", '').split(' ')))
+    df_result_broken['samples'] = df_result_broken['samples'].map(lambda x: set() if len(x) and list(x)[0] == 'set()' else x)
+    return df_result_broken
 
 def write_runtime(output_path, runtime):
     with open(os.path.join(output_path, OUTPUT_RUNTIME), "w") as text_file:
@@ -33,7 +39,11 @@ def create_or_get_result_folder(output):
 
 def read_result(output_path):
     df_data = pd.read_csv(os.path.join(output_path, OUTPUT_CLUSTER), index_col=0)
-    df_data['samples'] = df_data['samples'].map(lambda x: set(x.split(',')) if not isinstance(x, float) else set())
+    # fucked up saving data, some contain string 'set()' instead of NaN or a set or data {...} 
+    try:
+       df_data = _fix_result(df_data)
+    except Exception:
+        df_data['samples'] = df_data['samples'].map(lambda x: set(x.split(',')) if not isinstance(x, float) else set())
     return df_data
 
 def read_runtime(output_path):

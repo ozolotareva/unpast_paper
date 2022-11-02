@@ -27,9 +27,9 @@ MOCLUSTER_RANGE = range(1, 21)
 MOCLUSTER_RANDOM_STATES = [1]
 
 # iCluster
-ICLUSTER_TYPES = ["gaussian","multinomial"]  # "binomial","poisson" throw errors 
+ICLUSTER_TYPES = ["gaussian"]  # "binomial","poisson" throw errors, "multinomial" is too slow 
 ICLUSTER_ALPHAS = [1]   # set to 1 as penalty for elasitcnet is not needed because elasticnet not used in this version of icluster
-ICLUSTER_LAMBDA_NS = ['null']   # null will be translated to "NULL" in R
+ICLUSTER_LAMBDA_NS = [5, 10, 25, 'null']   # null will be translated to "NULL" in R
 ICLUSTER_LAMBDA_SCALES = [1]    # Value between 0 and 1
 ICLUSTER_BURNIN_NS = [200]  # MCMC
 ICLUSTER_DRAW_NS = [200]    # MCMC

@@ -26,7 +26,7 @@ start.time <- Sys.time()
 # lambda_n=NULL
 
 #tune directly with one set number of cluster and one lambda
-result = tune.iClusterPlus(cpus = 1,
+result = tune.iClusterPlus(cpus = 10,
       dt1 = exprs, type = c(type), K = n_cluster,
       n.lambda = lambda_n, scale.lambda = c(lambda_scale),
       maxiter = iter_max, eps = eps, n.burnin=burnin_n, n.draw=draw_n, sdev=sdev);
