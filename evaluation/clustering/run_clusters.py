@@ -2,12 +2,11 @@ import os
 import subprocess
 import sys
 import time
-# import collect_results
 
 # os.chdir('/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering')
 # test_case_folder = "/Users/fernando/Documents/Research/DESMOND2_data_simulated/simulated"
-
-test_case_folder = "/root/projects/data/simulated/"
+# result_dir = "/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering/results"
+test_case_folder = "/home/bbb1417/DESMOND2_benchmarking/DESMOND2_data/simulated/"
 script_folder = "./"
 
 
@@ -15,7 +14,16 @@ tool_list = {
     'kmeans': 'run_kmeans.py',
     'WGCNAkmeans': 'run_WGCNAkmeans.py',
     'HC': 'run_HC.py',
-    'WGCNAHC': 'run_WGCNAHC.py'
+    'WGCNAHC': 'run_WGCNAHC.py',
+    'AffinityPropagation': 'run_AffinityPropagation.py',
+    'Meanshift': 'run_MeanShift.py',
+    'Spectral': 'run_Spectral.py',
+    'AgglomerativeClustering': 'run_AgglomerativeClustering.py',
+    'DBSCAN': 'run_DBSCAN.py',
+    'OPTICS': 'run_OPTICS.py',
+    'BIRCH': 'run_BIRCH.py',
+    'bikmeans': 'run_BisectingKmeans.py',
+    'GMM': 'run_GaussianMixmodels.py'
 }
 
 
@@ -37,16 +45,10 @@ for mode in os.listdir(test_case_folder):
         elif "biclusters" in case_file:
             bicluster_files[prefix] = file_path
 
+result_dir = "/home/bbb1417/DESMOND2_benchmarking/new_results_DESMOND2"
 
-def get_output_file(tool_name, case_prefix):
-    return os.path.join("/tmp/", f'{case_prefix}_{tool_name}.tsv')
-
-
-result_dir = "/tmp"
-
-if os.path.exists(result_dir):
-    os.system(f"rm -rf {result_dir}")
-os.system(f"mkdir {result_dir}")
+if not os.path.exists(result_dir):
+    os.system(f"mkdir {result_dir}")
 
 commands = list()
 running = list()

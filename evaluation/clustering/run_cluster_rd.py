@@ -33,7 +33,7 @@ if not os.path.exists(score_file):
 
 def get_command(tool_name, script_location, expr_file, out_file):
     command = []
-    if tool_name in ['kmeans', 'WGCNAkmeans', 'WGCNAHC', 'HC']:
+    if tool_name in ['kmeans', 'WGCNAkmeans', 'WGCNAHC', 'HC', 'AffinityPropagation', 'MeanShift', 'Spectral', 'AgglomerativeClustering', 'DBSCAN', 'OPTICS', 'BIRCH', 'bikmeans', 'GMM']:
         command.append("python3")
         command.append(script_location)
         command.append(expr_file)
@@ -42,6 +42,8 @@ def get_command(tool_name, script_location, expr_file, out_file):
 
 
 subprocess.check_call(get_command(tool_name, script, expr_file, result_file))
+
+'''
 listing = glob.glob(result_file[:-4] + '*')
 
 subt_t = {}
@@ -63,5 +65,6 @@ if os.stat(score_file).st_size == 0:
 else:
     print('File is not empty')
     results.to_csv(score_file, mode='a', index=True, header=False, sep='\t')
+'''
 # print(f"J_weighted for {tool_name} and {filename}: {j_weighted}")
 # fw.write(f"{filename.split('/')[-1]}\t{str(j_weighted)}\n")
