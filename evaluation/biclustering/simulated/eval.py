@@ -241,52 +241,32 @@ def find_best_matches(biclusters, known_groups, all_elements, FDR=0.05,
     # BH-adjust for multiple testing
     df_fdr = apply_fdr(df_pval)
 
-    not_matched_biclusters = list(df_fdr.index.values)
-    groups = list(df_fdr.columns.values)
-    while len(groups) > 0:
-        best_group = None
-        best_j = -1
-        best_bm = None
-        best_bm_id = -1
-        best_results = None
-        for group in groups:
-            # choose biclusters with significant overlaps and not overlapping a bigger set
-            passed_biclusters = set(df_fdr.loc[df_fdr[group] <= FDR, :].index.values).intersection(
-                not_matched_biclusters)
-            significant_matches_j = df_jaccard.loc[list(passed_biclusters), group]
+    not_matched_biclusters = df_fdr.index.values
+    for group in df_fdr.columns.values:
+        # choose biclusters with significant overlaps and not overlapping a bigger set
+        passed_biclusters = set(df_fdr.loc[df_fdr[group] <= FDR, :].index.values).intersection(not_matched_biclusters)
+        significant_matches_j = df_jaccard.loc[list(passed_biclusters), group]
 
-            group_size = len(known_groups[group])
-            if verbose:
-                print("\t", group, "significant matches:", significant_matches_j.shape[0], file=sys.stdout)
-            if significant_matches_j.shape[0] > 0:
-                significant_matches_j = significant_matches_j.sort_values().tail(1)
+        group_size = len(known_groups[group])
+        if verbose:
+            print("\t", group, "significant matches:", significant_matches_j.shape[0], file=sys.stdout)
+        if significant_matches_j.shape[0] > 0:
+            significant_matches_j = significant_matches_j.sort_values().tail(1)
 
-                bm_id = significant_matches_j.index[0]
+            bm_id = significant_matches_j.index[0]
 
-                bm = biclusters.loc[bm_id, :]
-                j = df_jaccard.loc[bm_id, group]
-                if best_j < j:
-                    best_j = j
-                    best_group = group
-                    best_bm = bm
-                    best_bm_id = bm_id
-                    best_results = {"group_size": group_size, "J": j,  # "J_weighted": j*len(known_groups[group])/N,
-                                    "is_enriched": is_enriched.loc[bm_id, group],
-                                    "best_match_id": bm_id}
-        if best_group is not None:
-            results[best_group] = best_results
-            results[best_group].update(best_bm.to_dict())
-            # exclude best group
-            groups.remove(best_group)
             # exclude best match
             if match_unique:
-                not_matched_biclusters = [x for x in not_matched_biclusters if x != best_bm_id]
+                not_matched_biclusters = [x for x in not_matched_biclusters if x != bm_id]
+
+            bm = biclusters.loc[bm_id, :]
+            j = df_jaccard.loc[bm_id, group]
+            results[group] = {"group_size": group_size, "J": j,  # "J_weighted": j*len(known_groups[group])/N,
+                              "is_enriched": is_enriched.loc[bm_id, group],
+                              "best_match_id": bm_id}
+            results[group].update(bm.to_dict())
         else:
-            for group in groups:
-                # fill group_size clumns for unmatched groups
-                group_size = len(known_groups[group])
-                results[group] = {"group_size": group_size, "J": 0}
-            break
+            results[group] = {"group_size": group_size, "J": 0}
     results = pd.DataFrame.from_dict(results).T
     results.index.name = "known_group"
     total_bicluster_members = results["group_size"].sum()

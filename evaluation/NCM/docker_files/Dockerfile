@@ -44,7 +44,8 @@ RUN mkdir -p $HOME/projects/outputs
 
 WORKDIR $HOME/projects
 
-RUN git clone https://github.com/ozolotareva/DESMOND2.git
+RUN git clone https://github.com/ozolotareva/DESMOND2.git && \
+    git clone https://github.com/ozolotareva/DESMOND.git
 
 WORKDIR $HOME
 
@@ -61,25 +62,24 @@ RUN echo "export PATH=$HOME/miniconda3/bin:$PATH" >> $HOME/.bashrc && \
     echo ".libPaths(c(.libPaths()[grep('/envs/', .libPaths())], .libPaths()[-grep('/envs/', .libPaths())]))" > $HOME/.Rprofile
 
 RUN $HOME/miniconda3/bin/conda update -n base -y -c defaults conda && \
-    $HOME/miniconda3/bin/conda config --add channels defaults & \
-    $HOME/miniconda3/bin/conda config --add channels bioconda & \
+    $HOME/miniconda3/bin/conda config --add channels defaults && \
+    $HOME/miniconda3/bin/conda config --add channels bioconda && \
     $HOME/miniconda3/bin/conda config --add channels conda-forge
 
 # NOTE python and R instalation
 COPY desmond2_Python.yml .
 COPY desmond2_R.yml .
 
-RUN exec $SHELL && \
-    conda init bash && \
-    conda activate base
+RUN $HOME/miniconda3/bin/conda install -n base -y mamba
 
-RUN $HOME/miniconda3/bin/conda env create -f desmond2_Python.yml && \
-    $HOME/miniconda3/bin/conda env create -f desmond2_R.yml && \
-    $HOME/miniconda3/bin/conda install -n renv bioconductor-genomeinfodbdata \
+RUN $HOME/miniconda3/bin/mamba env create -f desmond2_Python.yml && \
+    $HOME/miniconda3/bin/mamba env create -f desmond2_R.yml && \
+    $HOME/miniconda3/bin/mamba install -n renv bioconductor-genomeinfodbdata \
     bioconductor-org.hs.eg.db bioconductor-simpintlists
 
 # NOTE post instalation setup
-RUN rm Miniconda3-latest-Linux-x86_64.sh
+RUN rm Miniconda3-latest-Linux-x86_64.sh && \
+    echo "backend: Agg" > ~/.config/matplotlib/matplotlibrc
 RUN rm -rf /var/lib/apt/lists/*
 
 CMD ["bash"]

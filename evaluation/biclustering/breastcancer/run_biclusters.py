@@ -2,12 +2,11 @@ import copy
 import os
 import subprocess
 import sys
-import time
-import collect_results
+import eval_bicluster_methods
 
-case_folder = "/local/DESMOND2_data/preprocessed_z"
+case_folder = "/local/DESMOND2_data/v6/preprocessed_v6/"
 script_folder = "./"
-rerun_evaluations = False
+rerun_evaluations = True
 
 tool_list = {
     # deterministic False
@@ -19,12 +18,34 @@ tool_list = {
     # deterministic False
     'isa2': {'name': 'run_isa2.R', 'deterministic': True, 'precompute': False,
              'params': {
-                 "no_seeds": [1, 2, 3, 4, 5] + list(range(10, 110, 20)) + [100, 125, 150, 200]
+                 "no_seeds": [1, 2,
+                              3,
+                              4, 5] + list(range(10, 110, 20)) + [100, 125, 150, 200]
              }},
     'qubic': {'name': 'run_qubic.R', 'deterministic': True, 'precompute': False, 'params': {
-        'r': [1, 2, 5, 10, 25], 'q': [0.04, 0.06, 0.1, 0.25],
-        'c': [0.99, 0.95, 0.92, 0.85, 0.75, 0.51], 'f': [0.5, 1, 5], 'type': ['default', 'area']
+        'r': [1, 2
+            , 5, 10, 25
+              ], 'q': [0.04, 0.06, 0.1, 0.25],
+        'c': [0.99, 0.95, 0.92
+            , 0.85, 0.75, 0.51
+              ], 'f': [0.5, 1, 5], 'type': [
+            'default',
+            'area']
     }},
+    'coalesce': {
+        'name': 'run_coalesce.py', 'deterministic': True, 'precompute': False,
+        'params': {'prob_gene': [0.8, 0.95],
+                   "pvalue_cond": [0.1, 0.05],
+                   "pvalue_motif": [0.1, 0.05],
+                   "zscore_cond": [0.05, 0.1],
+                   "zscore_motif": [0.05, 0.1],
+                   "pvalue_correl:": [0.05, 0.1],
+                   "size_minimum:": [5, 10, 25, 50],
+                   "size_maximum": [10, 100, 1000],
+                   "fraction_postprocess": [0.3, 0.5, 0.7],
+                   "random": [42]
+                   }
+    },
     # 'xmotifs': {
     #     'name': 'run_xmotifs.R', 'deterministic': True, 'precompute': False, 'params': {
     #         'ns': [5, 10, 25, 50, 75, 100], 'alpha': [0.001, 0.01, 0.05, 0.1, 0.15]
@@ -53,12 +74,12 @@ tool_list = {
 
 base_name_t = "TCGA-BRCA_1079_17Kgenes.Xena_TCGA_PanCan.log2"
 base_name_m = "METABRIC_1904_17Kgenes.log2"
-expr_file_t = os.path.join(case_folder, "TCGA-BRCA_1079_17Kgenes.Xena_TCGA_PanCan.log2_exprs_z_v5.tsv")
-expr_file_m = os.path.join(case_folder, "METABRIC_1904_17Kgenes.log2_exprs_z_v5.tsv")
-subtype_file_t = os.path.join(case_folder, "TCGA-BRCA_1079_17Kgenes.Xena_TCGA_PanCan.subtypes_v5.tsv")
-subtype_file_m = os.path.join(case_folder, "METABRIC_1904_17Kgenes.subtypes_v5.tsv")
-annot_file_t = os.path.join(case_folder, "TCGA-BRCA_1079.Xena_TCGA_PanCan.annotation_v5.tsv")
-annot_file_m = os.path.join(case_folder, "METABRIC_1904.annotation_v5.tsv")
+expr_file_t = os.path.join(case_folder, "TCGA-BRCA_1079_17Kgenes.Xena_TCGA_PanCan.log2_exprs_z_v6.tsv")
+expr_file_m = os.path.join(case_folder, "METABRIC_1904_17Kgenes.log2_exprs_z_v6.tsv")
+subtype_file_t = os.path.join(case_folder, "TCGA-BRCA_1079_17Kgenes.Xena_TCGA_PanCan.subtypes_and_signatures_v6.tsv")
+subtype_file_m = os.path.join(case_folder, "METABRIC_1904_17Kgenes.subtypes_and_signatures_v6.tsv")
+annot_file_t = os.path.join(case_folder, "TCGA-BRCA_1079.Xena_TCGA_PanCan.annotation_v6.tsv")
+annot_file_m = os.path.join(case_folder, "METABRIC_1904.annotation_v6.tsv")
 
 
 def create_new_combos(combo, key, value):
@@ -166,7 +187,8 @@ commands = list()
 running = list()
 debi_commands = list()
 
-cases = [[base_name_t, expr_file_t, subtype_file_t, annot_file_t],[base_name_m, expr_file_m, subtype_file_m, annot_file_m]]
+cases = [[base_name_t, expr_file_t, subtype_file_t, annot_file_t],
+         [base_name_m, expr_file_m, subtype_file_m, annot_file_m]]
 
 for case in cases:
     base_name = case[0]
@@ -224,7 +246,7 @@ for case in cases:
                     if not already_done or rerun_evaluations:
                         out_file_params = (expr_file + ".chars").replace('.tsv',
                                                                          '-' + name + '-params=' + param_string + '.tsv')
-                        if not os.path.exists(out_file_params):
+                        if not os.path.exists(score_file.replace('.score', '-biclusters_df.tsv')):
                             precomputing_multi.append(['cp', '-f', expr_file + '.chars', out_file_params])
                         commands.append(['python3', 'run_bicluster.py', tool_name,
                                          os.path.join(script_folder, tool_list[tool_name]['name']),
@@ -233,7 +255,7 @@ for case in cases:
                                          param_file, str(rerun_evaluations)])
             elif tool_list[tool_name]['deterministic']:
                 score_file = os.path.join(score_dir, f'{base_name}_{param_string}.score')
-                already_done = os.path.exists(score_file)
+                already_done = os.path.exists(score_file.replace('.score', '-biclusters_df.tsv'))
                 if not already_done or rerun_evaluations:
                     command = ['python3', 'run_bicluster.py', tool_name,
                                os.path.join(script_folder, tool_list[tool_name]['name']),
@@ -247,9 +269,9 @@ for case in cases:
                     else:
                         commands.append(command)
             else:
-                for r in range(1, 6):
+                for r in range(0, 5):
                     score_file = os.path.join(score_dir, f'{base_name}_{param_string}-run{r}.score')
-                    already_done = os.path.exists(score_file)
+                    already_done = os.path.exists(score_file.replace('.score', '-biclusters_df.tsv'))
                     if not already_done or rerun_evaluations:
                         command = ['python3', 'run_bicluster.py', tool_name,
                                    os.path.join(script_folder, tool_list[tool_name]['name']),
@@ -268,14 +290,15 @@ allowed_threads = parallel_execs = int(sys.argv[1])
 run_tasklist(precomputing_multi, 1)
 run_tasklist(commands_multi, 1)
 run_tasklist(commands, allowed_threads)
-# if len(commands_multi_late) > 0 and len(commands) > 0:
-#     collect_results.collect(result_dir)
+# eval_bicluster_methods.evaluate(wd=result_dir, methods=['coalesce'])
+if len(commands_multi_late) > 0 and len(commands) > 0:
+    eval_bicluster_methods.evaluate(result_dir)
 run_tasklist(commands_late, allowed_threads)
-# if len(commands_late) > 0:
-#     collect_results.collect(result_dir)
+if len(commands_late) > 0:
+    eval_bicluster_methods.evaluate(result_dir)
 run_tasklist(commands_multi_late, 1)
-# if len(commands_multi_late) > 0:
-#     collect_results.collect(result_dir)
+if len(commands_multi_late) > 0:
+    eval_bicluster_methods.evaluate(result_dir)
 # run_tasklist(debi_commands, allowed_threads)
-# collect_results.collect(result_dir)
+eval_bicluster_methods.evaluate(result_dir)
 print(f"All done, result scores are in {result_dir}")

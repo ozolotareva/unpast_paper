@@ -1,14 +1,14 @@
 import subprocess
 import os
 import pandas as pd
-from .settings import RANDOM_STATES, CLUSTER_RANGE, MOCLUSTER_RANGE
+from .settings import MOCLUSTER_RANDOM_STATES, CLUSTER_RANGE, MOCLUSTER_RANGE
 from .utils.miscellaneous import run_method
 from .utils import interpret_results, resultsHandler
 
 
 def generate_arg_list(exprs_file, output_folder, ground_truth_file, cluster_range=CLUSTER_RANGE):
     arguments = []
-    for m in RANDOM_STATES:
+    for m in MOCLUSTER_RANDOM_STATES:
         for n_cluster in cluster_range:
             for n_dimensions in MOCLUSTER_RANGE:
                 output_path = os.path.join(output_folder, 
@@ -57,10 +57,10 @@ def run_simulated(args):
         return
     df_exprs = pd.read_csv(args['exprs_file'], sep='\t', index_col=0).T
     result, runtime = run_method(execute_algorithm, args)
+    resultsHandler.write_samples(args["output_path"], df_exprs.index)
 
     # save results
     resultsHandler.save(result, runtime, args["output_path"])
-    resultsHandler.write_samples(args["output_path"], df_exprs.index)
 
 def run_real(args):
     if resultsHandler.create_or_get_result_folder(args["output_path"]):

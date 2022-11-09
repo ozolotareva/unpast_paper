@@ -19,7 +19,7 @@ RUN R -e "chooseCRANmirror(ind=1) ; install.packages('BiocManager') ; BiocManage
 RUN git clone https://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@github.com/ozolotareva/DESMOND2.git
 
 WORKDIR "DESMOND2"
-
+COPY eval.py ./utils/
 RUN python setup.py install
 
 WORKDIR "evaluation/biclustering/simulated"
@@ -31,6 +31,8 @@ RUN rm master.zip
 WORKDIR "qubic2-master"
 RUN make
 WORKDIR "../"
+
+RUN apt install -y openjdk-8-jdk
 
 COPY . ./
 

@@ -3,8 +3,8 @@ import argparse
 import random
 import numpy as np
 
-def run_DESMOND(exprs_file, basename, out_dir="./",  
-                binarized_data = None, save=True, load = False,
+def run_DESMOND(exprs_file, basename, out_dir="./",
+                save=True, load = False,
                 ceiling = 3,
                 bin_method = "GMM", clust_method = "Louvain", 
                 min_n_samples = -1, 
@@ -57,7 +57,7 @@ def run_DESMOND(exprs_file, basename, out_dir="./",
     
     # define minimal number of samples
     if min_n_samples == -1:
-        min_n_samples = round(min(0.5*exprs.shape[1],max(10,0.01*exprs.shape[1])))
+        min_n_samples = round(min(0.5*exprs.shape[1],max(5,0.01*exprs.shape[1])))
     if verbose:
         print("Mininal number of samples in a bicluster:",min_n_samples ,file=sys.stdout)
     if min_n_samples < 5:
@@ -175,9 +175,7 @@ def run_DESMOND(exprs_file, basename, out_dir="./",
         print(out_dir+basename+suffix+suffix2+".biclusters.tsv", file = sys.stdout)
         print("Total runtime: {:.2f} s".format(time()-start_time ), file = sys.stdout)
     
-    u = binarized_expressions.loc[:,stats["direction"]=="UP"]
-    d = binarized_expressions.loc[:,stats["direction"]=="DOWN"]
-    return biclusters, u, d    
+    return biclusters    
 
 def parse_args():
     parser = argparse.ArgumentParser("DESMOND2 identifies differentially expressed biclusters in gene expression data.")
@@ -185,7 +183,7 @@ def parse_args():
                         help=".tsv file with standardized gene expressions. The first column and row must contain unique gene and sample ids, respectively.")
     parser.add_argument('--ceiling', default=3, metavar="3",  type=float, required=False, 
                         help="Absolute threshold for z-scores. For example, when set to 3, z-scores greater than 3 are set to 3 and z-scores less than -3 are set to -3. No ceiling if set to 0.")
-    parser.add_argument('--out_dir', metavar=".", default=".", help  = 'output folder')
+    parser.add_argument('--out_dir', metavar="./", default="./", help  = 'output folder')
     parser.add_argument('--basename', metavar="biclusters.tsv", default = False, type=str, help  = 'output files basename. If not specified, will be set to "results_"yy.mm.dd_HH:MM:SS""')
     parser.add_argument('-s','--min_n_samples', metavar=5, default=-1, type=int, help  = 'minimal number of samples in a bicluster. If not specified, will be automatically defined based on input sample size.')
     parser.add_argument('-b','--binarization', metavar="GMM", default="GMM", type=str,
@@ -194,14 +192,14 @@ def parse_args():
     parser.add_argument('-c','--clustering', metavar="Louvain", default="Louvain", type=str,
                         choices=['Louvain', 'WGCNA'], help='feature clustering method')
     # Louvain parameters
-    parser.add_argument('-m','--modularity', default=1/2, metavar="1/2", type=float, help='Modularity corresponding to a cutoff for similarity matrix (Louvain clustering).')
-    parser.add_argument('-r','--similarity_cutoffs', default=1/3, metavar="1/3", type=float, help='A cutoff or a list of cuttofs for similarity matrix (Louvain clustering). If set to -1, will be chosen authomatically from [0.3,0.9] based on the data.')
+    parser.add_argument('-m','--modularity', default=1/2, metavar="1/2", type=float, help='Modularity corresponding to a cutoff for similarity matrix (Louvain clustering)')
+    parser.add_argument('-r','--similarity_cutoffs', default=1/3, metavar="1/3", type=float, help='A cutoff or a list of cuttofs for similarity matrix (Louvain clustering). If set to -1, will be chosen authomatically from [0.3,0.9] based on the data')
     # WGCNA parameters 
-    parser.add_argument('--ds', default=2, metavar="2", type=int,choices=[0,1,2,3,4], help='deepSplit parameter, see WGCNA documentation.')
-    parser.add_argument('--dch', default=0.995, metavar="0.995", type=float, help='dynamicTreeCut parameter, see WGCNA documentation.')
-    
+    parser.add_argument('--ds', default=2, metavar="2", type=int,choices=[0,1,2,3,4], help='deepSplit parameter, see WGCNA documentation')
+    parser.add_argument('--dch', default=0.995, metavar="0.995", type=float, help='dynamicTreeCut parameter, see WGCNA documentation')
     parser.add_argument('--merge', default=1, metavar="1", type=float,help = "Whether to merge biclustres similar in samples with Jaccard index not less then the specified.")
-    parser.add_argument('--save_binary', action='store_true', help = "saves binarized expressions for up- and down-requlated genes to files named as <basename>.seed=XXX.bin_method=XXX.pval=XXX.binarized.tsv. If WGCNA is clustering method, binarized expressions are always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and  background SNR distributions will be created.")
+    parser.add_argument('--load_binary', action='store_true', help = "loads binarized features from <basename>.<bin_method>.seed=XXX.binarized.tsv, statistics from *.binarization_stats.tsv and the background SNR distribution from <basename>.<bin_method>.n=<n_permutations>.seed=XXX.background.tsv")
+    parser.add_argument('--save_binary', action='store_true', help = "saves binarized features to a file named as <basename>.<bin_method>.seed=XXX.binarized.tsv. If WGCNA is clustering method, binarized expressions are always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and background SNR distributions respectively will be created")
     
     seed = random.randint(0,1000000)
     parser.add_argument('--seed',metavar=seed, default=seed, type=int, help="random seed")
@@ -215,9 +213,8 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
         
-    biclusters, u, d = run_DESMOND(args.exprs, args.basename, out_dir=args.out_dir,  
-                binarized_data = None, 
-                save = args.save_binary, load = False,
+    biclusters = run_DESMOND(args.exprs, args.basename, out_dir=args.out_dir,  
+                save = args.save_binary, load = args.load_binary,
                 ceiling = args.ceiling,
                 bin_method = args.binarization, 
                 clust_method = args.clustering,
