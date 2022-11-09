@@ -9,8 +9,8 @@ result_dir = '/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering/
 script_folder = "/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering/"
 
 '''
-real_data_path = ' /root/projects/data/realdata/'
-result_dir = '/tmp/realdata_results'
+real_data_path = '/home/bbb1417/DESMOND2_benchmarking/DESMOND2_data/preprocessed_v6/'
+result_dir = '/home/bbb1417/DESMOND2_benchmarking/new_clusteringRD'
 script_folder = "./"
 
 
@@ -19,9 +19,9 @@ if not os.path.exists(result_dir):
     # os.system(f"rm -rf {result_dir}")
     os.system(f"mkdir {result_dir}")
 
-file_metabric_expression = f'{real_data_path}/METABRIC_1904_17Kgenes.log2_exprs_z_v6.tsv'
+file_metabric_expression = f'{real_data_path}METABRIC_1904_17Kgenes.log2_exprs_z_v6.tsv'
 file_metabric_annotation = f'{real_data_path}METABRIC_1904.annotation_v6.tsv'
-file_metabric_subtypes = f'{real_data_path}/METABRIC_1904_17Kgenes.subtypes_and_signatures_v6.tsv'
+file_metabric_subtypes = f'{real_data_path}METABRIC_1904_17Kgenes.subtypes_and_signatures_v6.tsv'
 
 file_tcga_expression = f'{real_data_path}TCGA-BRCA_1079_17Kgenes.Xena_TCGA_PanCan.log2_exprs_z_v6.tsv'
 file_tcga_annotation = f'{real_data_path}TCGA-BRCA_1079.Xena_TCGA_PanCan.annotation_v6.tsv'
@@ -29,15 +29,29 @@ file_tcga_subtypes = f'{real_data_path}TCGA-BRCA_1079_17Kgenes.Xena_TCGA_PanCan.
 
 file_gene_mapping = f'{real_data_path}gene_id_mapping.tsv'
 
+print(file_metabric_expression, file_metabric_annotation, file_metabric_subtypes)
+
+print(file_tcga_expression, file_tcga_annotation, file_tcga_subtypes)
+
+print(file_gene_mapping)
 
 basename_t = "TCGA"
 basename_m = "METABRIC"
 
 tool_list = {
-    'kmeans': 'run_kmeans.py',
-    'WGCNAkmeans': 'run_WGCNAkmeans.py',
-    'HC': 'run_HC.py',
-    'WGCNAHC': 'run_WGCNAHC.py'
+    #'kmeans': 'run_kmeans.py',
+    #'WGCNAkmeans': 'run_WGCNAkmeans.py',
+    #'HC': 'run_HC.py',
+    #'WGCNAHC': 'run_WGCNAHC.py',
+    #'AffinityPropagation': 'run_AffinityPropagation.py',
+    #'Meanshift': 'run_MeanShift.py',
+    #'Spectral': 'run_Spectral.py',
+    #'AgglomerativeClustering': 'run_AgglomerativeClustering.py',
+    #'DBSCAN': 'run_DBSCAN.py',
+    #'OPTICS': 'run_OPTICS.py',
+    #'BIRCH': 'run_BIRCH.py',
+    'bikmeans': 'run_BisectingKmeans.py',
+    'GMM': 'run_GaussianMixmodels.py'
 }
 
 commands = list()
