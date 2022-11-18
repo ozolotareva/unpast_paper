@@ -1,6 +1,8 @@
+#!/usr/bin/bash
+
 a=0.5
-b=1.0
 q=0.5
+b=1.0
 p_val=0.01
 network=$HOME/Downloads/unpast_trans/data/bicon_network.tsv
 baseDir=$HOME/Downloads/desmod_run/D1
@@ -20,10 +22,11 @@ for i in "${!datasets[@]}"; do
         --p_val $p_val -q $q --direction DOWN \
         --verbose >$baseDir/$i/$i.DOWN.LOG 2>$baseDir/$i/$i.DOWN.ERR
 
-    python3 $HOME/Dropbox/Doutorado/Coop/hamburgo/OlgaZ/DESMOND/post-processing.py --up $baseDir/$i/$i.'alpha='$a',beta_K='$b',direction=UP,p_val='$p_val',q='$q.biclusters.tsv \
+    python3 $HOME/Dropbox/Doutorado/Coop/hamburgo/DESMOND/post-processing.py \
+        --up $baseDir/$i/$i.'alpha='$a',beta_K='$b',direction=UP,p_val='$p_val',q='$q.biclusters.tsv \
         --down $baseDir/$i/$i.'alpha='$a',beta_K='$b',direction=DOWN,p_val='$p_val',q='$q.biclusters.tsv \
         --exprs $dataDir/${datasets[$i]} \
-        --network $network -s $baseDir/$i/$i',q='$q'.SNR_threshold.txt' \
+        --network $network --SNR_file $baseDir/$i/$i',q='$q'.SNR_threshold.txt' \
         --out $baseDir/$i/$i.'alpha='$a',beta_K='$b',p_val='$p_val',q='$q.biclusters.permutations.tsv \
         --verbose >$baseDir/$i/$i.permutations.LOG 2>$baseDir/$i/$i.permutations.ERR
 
