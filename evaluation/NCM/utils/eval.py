@@ -2,7 +2,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from utils.method import zscore
+from method import zscore
 
 from fisher import pvalue
 from statsmodels.stats.multitest import fdrcorrection
