@@ -1,11 +1,10 @@
-import pandas as pd
 from os.path import join
 from os.path import exists
 
+import pandas as pd
 
 from method import read_bic_table
-from eval import find_best_matches, make_known_groups
-from eval import find_best_matching_biclusters
+from eval import (find_best_matches, make_known_groups)
 
 
 def make_ref_groups(subtypes, annotation, exprs):
@@ -72,36 +71,6 @@ def calculate_perfromance(results, known_groups, freqs, all_samples,
     return best_matches
 
 
-def compare_gene_clusters(tcga_result, metabric_result, N):
-    # N - total number of genes
-    # finds best matched TCGA -> METABRIC and METABRIC -> TCGA
-    # calculates % of matched clusterst, number of genes in matched cluster,
-    # and the average J index for best matches
-    bm = find_best_matching_biclusters(tcga_result, metabric_result, N)
-    bm = bm.dropna()
-    bm2 = find_best_matching_biclusters(metabric_result, tcga_result, N)
-    bm2 = bm2.dropna()
-
-    bm = bm.loc[bm["n_shared"] > 1, :].sort_values(
-        by="n_shared", ascending=False)
-    bm2 = bm2.loc[bm2["n_shared"] > 1, :].sort_values(
-        by="n_shared", ascending=False)
-
-    clust_similarity = {}
-    # number of biclusters
-    clust_similarity["n_1"] = tcga_result.shape[0]
-    clust_similarity["n_2"] = metabric_result.shape[0]
-    clust_similarity["percent_matched_1"] = bm.shape[0]/tcga_result.shape[0]
-    clust_similarity["percent_matched_2"] = bm2.shape[0] / \
-        metabric_result.shape[0]
-    clust_similarity["n_shared_genes_1"] = bm.loc[:, "n_shared"].sum()
-    clust_similarity["n_shared_genes_2"] = bm2.loc[:, "n_shared"].sum()
-    clust_similarity["avg_bm_J_1"] = bm.loc[:, "J"].mean()
-    clust_similarity["avg_bm_J_2"] = bm2.loc[:, "J"].mean()
-
-    return clust_similarity, bm, bm2
-
-
 def adapt_bicluster(exprs, fname):
 
     biclusters = pd.read_csv(fname, sep="\t", index_col=0, comment="#")
@@ -127,79 +96,80 @@ def adapt_bicluster(exprs, fname):
     return True
 
 
-classifications = {"Intrinsic": ["Luminal", "Basal", "Her2", "Normal",
-                                 "Claudin-low"],
-                   "SCMOD2": ["ER-/HER2-", "ER+/HER2- Low Prolif",
-                              "ER+/HER2- High Prolif", "HER2+"],
-                   "IHC": ["IHC_TNBC", "IHC_ER", "IHC_HER2", "IHC_PR"]}
+if __name__ == "__main__":
+    classifications = {"Intrinsic": ["Luminal", "Basal", "Her2", "Normal",
+                                     "Claudin-low"],
+                       "SCMOD2": ["ER-/HER2-", "ER+/HER2- Low Prolif",
+                                  "ER+/HER2- High Prolif", "HER2+"],
+                       "IHC": ["IHC_TNBC", "IHC_ER", "IHC_HER2", "IHC_PR"]}
 
-base_data_dir = "/home/fabio/Downloads/unpast_trans/data"
-out_dir = "/home/Desktop/"
+    base_data_dir = "/home/fabio/Downloads/unpast_trans/data"
+    out_dir = "/home/Desktop/"
 
-# NOTE GDC
-exprs_file_t = join(
-    base_data_dir,
-    "TCGA-BRCA_1079_17Kgenes.Xena_TCGA_PanCan.log2_exprs_z_v6.tsv")
-basename_t = "TCGA"
+    # NOTE GDC
+    exprs_file_t = join(
+        base_data_dir,
+        "TCGA-BRCA_1079_17Kgenes.Xena_TCGA_PanCan.log2_exprs_z_v6.tsv")
+    basename_t = "TCGA"
 
-t_subtypes = pd.read_csv(
-    join(base_data_dir,
-         "TCGA-BRCA_1079_17Kgenes.Xena_" +
-         "TCGA_PanCan.subtypes_and_signatures_v6.tsv"),
-    sep="\t", index_col=0)
-t_annotation = pd.read_csv(
-    join(base_data_dir, "TCGA-BRCA_1079.Xena_TCGA_PanCan.annotation_v6.tsv"),
-    sep="\t", index_col=0)
+    t_subtypes = pd.read_csv(
+        join(base_data_dir,
+             "TCGA-BRCA_1079_17Kgenes.Xena_" +
+             "TCGA_PanCan.subtypes_and_signatures_v6.tsv"),
+        sep="\t", index_col=0)
+    t_annotation = pd.read_csv(
+        join(base_data_dir, "TCGA-BRCA_1079.Xena_TCGA_PanCan.annotation_v6.tsv"),
+        sep="\t", index_col=0)
 
-exprs_t = pd.read_csv(exprs_file_t, sep="\t", index_col=0)
-known_groups_t, freqs_t = make_ref_groups(t_subtypes, t_annotation, exprs_t)
+    exprs_t = pd.read_csv(exprs_file_t, sep="\t", index_col=0)
+    known_groups_t, freqs_t = make_ref_groups(
+        t_subtypes, t_annotation, exprs_t)
 
-fname = "/home/fabio/Downloads/desmod_run/D1/GDC/" + \
-    "GDC.alpha=0.5,beta_K=1.0,p_val=0.01,q=0.5.biclusters.permutations.tsv"
+    fname = "/home/fabio/Downloads/desmod_run/D1/GDC/" + \
+        "GDC.alpha=0.5,beta_K=1.0,p_val=0.01,q=0.5.biclusters.permutations.tsv"
 
-if not exists(fname[:-4] + "_edited.tsv"):
-    adapt_bicluster(exprs_t, fname)
+    if not exists(fname[:-4] + "_edited.tsv"):
+        adapt_bicluster(exprs_t, fname)
 
-result_t = read_bic_table(fname[:-4] + "_edited.tsv")
+    result_t = read_bic_table(fname[:-4] + "_edited.tsv")
 
+    # NOTE MBR
+    exprs_file_m = join(
+        base_data_dir, "METABRIC_1904_17Kgenes.log2_exprs_z_v6.tsv")
+    basename_m = "METABRIC"
 
-# NOTE MBR
-exprs_file_m = join(
-    base_data_dir, "METABRIC_1904_17Kgenes.log2_exprs_z_v6.tsv")
-basename_m = "METABRIC"
+    m_subtypes = pd.read_csv(
+        join(base_data_dir,
+             "METABRIC_1904_17Kgenes.subtypes_and_signatures_v6.tsv"),
+        sep="\t", index_col=0)
+    m_annotation = pd.read_csv(
+        join(base_data_dir, "METABRIC_1904.annotation_v6.tsv"),
+        sep="\t", index_col=0)
 
-m_subtypes = pd.read_csv(
-    join(base_data_dir,
-         "METABRIC_1904_17Kgenes.subtypes_and_signatures_v6.tsv"),
-    sep="\t", index_col=0)
-m_annotation = pd.read_csv(
-    join(base_data_dir, "METABRIC_1904.annotation_v6.tsv"),
-    sep="\t", index_col=0)
+    exprs_m = pd.read_csv(exprs_file_m, sep="\t", index_col=0)
 
-exprs_m = pd.read_csv(exprs_file_m, sep="\t", index_col=0)
+    fname = "/home/fabio/Downloads/desmod_run/D1/Mbr/" + \
+        "Mbr.alpha=0.5,beta_K=1.0,p_val=0.01,q=0.5.biclusters.permutations.tsv"
 
-fname = "/home/fabio/Downloads/desmod_run/D1/Mbr/" + \
-    "Mbr.alpha=0.5,beta_K=1.0,p_val=0.01,q=0.5.biclusters.permutations.tsv"
+    if not exists(fname[:-4] + "_edited.tsv"):
+        adapt_bicluster(exprs_m, fname)
 
-if not exists(fname[:-4] + "_edited.tsv"):
-    adapt_bicluster(exprs_m, fname)
+    result_m = read_bic_table(fname[:-4] + "_edited.tsv")
 
-result_m = read_bic_table(fname[:-4] + "_edited.tsv")
+    known_groups_m, freqs_m = make_ref_groups(
+        m_subtypes, m_annotation, exprs_m)
 
-known_groups_m, freqs_m = make_ref_groups(m_subtypes, m_annotation, exprs_m)
+    # NOTE calculations
+    performance_t = calculate_perfromance(result_t, known_groups_t,
+                                          freqs_t, set(exprs_t.columns.values),
+                                          classifications=classifications)
 
+    performance_m = calculate_perfromance(result_m, known_groups_m,
+                                          freqs_m, set(exprs_m.columns.values),
+                                          classifications=classifications)
 
-# NOTE calculations
-performance_t = calculate_perfromance(result_t, known_groups_t,
-                                      freqs_t, set(exprs_t.columns.values),
-                                      classifications=classifications)
+    pd.DataFrame.from_records(performance_t, index=[0]).to_csv(
+        "/home/fabio/Downloads/desmod_run/D1/GDC/eval_gdc.tsv", sep="\t")
 
-performance_m = calculate_perfromance(result_m, known_groups_m,
-                                      freqs_m, set(exprs_m.columns.values),
-                                      classifications=classifications)
-
-pd.DataFrame.from_records(performance_t, index=[0]).to_csv(
-    "/home/fabio/Downloads/desmod_run/D1/GDC/eval_gdc.tsv", sep="\t")
-
-pd.DataFrame.from_records(performance_m, index=[0]).to_csv(
-    "/home/fabio/Downloads/desmod_run/D1/Mbr/eval_mbr.tsv", sep="\t")
+    pd.DataFrame.from_records(performance_m, index=[0]).to_csv(
+        "/home/fabio/Downloads/desmod_run/D1/Mbr/eval_mbr.tsv", sep="\t")

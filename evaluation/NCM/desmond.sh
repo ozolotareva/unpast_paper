@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
-readonly a=0.1 # 0.5, 0.1
-readonly q=0.25 # 0.5, 0.25
+readonly a=0.05 # 0.5, 0.1, 0.05
+readonly q=0.1 # 0.5, 0.25, 0.1
 readonly b=1.0
 readonly p_val=0.01
 readonly network=$HOME/Downloads/unpast_trans/data/bicon_network.tsv
@@ -32,3 +32,5 @@ for i in "${!datasets[@]}"; do
         --verbose >$base_dir/$i/$i.permutations.LOG 2>$base_dir/$i/$i.permutations.ERR
 
 done
+
+echo "done"

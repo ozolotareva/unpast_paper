@@ -1,9 +1,22 @@
+from os.path import join
+from os import listdir
+
 import pandas as pd
 
-from os.path import join
-from re import sub
-
 from evaluation_desmond import (calculate_perfromance, make_ref_groups)
+
+
+def prepar_results(pasta, n):
+
+    df = pd.read_csv(join(pasta, str(n), "results.csv"), index_col=0)
+    df_neu = pd.DataFrame([[df.genes1.values, df.patients1.values], [
+        df.genes2.values, df.patients2.values]],
+        columns=["genes", "samples"])
+    df_neu.genes = df_neu.genes.apply(
+        lambda x: str(x[0]).split("|"))
+    df_neu.samples = df_neu.samples.apply(
+        lambda x: str(x[0]).split("|"))
+    return df_neu
 
 
 classifications = {"Intrinsic": ["Luminal", "Basal", "Her2", "Normal",
@@ -40,7 +53,6 @@ t_annotation = pd.read_csv(
     join(base_data_dir, "TCGA-BRCA_1079.Xena_TCGA_PanCan.annotation_v6.tsv"),
     sep="\t", index_col=0)
 
-
 exprs_t = pd.read_csv(exprs_file_t, sep="\t", index_col=0, nrows=1)
 exprs_m = pd.read_csv(exprs_file_m, sep="\t", index_col=0, nrows=1)
 
@@ -48,38 +60,27 @@ known_groups_t, freqs_t = make_ref_groups(t_subtypes, t_annotation, exprs_t)
 known_groups_m, freqs_m = make_ref_groups(m_subtypes, m_annotation, exprs_m)
 
 
-result_t = pd.read_csv(
-    "/home/fabio/Downloads/desmod_run/GF/clusters_tcga.tsv", sep="\t")
-result_t.index = [sub("\\.", "-", x, ) for x in result_t.index]
-
-result_m = pd.read_csv(
-    "/home/fabio/Downloads/desmod_run/GF/clusters_mbr.tsv", sep="\t")
-result_m.index = [sub("\\.", "-", x, ) for x in result_m.index]
+gdc_path = "/home/fabio/Downloads/desmod_run/Bicon/GDC"
+mbr_path = "/home/fabio/Downloads/desmod_run/Bicon/Mbr"
 
 subt_t = []
 subt_m = []
 
-for i, run in enumerate(result_m.columns):
+for i in range(len([x for x in listdir(gdc_path) if ".tsv" not in x])):
 
-    # k = 5, hence range(1, 6)
-    new_result_t = pd.DataFrame([], columns=["samples"], index=range(1, 6))
-    new_result_t.loc[:, "samples"] = [
-        result_t.index.values[result_t.loc[:, run] == x] for x in range(1, 6)]
-
-    performance_t = calculate_perfromance(new_result_t, known_groups_t,
+    result_t = prepar_results(gdc_path, i)
+    performance_t = calculate_perfromance(result_t, known_groups_t,
                                           freqs_t, set(exprs_t.columns.values),
                                           classifications=classifications)
     subt_t.append(performance_t)
 
-    new_result_m = pd.DataFrame([], columns=["samples"], index=range(1, 6))
-    new_result_m.loc[:, "samples"] = [
-        result_m.index.values[result_m.loc[:, run] == x] for x in range(1, 6)]
-    performance_m = calculate_perfromance(new_result_m, known_groups_m,
+    result_m = prepar_results(mbr_path, i)
+    performance_m = calculate_perfromance(result_m, known_groups_m,
                                           freqs_m, set(exprs_m.columns.values),
                                           classifications=classifications)
     subt_m.append(performance_m)
 
 pd.DataFrame.from_records(subt_t).to_csv(
-    "/home/fabio/Downloads/desmod_run/GF/eval_gdc.tsv", sep="\t")
+    join(gdc_path, "BICON_TCGA.tsv"), sep="\t")
 pd.DataFrame.from_records(subt_m).to_csv(
-    "/home/fabio/Downloads/desmod_run/GF/eval_mbr.tsv", sep="\t")
+    join(mbr_path, "BICON_METABRIC.tsv"), sep="\t")
