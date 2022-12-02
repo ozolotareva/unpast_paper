@@ -5,11 +5,7 @@ from fisher import pvalue
 from statsmodels.stats.multitest import fdrcorrection
 
 from utils.method import zscore
-
-# from utils.eval import find_best_matches
-from fisher import pvalue
-from statsmodels.stats.multitest import fdrcorrection
-
+from lifelines import CoxPHFitter
 
 def generate_exprs(data_sizes, g_size=5, frac_samples=[0.05, 0.1, 0.25, 0.5], m=2.0, std=1,
                    z=True,
@@ -127,6 +123,85 @@ def make_known_groups(annot, exprs, target_col="genefu_z", verbose=False):
                       len(group_samples), len(samples.difference(group_samples)))
     return known_groups
 
+def make_ref_groups(subtypes, annotation,exprs):
+    # prepared a dict of subtype classifications {"class1":{"subt1":[],"subt2":[]},"class2":{"subtA":[],"subtB":[]}}
+    all_samples = set(exprs.columns.values)
+    pam50 = make_known_groups(subtypes, exprs,target_col = "PAM50",verbose=False)
+    lum = {}
+    lum["Luminal"] = pam50["LumA"].union(pam50["LumB"])
+    scmod2 = make_known_groups(subtypes, exprs,target_col = 'SCMOD2',verbose=False)
+    claudin = {} 
+    claudin["Claudin-low"] = set(subtypes.loc[subtypes['claudin_low']==1,:].index.values).intersection(all_samples)
+    
+    ihc = {}
+    for x in ["IHC_HER2","IHC_ER","IHC_PR"]:
+        ihc[x] = set(annotation.loc[annotation[x]=="Positive",:].index.values)
+    ihc["IHC_TNBC"] = set(annotation.loc[annotation["IHC_TNBC"]==1,:].index.values)
+    
+    known_groups = {"PAM50":pam50,"Luminal":lum,"Claudin-low":claudin,"SCMOD2":scmod2,"IHC":ihc}
+    
+    freqs = {}
+    N =  exprs.shape[1]
+    for classification in known_groups.keys():
+        for group in known_groups[classification].keys():
+            n = len(known_groups[classification][group])
+            freqs[group] = n/N
+            
+    return known_groups, freqs
+
+def compare_gene_clusters(tcga_result,metabric_result, N):
+    # N - total number of genes
+    # finds best matched TCGA -> METABRIC and METABRIC -> TCGA
+    # calculates % of matched clusterst, number of genes in matched cluster, 
+    # and the average J index for best matches 
+    bm = find_best_matching_biclusters(tcga_result,metabric_result, N)
+    bm = bm.dropna()
+    bm2 = find_best_matching_biclusters(metabric_result, tcga_result, N)
+    bm2 = bm2.dropna()
+    
+    bm = bm.loc[bm["n_shared"]>1,:].sort_values(by="n_shared",ascending = False)
+    bm2 = bm2.loc[bm2["n_shared"]>1,:].sort_values(by="n_shared",ascending = False)
+    
+    
+    clust_similarity = {}
+    # number of biclusters 
+    clust_similarity["n_1"] = tcga_result.shape[0]
+    clust_similarity["n_2"] = metabric_result.shape[0]
+    #print("% matched biclusters:",bm.shape[0]/tcga_result.shape[0],bm2.shape[0]/metabric_result.shape[0])
+    clust_similarity["percent_matched_1"] = bm.shape[0]/tcga_result.shape[0]
+    clust_similarity["percent_matched_2"] = bm2.shape[0]/metabric_result.shape[0]
+    #print("n matched genes:",bm.loc[:,"n_shared"].sum(),bm2.loc[:,"n_shared"].sum())
+    clust_similarity["n_shared_genes_1"] = bm.loc[:,"n_shared"].sum()
+    clust_similarity["n_shared_genes_2"] = bm2.loc[:,"n_shared"].sum()
+    #print("avg. J:",bm.loc[:,"J"].mean(),bm2.loc[:,"J"].mean())
+    clust_similarity["avg_bm_J_1"] = bm.loc[:,"J"].mean()
+    clust_similarity["avg_bm_J_2"] = bm2.loc[:,"J"].mean()
+    
+    
+    return clust_similarity, bm, bm2
+
+def calculate_perfromance(results, known_groups, freqs, all_samples,
+                          classifications={"Intrinsic":["Luminal","Basal","Her2","Normal","Claudin-low"]}):
+    # finds best matches for each subtype, calcuates J per subtype and overall performance
+    N = len(all_samples)
+    best_matches = []
+    
+    for classification in known_groups.keys():
+        bm = find_best_matches(results,known_groups[classification],all_samples,FDR=0.05,verbose = False)
+        best_matches.append(bm)
+            
+    best_matches = pd.concat(best_matches, axis=0)
+    best_matches = best_matches["J"].to_dict()
+    
+    for cl_name in classifications.keys():
+        overall_performance = 0
+        norm_factor = 0
+        for group in classifications[cl_name]:
+            overall_performance += best_matches[group]*freqs[group]
+            norm_factor +=freqs[group]
+        overall_performance = overall_performance/norm_factor 
+        best_matches["overall_performance_"+cl_name] = overall_performance
+    return best_matches
 
 def apply_fdr(df_pval):
     df_fdr = {}
@@ -152,7 +227,7 @@ def evaluate_overlaps(biclusters, known_groups, all_elements, dimension="samples
             print("bicluster {} elements {} are not in 'all_elements'".format(i, " ".join(
                 bic_members.difference(all_elements))), file=sys.stderr)
             return
-            # sanity check and sorting
+    # sanity check and sorting
     group_names = list(known_groups.keys())
     sorted_group_names = [group_names[0]]  # group names ordered by group size
     for group in group_names:
@@ -191,14 +266,14 @@ def evaluate_overlaps(biclusters, known_groups, all_elements, dimension="samples
                 pvals[group][i] = pval.left_tail
                 is_enriched[group][i] = False
                 # take complement for the biggest group
-                if len(bic_members) > len(group_members):
-
+                #if len(bic_members) > len(group_members):
                     # compute J for bicluster and group complement, (e.g. not_LumA instead of LumA)
-                    shared_complement = len(group_members) - shared
-                    union_complement = N - union + group_only
-                else:
-                    shared_complement = len(bic_members) - shared
-                    union_complement = N - union + bic_only
+               #     shared_complement = len(group_members) - shared
+               #     union_complement = N - union + group_only
+                #else:
+                bic_members = all_elements.difference(bic_members)
+                shared_complement = len(bic_members.intersection(group_members))
+                union_complement = len(bic_members.union(group_members))
                 jaccards[group][i] = 0 if union_complement == 0 else shared_complement / union_complement
 
         # print(group,jaccards[group])
@@ -234,9 +309,8 @@ def find_best_matches(biclusters, known_groups, all_elements, FDR=0.05,
         df_pval, is_enriched, df_jaccard = evaluate_overlaps(biclusters, known_groups,
                                                              all_elements, dimension=dimension)
     except:
-        # print("failed to calculate overlap p-values",file=sys.stderr)
+        print("failed to calculate overlap p-values",file=sys.stderr)
         out = evaluate_overlaps(biclusters, known_groups, all_elements, dimension=dimension)
-        return
 
     # BH-adjust for multiple testing
     df_fdr = apply_fdr(df_pval)
@@ -369,3 +443,74 @@ def find_best_matching_biclusters(bics1, bics2, N, by="genes", adj_pval_thr=0.05
             best_matches[i1]["bm_id"] = bm_id
     best_matches = pd.DataFrame.from_dict(best_matches).T
     return best_matches
+
+
+def bic_survival(surv_anno,samples,event = "OS",surv_time = "",verbose = True):
+    # check  complete separation
+    # if all events are either inside or outside sample group
+    samples_with_event = set(surv_anno.loc[surv_anno[event]==1,:].index)
+    if len(samples_with_event)==0:
+        print("No events are in the group.",file = sys.stderr)
+        return None, {"p_value":0,"HR":0}
+    elif samples_with_event == samples.intersection(samples_with_event):
+        print("All events are in the group.",file = sys.stderr)
+        return None, {"p_value":0,"HR":np.inf}
+    
+    if not surv_time:
+        surv_time= event+".time"
+    surv_data = surv_anno.copy()
+    surv_data = surv_data.dropna(axis=0)
+    
+    # check zero variance columns:
+    v =  surv_data.var()
+    for col in v.index:
+        if v[col] == 0:
+            if verbose:
+                print(col,"excluded",file =sys.stderr)
+            surv_data = surv_data.drop(col,axis=1)
+    #["age","sex","stage_2","stage_3","stage_4",surv,surv+".time"]]
+    surv_data.loc[:,"x"] = 0
+    surv_data.loc[list(set(samples).intersection(set(surv_data.index.values))),"x"] = 1
+
+    in_bic = surv_data.loc[surv_data["x"]==1,:].shape[0]
+    in_bg = surv_data.loc[surv_data["x"]==0,:].shape[0]
+    if verbose:
+        print("biclsuter: %s,  background: %s"%(in_bic,in_bg))
+    
+    cph = CoxPHFitter()
+    res = cph.fit(surv_data, duration_col=surv_time, event_col= event, show_progress=False)
+    res_table = res.summary
+    res_table  = res_table#.sort_values("p")
+    
+    pval = res_table.loc["x","p"]
+    hr = res_table.loc["x","exp(coef)"]
+    upper_95CI = res_table.loc["x","exp(coef) upper 95%"]
+    lower_95CI = res_table.loc["x","exp(coef) lower 95%"]
+    
+    resuls = {"p_value":pval,"HR":hr,
+              "upper_95CI":upper_95CI,
+              "lower_95CI":lower_95CI}
+    return res_table,resuls
+
+def add_survival(biclusters, sample_data, # dataframes with biclustes and sample annotation
+                 event= "OS", surv_time = "", # event and time column names
+                 covariates=["age","stage_2","stage_3","stage_4"]):
+    if not surv_time:
+        surv_time= event+".time"
+    surv_results = {}
+    for bic in biclusters.iterrows():
+        sample_set = bic[1]["samples"]
+        surv_data = sample_data.loc[:,covariates +[event,surv_time]]
+        try:
+            full_table, bic_results = bic_survival(surv_data,sample_set,event = event,
+                                                   surv_time = surv_time,verbose = False)
+            surv_results[bic[0]] = bic_results
+        except ConvergenceWarning:
+            print("ConvergenceWarning",bic[0] )
+        except:
+            print(bic.index,"failed to fit survival model, no ConvergenceWarning")
+    surv_results = pd.DataFrame.from_dict(surv_results).T
+    surv_results.columns = [event+"."+x for x in surv_results.columns ]
+    bh_res, adj_pval = fdrcorrection(surv_results[event+".p_value"].values, alpha=0.05)
+    surv_results[event+".p_value_BH"] = adj_pval
+    return pd.concat([biclusters, surv_results],axis=1)
