@@ -65,7 +65,7 @@ read_data <- function(dataset) {
 create_analysis <- function(dataset, data, par_tibble, comb_n, n = 30) {
     start <- Sys.time()
 
-    dir.create(file.path("/root/projects/data/outputs", dataset, comb_n),
+    dir.create(file.path("/root/projects/data/outputs/GF", dataset, comb_n),
         showWarnings = FALSE
     )
 
@@ -89,7 +89,7 @@ create_analysis <- function(dataset, data, par_tibble, comb_n, n = 30) {
     top_n["label"] <- top_n$gene
 
     png(file.path(
-        "/root/projects/data/outputs", dataset, comb_n, "gene_importance.png"
+        "/root/projects/data/outputs/GF", dataset, comb_n, "gene_importance.png"
     ))
     plot <- ggplot2::ggplot(top_n, ggplot2::aes(
         reorder(gene, -values), values
@@ -113,7 +113,7 @@ create_analysis <- function(dataset, data, par_tibble, comb_n, n = 30) {
     }), ]
 
     png(file.path(
-        "/root/projects/data/outputs",
+        "/root/projects/data/outputs/GF",
         dataset, comb_n, "gene_module_network.png"
     ))
     p <- ggplot2::ggplot(net_df, ggplot2::aes(
@@ -150,7 +150,7 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
     })
     elbow_df <- data.frame(k = 1:10, tot_withinss = tot_withinss)
     png(file.path(
-        "/root/projects/data/outputs",
+        "/root/projects/data/outputs/GF",
         dataset, comb_n, "elbow_method.png"
     ))
     plot <- ggplot2::ggplot(elbow_df, ggplot2::aes(x = k, y = tot_withinss)) +
@@ -166,7 +166,7 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
     })
     sil_df <- data.frame(k = 2:10, sil_width = sil_width)
     png(file.path(
-        "/root/projects/data/outputs",
+        "/root/projects/data/outputs/GF",
         dataset, comb_n, "silhouette_analysis.png"
     ))
     p <- ggplot2::ggplot(sil_df, ggplot2::aes(x = k, y = sil_width)) +
@@ -182,7 +182,7 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
         K.max = 10, B = 50
     )
     png(file.path(
-        "/root/projects/data/outputs",
+        "/root/projects/data/outputs/GF",
         dataset, comb_n, "gap_statistic.png"
     ))
     print(factoextra::fviz_gap_stat(gap_stat))
@@ -194,14 +194,14 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
     # Cluster into groups using k-means
     cl <- kmeans(d_scaled, centers = k)
     png(file.path(
-        "/root/projects/data/outputs",
+        "/root/projects/data/outputs/GF",
         dataset, comb_n, "k_means.png"
     ))
     print(factoextra::fviz_cluster(cl, geom = "point", data = d_scaled))
     dev.off()
 
     png(file.path(
-        "/root/projects/data/outputs",
+        "/root/projects/data/outputs/GF",
         dataset, comb_n, "heatmap.png"
     ))
     ht <- ComplexHeatmap::Heatmap(d_scaled,
@@ -219,7 +219,7 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
     pca_df$PC1 <- pca_res$x[, 1]
     pca_df$PC2 <- pca_res$x[, 2]
     png(file.path(
-        "/root/projects/data/outputs",
+        "/root/projects/data/outputs/GF",
         dataset, comb_n, "pca.png"
     ))
     plot <- ggplot2::ggplot(ggplot2::aes(
@@ -236,7 +236,7 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
         cluster = cl$cluster
     )
     png(file.path(
-        "/root/projects/data/outputs",
+        "/root/projects/data/outputs/GF",
         dataset, comb_n, "survival.png"
     ))
     plot <- survminer::ggsurvplot(
