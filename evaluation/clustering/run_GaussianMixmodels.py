@@ -1,4 +1,5 @@
-import sys, os
+import sys
+import os
 import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
 from sklearn.mixture import GaussianMixture
 import re

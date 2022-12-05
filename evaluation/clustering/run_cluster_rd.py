@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 # from evaluation.clustering.eval_cluster_methods import run_evalRD
-from eval_cluster_methods import run_evalRD
+# from eval_cluster_methods import run_evalRD
 import glob
 from tqdm import tqdm
 import pandas as pd

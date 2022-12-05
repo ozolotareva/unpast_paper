@@ -4,7 +4,7 @@ import sys
 import glob
 from tqdm import tqdm
 sys.path.insert(1, '/home/bbb1417/DESMOND2_benchmarking/DESMOND2/utils/')
-from eval2 import run_eval
+# from eval2 import run_eval
 import re
 
 args = sys.argv

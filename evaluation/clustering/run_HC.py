@@ -36,8 +36,12 @@ np.random.seed(seed)
 '''
 input_file = '/Users/fernando/Documents/Research/DESMOND2_data_simulated/simulated/A/A.n_genes=5,m=4,std=1,overlap=no.exprs_z.tsv'
 result_file = '/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering/results/HC/clustering/A.n_genes=5,m=4,std=1,overlap=no_run1.tsv'
+method='weighted'
+distance_metric='braycurtis'
+k=2
 '''
 #
+
 
 
 df = pd.read_csv(input_file, sep='\t', index_col=0).T
@@ -58,4 +62,4 @@ for method in distance_methods:
             # print(cluster_labels)
             result_k = reformat_cluster_results(clusters=pd.DataFrame({'sample': df.index, 'label': cluster_labels}), input_df=df)
             print(result_k)
-            result_k.to_csv(result_file.replace('.tsv', f'_method_{method}_distance_{distance_metric}_k_{k}_seed_{seed}.tsv'), sep='\t')
+            result_k.to_csv(result_file.replace('.tsv', f'_method_{method}_distance_{distance_metric}_k_{k}_seed_{0}.tsv'), sep='\t')
