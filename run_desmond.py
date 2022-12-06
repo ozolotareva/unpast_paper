@@ -6,14 +6,13 @@ import numpy as np
 def run_DESMOND(exprs_file, basename, out_dir="./",
                 save=True, load = False,
                 ceiling = 3,
-                bin_method = "GMM", clust_method = "Louvain", 
-                min_n_samples = -1, 
+                bin_method = "kmeans", clust_method = "WGCNA", 
+                min_n_samples = 5, 
                 show_fits = [],
-                pval = 0.001, # binarization p-value
-                modularity=1/2, similarity_cutoffs = -1, # for Louvain
-                ds = 4, dch = 0.995, # for WGCNA
-                alpha=1,beta_K = 1,  # for DESMOND
-                max_n_steps= 100, n_steps_for_convergence = 5, # for DESMOND
+                pval = 0.01, # binarization p-value
+                modularity=1/3, similarity_cutoffs = -1, # for Louvain
+                ds = 0, dch = 0.995, # for WGCNA
+                alpha=1,beta_K = 1, max_n_steps= 100, n_steps_for_convergence = 5, # for DESMOND
                 cluster_binary=False, 
                 merge = 1,
                 seed = -1,
@@ -55,9 +54,6 @@ def run_DESMOND(exprs_file, basename, out_dir="./",
         if verbose:
             print("Standardized expressions will be limited to [-%s,%s]:"%(ceiling,ceiling),file=sys.stdout)
     
-    # define minimal number of samples
-    if min_n_samples == -1:
-        min_n_samples = round(min(0.5*exprs.shape[1],max(5,0.01*exprs.shape[1])))
     if verbose:
         print("Mininal number of samples in a bicluster:",min_n_samples ,file=sys.stdout)
     if min_n_samples < 5:
@@ -161,7 +157,7 @@ def run_DESMOND(exprs_file, basename, out_dir="./",
     suffix  = ".seed="+str(seed)+".bin="+bin_method+",pval="+str(pval)+",clust="+clust_method
     if clust_method == "WGCNA":
         suffix2 = ",ds="+str(ds)+",dch="+str(dch)
-        m, similarity_cutoff = None, None
+        modularity, similarity_cutoff = None, None
     elif clust_method == "Louvain":
         suffix2 = ",m="+str(round(modularity,2))
         ds, dhs = None, None
@@ -178,31 +174,30 @@ def run_DESMOND(exprs_file, basename, out_dir="./",
     return biclusters    
 
 def parse_args():
-    parser = argparse.ArgumentParser("DESMOND2 identifies differentially expressed biclusters in gene expression data.")
-    parser.add_argument('--exprs', metavar="exprs.z.tsv", required=True, 
-                        help=".tsv file with standardized gene expressions. The first column and row must contain unique gene and sample ids, respectively.")
-    parser.add_argument('--ceiling', default=3, metavar="3",  type=float, required=False, 
-                        help="Absolute threshold for z-scores. For example, when set to 3, z-scores greater than 3 are set to 3 and z-scores less than -3 are set to -3. No ceiling if set to 0.")
-    parser.add_argument('--out_dir', metavar="./", default="./", help  = 'output folder')
-    parser.add_argument('--basename', metavar="biclusters.tsv", default = False, type=str, help  = 'output files basename. If not specified, will be set to "results_"yy.mm.dd_HH:MM:SS""')
-    parser.add_argument('-s','--min_n_samples', metavar=5, default=-1, type=int, help  = 'minimal number of samples in a bicluster. If not specified, will be automatically defined based on input sample size.')
-    parser.add_argument('-b','--binarization', metavar="GMM", default="GMM", type=str,
-                        choices=['GMM', 'Jenks',"ward","kmeans"], help='binarization method')
-    parser.add_argument('-p','--pval', metavar=0.001, default=0.001, type=float, help  = 'binarization p-value')
-    parser.add_argument('-c','--clustering', metavar="Louvain", default="Louvain", type=str,
-                        choices=['Louvain', 'WGCNA'], help='feature clustering method')
-    # Louvain parameters
-    parser.add_argument('-m','--modularity', default=1/2, metavar="1/2", type=float, help='Modularity corresponding to a cutoff for similarity matrix (Louvain clustering)')
-    parser.add_argument('-r','--similarity_cutoffs', default=1/3, metavar="1/3", type=float, help='A cutoff or a list of cuttofs for similarity matrix (Louvain clustering). If set to -1, will be chosen authomatically from [0.3,0.9] based on the data')
-    # WGCNA parameters 
-    parser.add_argument('--ds', default=2, metavar="2", type=int,choices=[0,1,2,3,4], help='deepSplit parameter, see WGCNA documentation')
-    parser.add_argument('--dch', default=0.995, metavar="0.995", type=float, help='dynamicTreeCut parameter, see WGCNA documentation')
-    parser.add_argument('--merge', default=1, metavar="1", type=float,help = "Whether to merge biclustres similar in samples with Jaccard index not less then the specified.")
-    parser.add_argument('--load_binary', action='store_true', help = "loads binarized features from <basename>.<bin_method>.seed=XXX.binarized.tsv, statistics from *.binarization_stats.tsv and the background SNR distribution from <basename>.<bin_method>.n=<n_permutations>.seed=XXX.background.tsv")
-    parser.add_argument('--save_binary', action='store_true', help = "saves binarized features to a file named as <basename>.<bin_method>.seed=XXX.binarized.tsv. If WGCNA is clustering method, binarized expressions are always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and background SNR distributions respectively will be created")
-    
+    parser = argparse.ArgumentParser("UnPaSt identifies differentially expressed biclusters in gene expression data.")
     seed = random.randint(0,1000000)
     parser.add_argument('--seed',metavar=seed, default=seed, type=int, help="random seed")
+    parser.add_argument('--exprs', metavar="exprs.z.tsv", required=True, 
+                        help=".tsv file with standardized gene expressions. The first column and row must contain unique gene and sample ids, respectively.")
+    parser.add_argument('--out_dir', metavar="./", default="./", help  = 'output folder')
+    parser.add_argument('--basename', metavar="biclusters.tsv", default = False, type=str, help  = 'output files prefix. If not specified, will be set to "results_"yy.mm.dd_HH:MM:SS""')
+    parser.add_argument('--ceiling', default=3, metavar="3",  type=float, required=False, 
+                        help="Absolute threshold for z-scores. For example, when set to 3, z-scores greater than 3 are set to 3 and z-scores less than -3 are set to -3. No ceiling if set to 0.")
+    parser.add_argument('-s','--min_n_samples', metavar=5, default=5, type=int, help  = 'minimal number of samples in a bicluster.')
+    parser.add_argument('-b','--binarization', metavar="kmeans", default="kmeans", type=str,
+                        choices=["kmeans","ward",'GMM', 'Jenks'], help='binarization method')
+    parser.add_argument('-p','--pval', metavar=0.01, default=0.01, type=float, help  = 'binarization p-value')
+    parser.add_argument('-c','--clustering', metavar="WGCNA", default="WGCNA", type=str,
+                        choices=['Louvain', 'WGCNA','DESMOND'], help='feature clustering method')
+    # Louvain parameters
+    parser.add_argument('-m','--modularity', default=1/3, metavar="1/3", type=float, help='Modularity corresponding to a cutoff for similarity matrix (Louvain clustering)')
+    parser.add_argument('-r','--similarity_cutoffs', default=-1, metavar="-1", type=float, help='A cutoff or a list of cuttofs for similarity matrix (Louvain clustering). If set to -1, will be chosen authomatically from [1/5,4/5] using elbow method')
+    # WGCNA parameters 
+    parser.add_argument('--ds', default=0, metavar="0", type=int,choices=[0,1,2,3,4], help='deepSplit parameter, see WGCNA documentation')
+    parser.add_argument('--dch', default=0.995, metavar="0.995", type=float, help='dynamicTreeCut parameter, see WGCNA documentation')
+    parser.add_argument('--merge', default=1, metavar="1", type=float,help = "Whether to merge biclustres similar in samples with Jaccard index not less then the specified.")
+    parser.add_argument('--load_binary', action='store_true', help = "loads binarized features from <basename>.<bin_method>.seed="+str(seed)+".binarized.tsv, statistics from *.binarization_stats.tsv and the background SNR distribution from <basename>.<bin_method>.n=<n_permutations>.seed="+str(seed)+".background.tsv")
+    parser.add_argument('--save_binary', action='store_true', help = "saves binarized features to a file named as <basename>.<bin_method>.seed="+str(seed)+".binarized.tsv. If WGCNA is clustering method, binarized expressions are always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and background SNR distributions respectively will be created")
     parser.add_argument('--verbose', action='store_true')
     #parser.add_argument('--plot', action='store_true', help = "show plots")
     
