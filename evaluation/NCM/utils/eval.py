@@ -5,6 +5,8 @@ import pandas as pd
 from method import zscore
 
 from fisher import pvalue
+from lifelines import CoxPHFitter
+from sklearn.exceptions import ConvergenceWarning
 from statsmodels.stats.multitest import fdrcorrection
 
 
@@ -202,17 +204,13 @@ def evaluate_overlaps(biclusters, known_groups, all_elements,
                 # save left-tail p-value and record that this is not enrichment
                 pvals[group][i] = pval.left_tail
                 is_enriched[group][i] = False
-                # take complement for the biggest group
-                if len(bic_members) > len(group_members):
 
-                    # compute J for bicluster and group complement
-                    shared_complement = len(group_members) - shared
-                    union_complement = N - union + group_only
-                else:
-                    shared_complement = len(bic_members) - shared
-                    union_complement = N - union + bic_only
-                jaccards[group][i] = 0 if union_complement == 0 else (
-                    shared_complement/union_complement)
+                bic_members = all_elements.difference(bic_members)
+                shared_complement = len(
+                    bic_members.intersection(group_members))
+                union_complement = len(bic_members.union(group_members))
+                jaccards[group][i] = 0 if union_complement == 0 else shared_complement / \
+                    union_complement
 
         # print(group,jaccards[group])
 
@@ -251,9 +249,7 @@ def find_best_matches(biclusters, known_groups, all_elements, FDR=0.05,
             all_elements,
             dimension=dimension)
     except TypeError:
-        evaluate_overlaps(biclusters, known_groups,
-                          all_elements, dimension=dimension)
-        return
+        print("failed to calculate overlap p-values", file=sys.stderr)
 
     # BH-adjust for multiple testing
     df_fdr = apply_fdr(df_pval)
@@ -394,3 +390,79 @@ def find_best_matching_biclusters(bics1, bics2, N,
             best_matches[i1]["bm_id"] = bm_id
     best_matches = pd.DataFrame.from_dict(best_matches).T
     return best_matches
+
+
+def bic_survival(surv_anno, samples, event="OS", surv_time="", verbose=True):
+    # check  complete separation
+    # if all events are either inside or outside sample group
+    samples_with_event = set(surv_anno.loc[surv_anno[event] == 1, :].index)
+    if len(samples_with_event) == 0:
+        print("No events are in the group.", file=sys.stderr)
+        return None, {"p_value": 0, "HR": 0}
+    elif samples_with_event == samples.intersection(samples_with_event):
+        print("All events are in the group.", file=sys.stderr)
+        return None, {"p_value": 0, "HR": np.inf}
+
+    if not surv_time:
+        surv_time = event+".time"
+    surv_data = surv_anno.copy()
+    surv_data = surv_data.dropna(axis=0)
+
+    # check zero variance columns:
+    v = surv_data.var()
+    for col in v.index:
+        if v[col] == 0:
+            if verbose:
+                print(col, "excluded", file=sys.stderr)
+            surv_data = surv_data.drop(col, axis=1)
+    # ["age","sex","stage_2","stage_3","stage_4",surv,surv+".time"]]
+    surv_data.loc[:, "x"] = 0
+    surv_data.loc[list(set(samples).intersection(
+        set(surv_data.index.values))), "x"] = 1
+
+    in_bic = surv_data.loc[surv_data["x"] == 1, :].shape[0]
+    in_bg = surv_data.loc[surv_data["x"] == 0, :].shape[0]
+    if verbose:
+        print("biclsuter: %s,  background: %s" % (in_bic, in_bg))
+
+    cph = CoxPHFitter()
+    res = cph.fit(surv_data, duration_col=surv_time,
+                  event_col=event, show_progress=False)
+    res_table = res.summary
+    res_table = res_table  # .sort_values("p")
+
+    pval = res_table.loc["x", "p"]
+    hr = res_table.loc["x", "exp(coef)"]
+    upper_95CI = res_table.loc["x", "exp(coef) upper 95%"]
+    lower_95CI = res_table.loc["x", "exp(coef) lower 95%"]
+
+    resuls = {"p_value": pval, "HR": hr,
+              "upper_95CI": upper_95CI,
+              "lower_95CI": lower_95CI}
+    return res_table, resuls
+
+
+def add_survival(biclusters, sample_data,  # df biclustes and sample annotation
+                 event="OS", surv_time="",  # event and time column names
+                 covariates=["age", "stage_2", "stage_3", "stage_4"]):
+    if not surv_time:
+        surv_time = event+".time"
+    surv_results = {}
+    for bic in biclusters.iterrows():
+        sample_set = bic[1]["samples"]
+        surv_data = sample_data.loc[:, covariates + [event, surv_time]]
+        try:
+            full_table, bic_results = bic_survival(
+                surv_data, sample_set, event=event,
+                surv_time=surv_time, verbose=False)
+            surv_results[bic[0]] = bic_results
+        except ConvergenceWarning:
+            print("ConvergenceWarning", bic[0])
+        except:
+            print(bic.index, "failed to fit model, no ConvergenceWarning")
+    surv_results = pd.DataFrame.from_dict(surv_results).T
+    surv_results.columns = [event+"."+x for x in surv_results.columns]
+    bh_res, adj_pval = fdrcorrection(
+        surv_results[event+".p_value"].values, alpha=0.05)
+    surv_results[event+".p_value_BH"] = adj_pval
+    return pd.concat([biclusters, surv_results], axis=1)
