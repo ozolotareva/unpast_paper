@@ -19,7 +19,8 @@ seed <- as.numeric(args[12])
 
 set.seed(seed)
 #load Data:
-exprs <- as.matrix(fread(exprs_file),rownames=1)
+exprs <- as.matrix(fread(exprs_file),rownames=1, colnames=1)
+exprs <- t(exprs)
 
 start.time <- Sys.time()
 
