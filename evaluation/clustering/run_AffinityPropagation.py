@@ -6,6 +6,7 @@ from sklearn.metrics import pairwise_distances
 import numpy as np
 import warnings
 import os
+
 os.environ["OMP_NUM_THREADS"] = "1"
 
 
@@ -42,7 +43,6 @@ input_file = '/Users/fernando/Documents/Research/DESMOND2_data_simulated/simulat
 result_file = '/Users/fernando/Documents/Research/DESMOND2/evaluation/clustering/results/HC/clustering/A.n_genes=5,m=4,std=1,overlap=no_run1.tsv'
 '''
 
-
 warnings.filterwarnings("ignore")
 df = pd.read_csv(input_file, sep='\t', index_col=0).T
 
@@ -55,32 +55,18 @@ distance_metrics = ['braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correla
                     'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule']
 
 for mydamping in dampings:
-    # for mymax_iter in max_iters:
-    # for myconvergence_iter in convergence_iters:
     for myaffinity in affinities:
-        if myaffinity != 'euclidean':
-            for distance in distance_metrics:
-                result_filename = result_file.replace('.tsv', f'_damping_{mydamping}_affinity_{distance}_seed_{seed}.tsv')
-                if not os.path.exists(result_filename):
-                    try:
-                        test = pairwise_distances(df, metric=distance)
-                        af = AffinityPropagation(damping=mydamping, preference=None, affinity='precomputed', random_state=seed)
-                        # af = AffinityPropagation(affinity='euclidean')
-                        clustering = af.fit(test)
-                        result_k = reformat_cluster_results(clusters=pd.DataFrame({'sample': df.index, 'label': clustering.labels_}), input_df=df)
-                        result_k.to_csv(result_filename, sep='\t')
-                    except:
-                        open(result_filename, 'a').close()
+        for distance in distance_metrics:
 
+            result_filename = result_file.replace('.tsv', f'_damping_{mydamping}_affinity_{myaffinity}_distance_{distance}_seed_{seed}.tsv')
+            # print(result_filename)
 
-        result_filename2 = result_file.replace('.tsv', f'_damping_{mydamping}_affinity_{myaffinity}_seed_{seed}.tsv')
-        if not os.path.exists(result_filename2):
             try:
-                af = AffinityPropagation(damping=mydamping, preference=None, affinity='euclidean', random_state=seed)
+                test = pairwise_distances(df, metric=distance)
+                af = AffinityPropagation(damping=mydamping, preference=None, affinity='precomputed', random_state=seed)
                 # af = AffinityPropagation(affinity='euclidean')
-                clustering = af.fit(df)
+                clustering = af.fit(test)
                 result_k = reformat_cluster_results(clusters=pd.DataFrame({'sample': df.index, 'label': clustering.labels_}), input_df=df)
-                result_k.to_csv(result_filename2, sep='\t')
+                result_k.to_csv(result_filename, sep='\t')
             except:
-                open(result_filename2, 'a').close()
-                # print(mydamping, mymax_iter, myconvergence_iter, myaffinity)
+                open(result_filename, 'a').close()

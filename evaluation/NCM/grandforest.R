@@ -12,7 +12,10 @@ for (pkg in c("grandforest", "geomnet")) {
 }
 
 edges <- read.table(
-    "/root/projects/data/outputs/BIOGRID-MV-Physical-4.4.214_filtered.tsv",
+    file.path(
+        "/scratch/stud2022/fpatroni/data",
+        "BIOGRID-MV-Physical-4.4.214_filtered.tsv"
+    ),
     sep = "\t", header = TRUE
 )[, 2:3]
 
@@ -22,7 +25,8 @@ read_data <- function(dataset) {
         "METABRIC_1904_17Kgenes.log2_exprs_z_v6.tsv"
     )
 
-    expr_df <- read.table(paste0("/root/projects/data/real_data/", file_name),
+    expr_df <- read.table(
+        file.path("/scratch/stud2022/fpatroni/data", file_name),
         sep = "\t", header = TRUE, row.names = 1
     )
 
@@ -36,8 +40,8 @@ read_data <- function(dataset) {
         })) == 0)
     }
 
-    dir.create(paste0("/root/projects/data/outputs/GF/", dataset),
-        showWarnings = FALSE
+    dir.create(file.path("/scratch/stud2022/fpatroni/desmod_run/GF", dataset),
+        showWarnings = FALSE, recursive = TRUE
     )
 
     # read ref table
@@ -45,7 +49,8 @@ read_data <- function(dataset) {
         "TCGA-BRCA_1079_17Kgenes.Xena_TCGA_PanCan.subtypes_and_signatures_v6.tsv",
         "METABRIC_1904_17Kgenes.subtypes_and_signatures_v6.tsv"
     )
-    labels_df <- read.table(paste0("/root/projects/data/real_data/", file_name),
+    labels_df <- read.table(
+        file.path("/scratch/stud2022/fpatroni/data", file_name),
         sep = "\t", header = TRUE, row.names = 1
     )
 
@@ -54,7 +59,8 @@ read_data <- function(dataset) {
         "TCGA-BRCA_1079.Xena_TCGA_PanCan.annotation_v6.tsv",
         "METABRIC_1904.annotation_v6.tsv"
     )
-    surv_df <- read.table(paste0("/root/projects/data/real_data/", file_name),
+    surv_df <- read.table(
+        file.path("/scratch/stud2022/fpatroni/data", file_name),
         sep = "\t", header = TRUE, row.names = 1
     )
 
@@ -62,11 +68,14 @@ read_data <- function(dataset) {
     return(data_object)
 }
 
-create_analysis <- function(dataset, data, par_tibble, comb_n, n = 30) {
+create_analysis <- function(dataset, data, par_tibble,
+                            comb_n, n, importance_n = 30) {
     start <- Sys.time()
+    seed <- sample.int(1e4, 1)
 
-    dir.create(file.path("/root/projects/data/outputs/GF", dataset, comb_n),
-        showWarnings = FALSE
+    dir.create(
+        file.path("/scratch/stud2022/fpatroni/desmod_run/GF", dataset, comb_n, n),
+        showWarnings = FALSE, recursive = TRUE
     )
 
     model <- grandforest::grandforest_unsupervised(
@@ -78,19 +87,25 @@ create_analysis <- function(dataset, data, par_tibble, comb_n, n = 30) {
         num.threads = 1,
         verbose = TRUE,
         write.forest = FALSE,
-        seed = 2022
+        seed = seed
     )
 
     end <- Sys.time()
 
     # gene importance estimates
-    values <- sort(grandforest::importance(model), decreasing = TRUE)[1:n]
+    values <- sort(
+        grandforest::importance(model),
+        decreasing = TRUE
+    )[1:importance_n]
     top_n <- tibble::rownames_to_column(as.data.frame(values), var = "gene")
     top_n["label"] <- top_n$gene
 
-    png(file.path(
-        "/root/projects/data/outputs/GF", dataset, comb_n, "gene_importance.png"
-    ))
+    png(
+        file.path(
+            "/scratch/stud2022/fpatroni/desmod_run/GF",
+            dataset, comb_n, n, paste0(seed, "_gene_importance.png")
+        )
+    )
     plot <- ggplot2::ggplot(top_n, ggplot2::aes(
         reorder(gene, -values), values
     )) +
@@ -113,8 +128,8 @@ create_analysis <- function(dataset, data, par_tibble, comb_n, n = 30) {
     }), ]
 
     png(file.path(
-        "/root/projects/data/outputs/GF",
-        dataset, comb_n, "gene_module_network.png"
+        "/scratch/stud2022/fpatroni/desmod_run/GF",
+        dataset, comb_n, n, paste0(seed, "_gene_module_network.png")
     ))
     p <- ggplot2::ggplot(net_df, ggplot2::aes(
         from_id = from_id, to_id = to_id
@@ -128,17 +143,17 @@ create_analysis <- function(dataset, data, par_tibble, comb_n, n = 30) {
     print(p)
     dev.off()
 
-    kmeans_obj <- create_endophenotypes(dataset, data, top_n, comb_n)
+    kmeans_obj <- create_endophenotypes(dataset, data, top_n, comb_n, n, seed)
 
     results_object <- list(
         top_n = top_n, model = model, cluster = kmeans_obj,
-        time = end - start
+        time = end - start, seed = seed
     )
     return(results_object)
 }
 
-create_endophenotypes <- function(dataset, data, top_n, comb_n) {
-    set.seed(2022)
+create_endophenotypes <- function(dataset, data, top_n, comb_n, n, seed) {
+    set.seed(seed)
 
     # Extract module features and scale/center values.
     d_scaled <- scale(t(data$expr)[, top_n$gene], center = TRUE, scale = TRUE)
@@ -150,8 +165,8 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
     })
     elbow_df <- data.frame(k = 1:10, tot_withinss = tot_withinss)
     png(file.path(
-        "/root/projects/data/outputs/GF",
-        dataset, comb_n, "elbow_method.png"
+        "/scratch/stud2022/fpatroni/desmod_run/GF",
+        dataset, comb_n, n, "elbow_method.png"
     ))
     plot <- ggplot2::ggplot(elbow_df, ggplot2::aes(x = k, y = tot_withinss)) +
         ggplot2::geom_line() +
@@ -166,8 +181,8 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
     })
     sil_df <- data.frame(k = 2:10, sil_width = sil_width)
     png(file.path(
-        "/root/projects/data/outputs/GF",
-        dataset, comb_n, "silhouette_analysis.png"
+        "/scratch/stud2022/fpatroni/desmod_run/GF",
+        dataset, comb_n, n, "silhouette_analysis.png"
     ))
     p <- ggplot2::ggplot(sil_df, ggplot2::aes(x = k, y = sil_width)) +
         ggplot2::geom_line() +
@@ -182,8 +197,8 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
         K.max = 10, B = 50
     )
     png(file.path(
-        "/root/projects/data/outputs/GF",
-        dataset, comb_n, "gap_statistic.png"
+        "/scratch/stud2022/fpatroni/desmod_run/GF",
+        dataset, comb_n, n, "gap_statistic.png"
     ))
     print(factoextra::fviz_gap_stat(gap_stat))
     dev.off()
@@ -194,15 +209,15 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
     # Cluster into groups using k-means
     cl <- kmeans(d_scaled, centers = k)
     png(file.path(
-        "/root/projects/data/outputs/GF",
-        dataset, comb_n, "k_means.png"
+        "/scratch/stud2022/fpatroni/desmod_run/GF",
+        dataset, comb_n, n, "k_means.png"
     ))
     print(factoextra::fviz_cluster(cl, geom = "point", data = d_scaled))
     dev.off()
 
     png(file.path(
-        "/root/projects/data/outputs/GF",
-        dataset, comb_n, "heatmap.png"
+        "/scratch/stud2022/fpatroni/desmod_run/GF",
+        dataset, comb_n, n, "heatmap.png"
     ))
     ht <- ComplexHeatmap::Heatmap(d_scaled,
         split = cl$cluster, name = "expression",
@@ -219,8 +234,8 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
     pca_df$PC1 <- pca_res$x[, 1]
     pca_df$PC2 <- pca_res$x[, 2]
     png(file.path(
-        "/root/projects/data/outputs/GF",
-        dataset, comb_n, "pca.png"
+        "/scratch/stud2022/fpatroni/desmod_run/GF",
+        dataset, comb_n, n, "pca.png"
     ))
     plot <- ggplot2::ggplot(ggplot2::aes(
         x = PC1, y = PC2, col = cluster
@@ -236,8 +251,8 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
         cluster = cl$cluster
     )
     png(file.path(
-        "/root/projects/data/outputs/GF",
-        dataset, comb_n, "survival.png"
+        "/scratch/stud2022/fpatroni/desmod_run/GF",
+        dataset, comb_n, n, "survival.png"
     ))
     plot <- survminer::ggsurvplot(
         survival::survfit(
@@ -256,53 +271,71 @@ create_endophenotypes <- function(dataset, data, top_n, comb_n) {
 data_tcga <- read_data("GDC")
 data_mbr <- read_data("Mbr")
 
-par_df <- purrr::cross_df(list(
+par_tcga <- purrr::cross_df(list(
     num.trees = seq(1000, 10000, length.out = 3),
     importance = c("impurity", "impurity_corrected", "permutation"),
-    subgraph = c("bfs", "dfs", "random")
+    subgraph = c("bfs", "dfs", "random"),
+    seeds = ""
 ))
 
-par_comb <- apply(par_df, 1, function(x) {
-    paste(x, collapse = ";")
-})
+par_mbr <- par_tcga
 
-write.table(par_df, "/root/projects/data/outputs/GF/par_df.tsv",
+library(doMC)
+
+doMC::registerDoMC(nrow(par_tcga))
+
+for (i in seq_len(nrow(par_tcga))) {
+    res_tcga <- foreach::foreach(n = seq_len(5)) %dopar% {
+        create_analysis("GDC", data_tcga, par_tcga[i, ], i, n)
+    }
+
+    par_tcga[i, "seeds"] <- paste(
+        sapply(res_tcga, function(x) x$seed), collapse = "|")
+
+    res_mbr <- foreach::foreach(n = seq_len(5)) %dopar% {
+        create_analysis("Mbr", data_mbr, par_mbr[i, ], i, n)
+    }
+
+    par_mbr[i, "seeds"] <- paste(
+        sapply(res_mbr, function(x) x$seed), collapse = "|")
+
+    # export data to calc metrics
+    write.table(
+        data.frame(sapply(
+            res_tcga, function(x) x$cluster$cluster
+        )),
+        file.path(
+            "/scratch/stud2022/fpatroni/desmod_run/GF/GDC", i,
+            "clusters_tcga.tsv"
+        ),
+        sep = "\t"
+    )
+
+    write.table(
+        data.frame(sapply(
+            res_mbr, function(x) x$cluster$cluster
+        )),
+        file.path(
+            "/scratch/stud2022/fpatroni/desmod_run/GF/Mbr", i,
+            "clusters_mbr.tsv"
+        ),
+        sep = "\t"
+    )
+
+}
+
+write.table(
+    par_tcga, file.path(
+        "/scratch/stud2022/fpatroni/desmod_run/GF/GDC/par_df.tsv"
+    ),
     sep = "\t",
     row.names = FALSE
 )
 
-library(doMC)
-
-doMC::registerDoMC(nrow(par_df))
-
-res_tcga <- foreach::foreach(i = seq_len(nrow(par_df))) %dopar% {
-    create_analysis("GDC", data_tcga, par_df[i, ], i)
-}
-
-save.image("/root/projects/data/outputs/GF/grandforest1.RData")
-
-res_mbr <- foreach::foreach(i = seq_len(nrow(par_df))) %dopar% {
-    create_analysis("Mbr", data_mbr, par_df[i, ], i)
-}
-
-save.image("/root/projects/data/outputs/GF/grandforest2.RData")
-
-
-# load("/root/projects/data/outputs/GF/grandforest2.RData")
-
-# export data to calc metrics
-write.table(
-    data.frame(sapply(
-        res_tcga, function(x) x$cluster$cluster
-    )),
-    "/root/projects/data/outputs/GF/clusters_tcga.tsv",
-    sep = "\t"
-)
-
-write.table(
-    data.frame(sapply(
-        res_mbr, function(x) x$cluster$cluster
-    )),
-    "/root/projects/data/outputs/GF/clusters_mbr.tsv",
-    sep = "\t"
+write.table(par_mbr,
+    file.path(
+        "/scratch/stud2022/fpatroni/desmod_run/GF/Mbr/par_df.tsv"
+    ),
+    sep = "\t",
+    row.names = FALSE
 )

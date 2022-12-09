@@ -9,24 +9,23 @@ import time
 test_case_folder = "/home/bbb1417/DESMOND2_benchmarking/DESMOND2_data/simulated/"
 script_folder = "./"
 
-
 tool_list = {
     'kmeans': 'run_kmeans.py',
-    'WGCNAkmeans': 'run_WGCNAkmeans.py',
+    # 'WGCNAkmeans': 'run_WGCNAkmeans.py',
     'HC': 'run_HC.py',
-    'WGCNAHC': 'run_WGCNAHC.py',
+    # 'WGCNAHC': 'run_WGCNAHC.py',
     'AffinityPropagation': 'run_AffinityPropagation.py',
     'Meanshift': 'run_MeanShift.py',
     'Spectral': 'run_Spectral.py',
     'AgglomerativeClustering': 'run_AgglomerativeClustering.py',
     'DBSCAN': 'run_DBSCAN.py',
-    'OPTICS': 'run_OPTICS.py',
+    # 'OPTICS': 'run_OPTICS.py',
     'BIRCH': 'run_BIRCH.py',
     'bikmeans': 'run_BisectingKmeans.py',
     'GMM': 'run_GaussianMixmodels.py'
 }
 
-
+WGCNA_expr_files = {}
 expr_files = {}
 bicluster_files = {}
 
@@ -38,10 +37,13 @@ for mode in os.listdir(test_case_folder):
         print(case_file)
         file_path = os.path.join(mode_path, case_file)
         print(file_path)
-        prefix = case_file.split(".")[0]+"."+case_file.split(".")[1]
+        prefix = case_file.split(".")[0] + "." + case_file.split(".")[1]
         print(prefix)
         if "exprs" in case_file:
-            expr_files[prefix] = file_path
+            if "_MEs" in file_path:
+                WGCNA_expr_files[prefix] = file_path
+            else:
+                expr_files[prefix] = file_path
         elif "biclusters" in case_file:
             bicluster_files[prefix] = file_path
 
@@ -55,7 +57,7 @@ running = list()
 
 for tool_name in tool_list.keys():
     score_dir = os.path.join(result_dir, tool_name)
-
+    print(score_dir)
     if not os.path.exists(score_dir):
         os.system("mkdir " + score_dir)
 
@@ -63,13 +65,35 @@ for tool_name in tool_list.keys():
     if not os.path.exists(clusters_dir):
         os.system("mkdir " + clusters_dir)
 
-    scores_file = os.path.join(score_dir,  f'{tool_name}_scores.txt')
+    scores_file = os.path.join(score_dir, f'{tool_name}_scores.txt')
     for test_case in expr_files.keys():
         # print(test_case)
         expr_file = expr_files[test_case]
         true_file = bicluster_files[test_case]
         for r in range(1, 6):
-            commands.append(['python3', 'run_cluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file, true_file, os.path.join(clusters_dir, f'{test_case}_run{r}.tsv'), scores_file])
+            commands.append(
+                ['python3', 'run_cluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file,
+                 true_file, os.path.join(clusters_dir, f'{test_case}_run{r}.tsv'), scores_file])
+
+for tool_name in tool_list.keys():
+    score_dir = os.path.join(result_dir, 'WGCNA_' + tool_name)
+    print(score_dir)
+    if not os.path.exists(score_dir):
+        os.system("mkdir " + score_dir)
+
+    clusters_dir = os.path.join(score_dir, 'clusters')
+    if not os.path.exists(clusters_dir):
+        os.system("mkdir " + clusters_dir)
+
+    scores_file = os.path.join(score_dir, f'{tool_name}_scores.txt')
+    for test_case in WGCNA_expr_files.keys():
+        # print(test_case)
+        expr_file = WGCNA_expr_files[test_case]
+        true_file = bicluster_files[test_case]
+        for r in range(1, 6):
+            commands.append(
+                ['python3', 'run_cluster.py', tool_name, os.path.join(script_folder, tool_list[tool_name]), expr_file,
+                 true_file, os.path.join(clusters_dir, f'{test_case}_run{r}.tsv'), scores_file])
 
 print(f"Commands running")
 parallel_execs = int(sys.argv[1])
