@@ -1,3 +1,4 @@
+from joblib import Parallel, delayed
 from os.path import join
 from os import listdir
 
@@ -8,7 +9,8 @@ from evaluation_desmond import (calculate_perfromance, make_ref_groups)
 
 def prepar_results(pasta, n):
 
-    df = pd.read_csv(join(pasta, str(n), "results.csv"), index_col=0)
+    file_name = [x for x in listdir(join(pasta, n)) if "results.csv" in x][0]
+    df = pd.read_csv(join(pasta, n, file_name), index_col=0)
     df_neu = pd.DataFrame([[df.genes1.values, df.patients1.values], [
         df.genes2.values, df.patients2.values]],
         columns=["genes", "samples"])
@@ -60,27 +62,32 @@ known_groups_t, freqs_t = make_ref_groups(t_subtypes, t_annotation, exprs_t)
 known_groups_m, freqs_m = make_ref_groups(m_subtypes, m_annotation, exprs_m)
 
 
-gdc_path = "/home/fabio/Downloads/desmod_run/Bicon/GDC"
-mbr_path = "/home/fabio/Downloads/desmod_run/Bicon/Mbr"
-
-subt_t = []
-subt_m = []
+gdc_path = "/home/fabio/Downloads/desmod_run/Bicon/new/bicon/GDC"
+mbr_path = "/home/fabio/Downloads/desmod_run/Bicon/new/bicon/Mbr"
 
 for i in range(len([x for x in listdir(gdc_path) if ".tsv" not in x])):
+    subt_t = []
+    subt_m = []
 
-    result_t = prepar_results(gdc_path, i)
-    performance_t = calculate_perfromance(result_t, known_groups_t,
-                                          freqs_t, set(exprs_t.columns.values),
-                                          classifications=classifications)
-    subt_t.append(performance_t)
+    for n in range(len([x for x in listdir(
+            join(gdc_path, str(i))) if ".tsv" not in x])):
 
-    result_m = prepar_results(mbr_path, i)
-    performance_m = calculate_perfromance(result_m, known_groups_m,
-                                          freqs_m, set(exprs_m.columns.values),
-                                          classifications=classifications)
-    subt_m.append(performance_m)
+        result_t = prepar_results(gdc_path, join(str(i), str(n)))
+        performance_t = calculate_perfromance(result_t, known_groups_t,
+                                              freqs_t, set(
+                                                  exprs_t.columns.values),
+                                              classifications=classifications)
+        subt_t.append(performance_t)
 
-pd.DataFrame.from_records(subt_t).to_csv(
-    join(gdc_path, "BICON_TCGA.tsv"), sep="\t")
-pd.DataFrame.from_records(subt_m).to_csv(
-    join(mbr_path, "BICON_METABRIC.tsv"), sep="\t")
+        result_m = prepar_results(mbr_path, join(str(i), str(n)))
+        performance_m = calculate_perfromance(result_m, known_groups_m,
+                                              freqs_m, set(
+                                                  exprs_m.columns.values),
+                                              classifications=classifications)
+        subt_m.append(performance_m)
+
+    pd.DataFrame.from_records(subt_t).sort_index(axis=1).to_csv(
+        join(gdc_path, str(i), "BICON_TCGA.tsv"), sep="\t")
+
+    pd.DataFrame.from_records(subt_m).sort_index(axis=1).to_csv(
+        join(mbr_path, str(i), "BICON_METABRIC.tsv"), sep="\t")
