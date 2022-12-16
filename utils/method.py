@@ -56,7 +56,7 @@ def validate_input_matrix(exprs, tol=0.01,standradize=True,verbose = True):
         print(len(zero_var)," zero variance rows will be dropped:",zero_var,file = sys.stderr)
         exprs = exprs.loc[std>0]
         m = m[std>0]
-        std = sts[std>0]
+        std = std[std>0]
     
     mean_passed = np.all(np.abs(m)<tol)
     std_passed = np.all(np.abs(std-1)<tol)
