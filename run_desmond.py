@@ -144,7 +144,7 @@ def run_DESMOND(exprs_file, basename, out_dir="./",
     ######### making biclusters #########
     if len(feature_clusters)==0:
         print("No biclusters found",file = sys.stderr)
-        return None, None, None
+        return pd.DataFrame()
     
     from utils.method import make_biclusters
     biclusters = make_biclusters(feature_clusters,binarized_expressions,exprs,null_distribution,
