@@ -1,11 +1,11 @@
-# DESMOND2
+# UnPaSt
 
-DESMOND2 is a novel method for identification of differentially expressed biclusters in gene expression matrix. It searches for gene sets up- or down-regulated in subsets of samples:
+UnPaSt is a novel method for identification of differentially expressed biclusters in gene expression matrix. It searches for gene sets up- or down-regulated in subsets of samples:
 
 ![alt text](./poster/DESMOND2_steps2.png)
 
 
-Webserver: TBD
+Webserver: https://unpast.zbh.uni-hamburg.de/
 
 
 ## Requirements:
@@ -28,19 +28,19 @@ R:
 </pre>
 
 ## Examples
-* DESMOND2 requires a tab-separated file with standardized expressions of genes (or transcripts) in rows, and samples in columns. Gene and sample names must be unique. 
-* A subset of 200 randomly chosen samples from TCGA-BRCA and DESMOND2 output:
+* UnPaSt requires a tab-separated file with standardized expressions of genes (or transcripts) in rows, and samples in columns. Gene and sample names must be unique. 
+* A subset of 200 randomly chosen samples from TCGA-BRCA and UnPaSt output:
 [test data](https://drive.google.com/file/d/1GXR_1ErIPtQkEOxE66at0uqQN76qNG7a/view?usp=sharing)
 
 <pre>
-# running DESMOND2 with default parameters and example data
-python run_desmond.py --exprs TCGA_200.exprs_z.tsv --basename TCGA_200_results
+# running UnPaSt with default parameters and example data
+python run_unpast.py --exprs TCGA_200.exprs_z.tsv --basename TCGA_200_results
 
 # with different binarization and clustering methods
-python run_desmond.py --exprs TCGA_200.exprs_z.tsv --basename results --binarization ward --clustering WGCNA
+python run_unpast.py --exprs TCGA_200.exprs_z.tsv --basename results --binarization ward --clustering WGCNA
 
 # help
-python run_desmond.py -h
+python run_unpast.py -h
 </pre>
 
 ## Outputs
@@ -53,11 +53,11 @@ python run_desmond.py -h
 * modules found by WGCNA [if clustering is WGCNA]
 
 ## About 
-DESMOND2 is an unconstrained version of DESMOND method ([repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true))
+UnPaSt is an unconstrained version of DESMOND method ([repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true))
 
 Major modifications:
  * it does not require the network of gene interactions 
- * DESMOND2 clusters individual genes instead of gene pairs
+ * UnPaSt clusters individual genes instead of gene pairs
  * uses Gaussian mixture models or Jenks method for binarization of individual gene expressions
  * SNR threshold is authomatically determined; it depends on bicluster size in samples and user-defined p-value cutoff
  
