@@ -6,6 +6,7 @@ import warnings
 import pandas as pd
 import numpy as np
 from time import time
+import math
 
 from scipy.interpolate import interp1d
 from scipy.sparse.csr import csr_matrix
@@ -144,7 +145,9 @@ def generate_null_dist(N, min_n_samples,n_permutations = 10000,pval = 0.001,
 def get_trend(sizes, thresholds, plot= True):
     # smoothens the trend and retunrs a function min_SNR(size; p-val. cutoff)
     lowess = sm.nonparametric.lowess
-    lowess_curve = lowess(thresholds,sizes,frac=min(0.1,15/len(sizes)),return_sorted=True,is_sorted=False)
+    frac = max(5,min(math.floor(int(0.1*len(sizes))),15))/len(sizes)
+    print("\t\tLOWESS frac=",round(frac,2), file = sys.stdout)
+    lowess_curve = lowess(thresholds,sizes,frac= frac,return_sorted=True,is_sorted=False)
     get_min_snr = interp1d(lowess_curve[:,0],lowess_curve[:,1])#,kind="nearest-up",fill_value="extrapolate")
     if plot:
         plt.plot(sizes, thresholds,"b--",lw=2)
@@ -389,7 +392,7 @@ def GM_binarization(exprs,null_distribution, min_n_samples, verbose=True, plot=T
 
 def binarize(binarized_fname_prefix, exprs=None, method='GMM',
              save = True, load = False,
-             min_n_samples = 10, pval = 0.001,
+             min_n_samples = 5, pval = 0.001,
              plot_all = True, plot_SNR_thr= np.inf,show_fits = [],
              verbose= True,seed=random.randint(0,100000),prob_cutoff=0.5,
              n_permutations=10000):
@@ -400,12 +403,12 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     t0 = time()
     
     # a file with binarized gene expressions
-    bin_exprs_fname = binarized_fname_prefix +".seed="+str(seed)+".bin_method="+method+".binarized.tsv"
+    bin_exprs_fname = binarized_fname_prefix +".seed="+str(seed)+".bin_method="+method+".min_ns="+str(min_n_samples)+".binarized.tsv"
     # a file with statistics of binarization results
-    bin_stats_fname = binarized_fname_prefix +".seed="+str(seed) + ".bin_method="+ method  + ".binarization_stats.tsv"
+    bin_stats_fname = binarized_fname_prefix +".seed="+str(seed) + ".bin_method="+ method  + ".min_ns="+str(min_n_samples) + ".binarization_stats.tsv"
     # a file with background SNR distributions for each biclsuter size
     n_permutations = max(n_permutations,int(1.0/pval*10))
-    bin_bg_fname = binarized_fname_prefix +".seed="+str(seed)+".n="+str(n_permutations)+".background.tsv"
+    bin_bg_fname = binarized_fname_prefix +".seed="+str(seed)+".n="+str(n_permutations)+".min_ns="+str(min_n_samples)+".background.tsv"
     
     load_failed = False
     if load:
@@ -448,8 +451,8 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
         t0 = time()
         
         null_distribution = generate_null_dist(exprs.shape[1], min_n_samples,
-                                                       pval = pval,n_permutations=n_permutations,
-                                                       seed =seed,verbose = verbose)
+                                               pval = pval,n_permutations=n_permutations,
+                                               seed =seed,verbose = verbose)
     
         if verbose:
             print("\tSNR thresholds for individual features computed in {:.2f} seconds".format(time()-t0))
@@ -656,31 +659,39 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.01), m=Fals
         
     else:
         # if no modularity or similarity cutoffs are specified, find it automatically
-        # find the knee point in the dependency modularity(similarity curoff)
-        from kneed import KneeLocator
         
-        # define the type of the curve
-        curve_type = "increasing"
-        if modularities[0] >= modularities[-1]:
-            curve_type = "decreasing"
-        if verbose:
-            print("\tcurve type:",curve_type,file=sys.stdout)
-        # detect knee and choose the one with the highest modularity
-        try:
-            kn = KneeLocator (similarity_cutoffs, modularities, curve='concave', direction=curve_type, online=True)
-            best_cutoff = kn.knee
-            best_Q = kn.knee_y
+        # check if modularity(cutoff)=const 
+        if len(set(modularities)) == 1:
+            best_cutoff = similarity_cutoffs[-1]
+            best_Q = modularities[0]
             labels = feature_clusters[best_cutoff]
-        except:
-            print("Failed to identify similarity cutoff",file=sys.stderr)
-            print("Cutoff:",best_cutoff, "set to 1/2", file = sys.stdout)
-            best_cutoff = 1/2
-            print("Modularity:",modularities, file = sys.stdout)
-            plt.plot(similarity_cutoffs,modularities, 'bx-')
-            plt.xlabel('similarity cutoff')
-            plt.ylabel('modularity')
-            plt.show()
-            return [], [], None
+            
+        else:
+            # find the knee point in the dependency modularity(similarity curoff)
+            from kneed import KneeLocator
+
+            # define the type of the curve
+            curve_type = "increasing"
+            if modularities[0] >= modularities[-1]:
+                curve_type = "decreasing"
+            if verbose:
+                print("\tcurve type:",curve_type,file=sys.stdout)
+            # detect knee and choose the one with the highest modularity
+            try:
+                kn = KneeLocator (similarity_cutoffs, modularities, curve='concave', direction=curve_type, online=True)
+                best_cutoff = kn.knee
+                best_Q = kn.knee_y
+                labels = feature_clusters[best_cutoff]
+            except:
+                print("Failed to identify similarity cutoff",file=sys.stderr)
+                print("Cutoff:",best_cutoff, "set to 1/2", file = sys.stdout)
+                best_cutoff = 1/2
+                print("Modularity:",modularities, file = sys.stdout)
+                plt.plot(similarity_cutoffs,modularities, 'bx-')
+                plt.xlabel('similarity cutoff')
+                plt.ylabel('modularity')
+                plt.show()
+                return [], [], None
     
     if plot and len(similarity_cutoffs)>1:
         plt.plot(similarity_cutoffs,modularities, 'bx-')
@@ -874,7 +885,7 @@ def make_TOM(similarity):
 
 
 ######## Make biclusters #########
-def cluster_samples(data,min_n_samples=10,seed=0,method="kmeans"):
+def cluster_samples(data,min_n_samples=5,seed=0,method="kmeans"):
     # identify identify bicluster and backgound groups using 2-means
     if method == "kmeans" or method == "Jenks":
         labels = KMeans(n_clusters=2, random_state=seed,n_init=5).fit(data).labels_
@@ -901,7 +912,7 @@ def cluster_samples(data,min_n_samples=10,seed=0,method="kmeans"):
 
 def modules2biclusters(modules, data_to_cluster,
                        method = "kmeans",
-                       min_n_samples=10,
+                       min_n_samples=5,
                        min_n_genes=2,seed=0,verbose = True):
     '''Identifies optimal sample set for each module: 
     splits samples into two sets in a subspace of each module
@@ -1118,7 +1129,19 @@ def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
                     J_heatmap[bic_n1][bic_n2] = J_s*J_g
                     
     J_heatmap = pd.DataFrame.from_dict(J_heatmap)
+    
+    # if all biclusters are exactly the same
+    if J_heatmap.min().min()==1:
+        # return the first bicluster
+        consensus_biclusters = biclusters.iloc[[0],:].copy()
+        consensus_biclusters.index = [0]
+        consensus_biclusters.loc[0,'detected_n_times'] = biclusters.shape[0]
+        print("all biclusters are exactly the same",file = sys.stderr)
+        return consensus_biclusters
+    else:
+        print(J_heatmap.min().min())
     if plot:
+        import seaborn as sns
         g = sns.clustermap(J_heatmap,yticklabels=False, xticklabels=False, 
                            linewidths=0, figsize=(17, 17),center=0)
     
@@ -1153,11 +1176,13 @@ def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
         else:
             # cluster samples in a new gene set
             bicluster = cluster_samples(exprs.loc[passed_genes,:].T,min_n_samples=min_n_samples,seed=seed,method=method)
-            bicluster["genes"] = set(passed_genes)
-            bicluster["n_genes"] = len(bicluster["genes"])
-            bicluster = update_bicluster_data(bicluster,exprs)
-            bicluster["detected_n_times"] = len(gsets)
-            consensus_biclusters.append(bicluster)
+            # if bicluster is not empty, add it to consenesus
+            if "sample_indexes" in bicluster.keys():
+                bicluster["genes"] = set(passed_genes)
+                bicluster["n_genes"] = len(bicluster["genes"])
+                bicluster = update_bicluster_data(bicluster,exprs)
+                bicluster["detected_n_times"] = len(gsets)
+                consensus_biclusters.append(bicluster)
     consensus_biclusters = pd.DataFrame.from_records(consensus_biclusters)
     
     print("biclusters found in %s+ runs:"%min_n_runs,consensus_biclusters.shape[0],
@@ -1175,14 +1200,14 @@ def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
 
     # sort
     col_order = ['SNR','n_genes', 'n_samples', 'genes',  'samples',  'genes_up', 'genes_down',
-                 'gene_indexes','sample_indexes',  'detected_n_times',"direction"]
+                 'gene_indexes','sample_indexes',"direction",'detected_n_times']
     consensus_biclusters = consensus_biclusters.sort_values(by=["SNR","n_samples"],ascending=[False,True])
     consensus_biclusters = consensus_biclusters.loc[:,col_order]
     consensus_biclusters = consensus_biclusters.loc[consensus_biclusters["n_samples"]>=min_n_samples,:]
     
     consensus_biclusters.index = range(consensus_biclusters.shape[0])
     
-    return consensus_biclusters, seed
+    return consensus_biclusters
 
 #### reading and writing #####
 
