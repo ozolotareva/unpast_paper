@@ -24,6 +24,10 @@ def run(exprs_file, basename='', out_dir="./",
     
     start_time = time()
     
+    # make sure that out_dir has '/' suffix
+    if out_dir[-1] != '/':
+        out_dir += '/'
+    
     if seed == -1:
         seed = random.randint(0,1000000)
         print("seed=",seed,file = sys.stdout)
@@ -60,7 +64,7 @@ def run(exprs_file, basename='', out_dir="./",
     ######### binarization #########
     from .utils.method import binarize
     
-    binarized_expressions, stats, null_distribution  = binarize(out_dir+"/"+basename, exprs=exprs,
+    binarized_expressions, stats, null_distribution  = binarize(out_dir+basename, exprs=exprs,
                                  method=bin_method, save = save, load=load,
                                  min_n_samples = min_n_samples,pval=pval,
                                  plot_all = plot_all,show_fits = show_fits,
@@ -112,7 +116,7 @@ def run(exprs_file, basename='', out_dir="./",
         now = datetime.now()
         suffix = ".tmp_" + now.strftime("%y.%m.%d_%H:%M:%S")
         for d in ["DOWN","UP"]:
-            fname = out_dir+"/"+basename+ "."+bin_method+".pval="+str(pval)+".seed="+str(seed)+"."+d+suffix+".tsv"
+            fname = out_dir+basename+ "."+bin_method+".pval="+str(pval)+".seed="+str(seed)+"."+d+suffix+".tsv"
             df = binarized_expressions.loc[:,stats["direction"]==d]
             if df.shape[0]>1:
                 modules, single_features = run_WGCNA(df,fname,deepSplit=ds,detectCutHeight=dch, verbose = verbose)  
