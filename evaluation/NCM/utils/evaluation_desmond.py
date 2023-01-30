@@ -143,7 +143,7 @@ if __name__ == "__main__":
 
     base_path = "/home/fabio/Downloads/desmod_run/D1"
 
-    for folder, alpha in zip(["0_1", "0_5", "2_5"], ["0.1", "0.5", "2.5"]):
+    for folder, alpha in zip(["0_5", "2_5"], ["0.5", "2.5"]):
         subt_t = []
         subt_m = []
 
