@@ -45,7 +45,7 @@ def run(exprs_file, basename='', out_dir="./",
         print("\t{} features x {} samples".format(exprs.shape[0],exprs.shape[1]) ,file=sys.stdout)
 
     #check if expressions are standardized (mean=0, std =1)
-    from .utils.method import validate_input_matrix
+    from utils.method import validate_input_matrix
     exprs = validate_input_matrix(exprs,verbose = verbose)
     
     #set extreme z-scores to -x and x, e.g. -3,3
@@ -62,7 +62,7 @@ def run(exprs_file, basename='', out_dir="./",
         print("min_n_samples is recommended to be >= 5", file= sys.stderr)
 
     ######### binarization #########
-    from .utils.method import binarize
+    from utils.method import binarize
     
     binarized_expressions, stats, null_distribution  = binarize(out_dir+basename, exprs=exprs,
                                  method=bin_method, save = save, load=load,
@@ -76,9 +76,9 @@ def run(exprs_file, basename='', out_dir="./",
         print("Clustering features ...\n",file=sys.stdout)
     feature_clusters, not_clustered, used_similarity_cutoffs = [], [], []
     if clust_method == "Louvain":
-        from .utils.method import run_Louvain, make_TOM
+        from utils.method import run_Louvain, make_TOM
         #from utils.method import get_similarity_corr 
-        from .utils.method import get_similarity_jaccard
+        from utils.method import get_similarity_jaccard
         
         for d in ["DOWN","UP"]:
             df = binarized_expressions.loc[:,stats["direction"]==d]
@@ -110,7 +110,7 @@ def run(exprs_file, basename='', out_dir="./",
         used_similarity_cutoffs = ",".join(map(str,used_similarity_cutoffs))
         
     elif clust_method == "WGCNA":
-        from .utils.method import run_WGCNA
+        from utils.method import run_WGCNA
         # create unique suffix  for tmp files
         from datetime import datetime
         now = datetime.now()
@@ -124,7 +124,7 @@ def run(exprs_file, basename='', out_dir="./",
                 not_clustered+= single_features
 
     elif clust_method == "DESMOND":
-        from .utils.pgm import run_sampling
+        from utils.pgm import run_sampling
 
         # convergence
         n_steps_averaged = 10
@@ -148,14 +148,14 @@ def run(exprs_file, basename='', out_dir="./",
         print("No biclusters found",file = sys.stderr)
         return pd.DataFrame()
     
-    from .utils.method import make_biclusters
+    from utils.method import make_biclusters
     biclusters = make_biclusters(feature_clusters,binarized_expressions,exprs,null_distribution,
                              method = bin_method, merge = merge,
                              min_n_samples=min_n_samples, min_n_genes=2,
                              seed = seed,cluster_binary=False,verbose = verbose)
 
     
-    from .utils.method import write_bic_table
+    from utils.method import write_bic_table
     suffix  = ".seed="+str(seed)+".bin="+bin_method+",pval="+str(pval)+",clust="+clust_method
     if clust_method == "WGCNA":
         suffix2 = ",ds="+str(ds)+",dch="+str(dch)
