@@ -1,4 +1,4 @@
-from .run_unpast import run
+from run_unpast import run
 
 
 def run_DESMOND(*args, **kwargs):
