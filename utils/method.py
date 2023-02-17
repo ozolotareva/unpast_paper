@@ -1107,6 +1107,7 @@ def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
     all_biclusters = biclusters.T.to_dict()
     J_heatmap = {}
     s = set(exprs.columns.values)
+    g = set(exprs.index.values)
     N_bics = biclusters.shape[0]
     ### plot pairwise comparisons:
     for bic_n1 in all_biclusters.keys():
@@ -1124,15 +1125,29 @@ def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
             s_union = s1.union(s2)
             J_g = len(g_overlap)/len(g_union)
             J_s = len(s_overlap)/len(s_union)
-            p =  pvalue(len(s_overlap),len(s1.difference(s2)),len(s2.difference(s1)),len(s.difference(s1|s2)))
             J_heatmap[bic_n1][bic_n2] = 0
-            if p.right_tail*(N_bics-1)*N_bics/2<0.05:
-                if similarity =="genes":
+            # significance of sample overlap
+            if similarity !="genes":
+                p_s =  pvalue(len(s_overlap),len(s1.difference(s2)),len(s2.difference(s1)),len(s.difference(s1|s2)))
+            
+            # significance of gene overlap
+            if similarity !="samples":
+                p_g =  pvalue(len(g_overlap),len(g1.difference(g2)),len(g2.difference(g1)),len(g.difference(g1|g2)))
+            
+            if similarity =="genes":
+                # only right tail is important for genes
+                if p_g.right_tail*(N_bics-1)*N_bics/2<0.05:
                     J_heatmap[bic_n1][bic_n2] = J_g
-                elif similarity == "samples":
+            elif similarity =="samples":
+                # for similarity==samples left-tail p-val matters too
+                # e.g. for biclusters constaining about a half of all samples
+                if min(p_s.right_tail,p_s.left_tail)*(N_bics-1)*N_bics/2<0.05:
                     J_heatmap[bic_n1][bic_n2] = J_s
-                elif  similarity == "both": # both genes and samples considered
-                    J_heatmap[bic_n1][bic_n2] = J_s*J_g
+            elif  similarity == "both": # both genes and samples considered
+                # consider significant overlaps in g and s and save max. J
+                if p_g.right_tail*(N_bics-1)*N_bics/2<0.05:
+                    if min(p_s.right_tail,p_s.left_tail)*(N_bics-1)*N_bics/2<0.05:
+                        J_heatmap[bic_n1][bic_n2] = max(J_s,J_g)
                     
     J_heatmap = pd.DataFrame.from_dict(J_heatmap)
     
@@ -1147,11 +1162,16 @@ def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
     
     if plot:
         import seaborn as sns
-        g = sns.clustermap(J_heatmap,yticklabels=False, xticklabels=False, 
+        g = sns.clustermap(J_heatmap,yticklabels=True, xticklabels=True, 
                            linewidths=0, figsize=(17, 17),center=0)
-    
+        g.ax_row_dendrogram.set_visible(False)
+        g.ax_col_dendrogram.set_visible(False)
+        g.cax.set_visible(False)
+        plt.show()
     # cluster biclusters by similarity
-    matched, not_matched, cutoff = run_Louvain(J_heatmap,verbose = True, plot=plot)
+    matched, not_matched, cutoff = run_Louvain(J_heatmap,
+                                               similarity_cutoffs = np.arange(1/4,4/5,0.05),m=0.9,
+                                               verbose = True, plot=True)
     
     # make consensus biclusters
     # for each group of matched biclusters, keep genes occuring at least n times
@@ -1213,7 +1233,6 @@ def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
     consensus_biclusters.index = range(consensus_biclusters.shape[0])
     
     return consensus_biclusters
-
 #### reading and writing #####
 
 def read_bic_table(file_name, parse_metadata = False):
