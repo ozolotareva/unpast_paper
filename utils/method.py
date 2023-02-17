@@ -611,7 +611,7 @@ def run_WGCNA(binarized_expressions,fname,
     return (modules,not_clustered)
 
 
-def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.01), m=False,
+def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=False,
                 verbose = True,plot=False):
     t0 = time()
     if similarity.shape[0] == 0:
@@ -628,6 +628,7 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.01), m=Fals
     best_Q = np.nan
     for cutoff in similarity_cutoffs:
         # scan the whole range of similarity cutoffs 
+        # e.g. [1/4;9/10] with step 0.5
         sim_binary = similarity.copy()
         sim_binary[sim_binary<cutoff] = 0
         sim_binary[sim_binary> 0] = 1
@@ -641,35 +642,26 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.01), m=Fals
         modularities.append(Q)
         feature_clusters[cutoff] = labels
     
-    # choose similarity cutoff 
+    # if one similarity_cutoffs contains only one value, choose it as best_cutoff
     if len(similarity_cutoffs)==1:
-        # if one cutoff value is chosen
         best_cutoff = similarity_cutoffs[0]
         best_Q = Q
-    elif m:
-        # if min. required modularity is defined 
-        # scan the whole range of similarity cutoffs ([1/5;4/5] with step 0.01) and stop whem modularity >= m
-        best_cutoff = 0
-        for i in range(len(modularities)):
-            if modularities[i] >= m:
-                best_cutoff = similarity_cutoffs[i]
-                best_Q = modularities[i]
-                labels = feature_clusters[best_cutoff]
-                break
         
+    # find best_cutoff automatically 
     else:
-        # if no modularity or similarity cutoffs are specified, find it automatically
+        
         
         # check if modularity(cutoff)=const 
         if len(set(modularities)) == 1:
             best_cutoff = similarity_cutoffs[-1]
             best_Q = modularities[0]
             labels = feature_clusters[best_cutoff]
-            
+        
+        #  if modularity!= const, scan the whole range of similarity cutoffs 
+        #  e.g. [1/4;9/10] with step 0.05
         else:
             # find the knee point in the dependency modularity(similarity curoff)
             from kneed import KneeLocator
-
             # define the type of the curve
             curve_type = "increasing"
             if modularities[0] >= modularities[-1]:
@@ -684,15 +676,30 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.01), m=Fals
                 labels = feature_clusters[best_cutoff]
             except:
                 print("Failed to identify similarity cutoff",file=sys.stderr)
-                print("Cutoff:",best_cutoff, "set to 1/2", file = sys.stdout)
-                best_cutoff = 1/2
+                print("Cutoff:",best_cutoff, "set to 1/3", file = sys.stdout)
+                best_cutoff = 1/3
                 print("Modularity:",modularities, file = sys.stdout)
-                plt.plot(similarity_cutoffs,modularities, 'bx-')
-                plt.xlabel('similarity cutoff')
-                plt.ylabel('modularity')
-                plt.show()
-                return [], [], None
-    
+                if plot:
+                    plt.plot(similarity_cutoffs,modularities, 'bx-')
+                    plt.xlabel('similarity cutoff')
+                    plt.ylabel('modularity')
+                    plt.show()
+                    #return [], [], None
+            if m:
+                # if upper threshold for modularity m is specified 
+                # chose the lowest similarity cutoff at which modularity reaches >= m
+                best_cutoff_m = 0
+                for i in range(len(modularities)):
+                    if modularities[i] >= m:
+                        best_cutoff_m = similarity_cutoffs[i]
+                        best_Q_m = modularities[i]
+                        labels_m = feature_clusters[best_cutoff]
+                        break
+                if best_cutoff_m<best_cutoff:
+                    best_cutoff = best_cutoff_m
+                    best_Q = best_Q_m
+                    labels_m = labels
+                    
     if plot and len(similarity_cutoffs)>1:
         plt.plot(similarity_cutoffs,modularities, 'bx-')
         plt.vlines(best_cutoff, plt.ylim()[0], plt.ylim()[1], linestyles='dashed',color= "red")
@@ -715,7 +722,6 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.01), m=Fals
         print("\tmodules: {}, not clustered features {} ".format(len(modules),len(not_clustered)),file = sys.stdout)
         print("\t\tsimilarity cutoff: {:.2f} modularity: {:.3f}".format(best_cutoff,best_Q),file=sys.stdout)
     return modules, not_clustered, best_cutoff
-
 
 def run_MCL(similarity, inflations = list(np.arange(11,30)/10)+[3,3.5,4,5],verbose = True):
     if similarity.shape[0] == 0:
@@ -1138,8 +1144,7 @@ def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
         consensus_biclusters.loc[0,'detected_n_times'] = biclusters.shape[0]
         print("all biclusters are exactly the same",file = sys.stderr)
         return consensus_biclusters
-    else:
-        print(J_heatmap.min().min())
+    
     if plot:
         import seaborn as sns
         g = sns.clustermap(J_heatmap,yticklabels=False, xticklabels=False, 
