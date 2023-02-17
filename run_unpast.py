@@ -190,7 +190,7 @@ def parse_args():
                         choices=["kmeans","ward",'GMM', 'Jenks'], help='binarization method')
     parser.add_argument('-p','--pval', metavar=0.01, default=0.01, type=float, help  = 'binarization p-value')
     parser.add_argument('-c','--clustering', metavar="WGCNA", default="WGCNA", type=str,
-                        choices=['Louvain', 'WGCNA','DESMOND'], help='feature clustering method')
+                        choices=['Louvain', 'WGCNA'], help='feature clustering method')
     # Louvain parameters
     parser.add_argument('-m','--modularity', default=1/3, metavar="1/3", type=float, help='Modularity corresponding to a cutoff for similarity matrix (Louvain clustering)')
     parser.add_argument('-r','--similarity_cutoffs', default=-1, metavar="-1", type=float, help='A cutoff or a list of cuttofs for similarity matrix (Louvain clustering). If set to -1, will be chosen authomatically from [1/5,4/5] using elbow method')
