@@ -6,14 +6,15 @@ import warnings
 import pandas as pd
 import numpy as np
 from time import time
+import math
 
 from scipy.interpolate import interp1d
 from scipy.sparse.csr import csr_matrix
 
 from sklearn.mixture import GaussianMixture
-#from sklearn.mixture import BayesianGaussianMixture
 from sklearn.cluster import KMeans,AgglomerativeClustering 
 import jenkspy
+from fisher import pvalue
 
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
@@ -56,7 +57,7 @@ def validate_input_matrix(exprs, tol=0.01,standradize=True,verbose = True):
         print(len(zero_var)," zero variance rows will be dropped:",zero_var,file = sys.stderr)
         exprs = exprs.loc[std>0]
         m = m[std>0]
-        std = sts[std>0]
+        std = std[std>0]
     
     mean_passed = np.all(np.abs(m)<tol)
     std_passed = np.all(np.abs(std-1)<tol)
@@ -121,7 +122,7 @@ def generate_null_dist(N, min_n_samples,n_permutations = 10000,pval = 0.001,
     if verbose:
         print("\tGenerate empirical distribuition of SNR depending on the bicluster size ...")
         print("\t\ttotal samples: %s,\n\t\tnumber of samples in a bicluster: %s - %s,\n\t\tn_permutations: %s"%(N,sizes[0],sizes[-1],n_permutations))
-        print("snr_pval threshold:",pval)
+        print("snr pval threshold:",pval)
         
     exprs =  np.zeros((n_permutations,N)) # generate random expressions from st.normal
     #values = exprs.values.reshape(-1) # random samples from expression matrix
@@ -143,9 +144,10 @@ def generate_null_dist(N, min_n_samples,n_permutations = 10000,pval = 0.001,
 
 def get_trend(sizes, thresholds, plot= True):
     # smoothens the trend and retunrs a function min_SNR(size; p-val. cutoff)
-    #rint("\t\t\tfraction:",round(min(0.1,15/len(sizes)),2))
     lowess = sm.nonparametric.lowess
-    lowess_curve = lowess(thresholds,sizes,frac=min(0.1,15/len(sizes)),return_sorted=True,is_sorted=False)
+    frac = max(5,min(math.floor(int(0.1*len(sizes))),15))/len(sizes)
+    print("\t\tLOWESS frac=",round(frac,2), file = sys.stdout)
+    lowess_curve = lowess(thresholds,sizes,frac= frac,return_sorted=True,is_sorted=False)
     get_min_snr = interp1d(lowess_curve[:,0],lowess_curve[:,1])#,kind="nearest-up",fill_value="extrapolate")
     if plot:
         plt.plot(sizes, thresholds,"b--",lw=2)
@@ -383,14 +385,14 @@ def GM_binarization(exprs,null_distribution, min_n_samples, verbose=True, plot=T
 
     # logging
     if verbose:
-        print("\tGMM binarization for {} features completed in {:.2f} s".format(len(exprs),time()-t0))
+        print("\tBinarization for {} features completed in {:.2f} s".format(len(exprs),time()-t0))
 
     return binarized_expressions, stats
 
 
 def binarize(binarized_fname_prefix, exprs=None, method='GMM',
              save = True, load = False,
-             min_n_samples = 10, pval = 0.001,
+             min_n_samples = 5, pval = 0.001,
              plot_all = True, plot_SNR_thr= np.inf,show_fits = [],
              verbose= True,seed=random.randint(0,100000),prob_cutoff=0.5,
              n_permutations=10000):
@@ -401,12 +403,12 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     t0 = time()
     
     # a file with binarized gene expressions
-    bin_exprs_fname = binarized_fname_prefix +".seed="+str(seed)+".bin_method="+method+".binarized.tsv"
+    bin_exprs_fname = binarized_fname_prefix +".seed="+str(seed)+".bin_method="+method+".min_ns="+str(min_n_samples)+".binarized.tsv"
     # a file with statistics of binarization results
-    bin_stats_fname = binarized_fname_prefix +".seed="+str(seed) + ".bin_method="+ method  + ".binarization_stats.tsv"
+    bin_stats_fname = binarized_fname_prefix +".seed="+str(seed) + ".bin_method="+ method  + ".min_ns="+str(min_n_samples) + ".binarization_stats.tsv"
     # a file with background SNR distributions for each biclsuter size
     n_permutations = max(n_permutations,int(1.0/pval*10))
-    bin_bg_fname = binarized_fname_prefix +".seed="+str(seed)+".n="+str(n_permutations)+".background.tsv"
+    bin_bg_fname = binarized_fname_prefix +".seed="+str(seed)+".n="+str(n_permutations)+".min_ns="+str(min_n_samples)+".background.tsv"
     
     load_failed = False
     if load:
@@ -449,8 +451,8 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
         t0 = time()
         
         null_distribution = generate_null_dist(exprs.shape[1], min_n_samples,
-                                                       pval = pval,n_permutations=n_permutations,
-                                                       seed =seed,verbose = verbose)
+                                               pval = pval,n_permutations=n_permutations,
+                                               seed =seed,verbose = verbose)
     
         if verbose:
             print("\tSNR thresholds for individual features computed in {:.2f} seconds".format(time()-t0))
@@ -505,7 +507,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
         #print("\t\tambiguous features:\t%s"%(passed.loc[passed["direction"]=="UP,DOWN",:].shape[0]),file = sys.stdout)
 
     # keep only binarized features
-    binarized_data = binarized_data.loc[:,passed.index.values]
+    binarized_data = binarized_data.loc[:,list(passed.index.values)]
     # add sample names 
     binarized_data.index = exprs.columns.values
         
@@ -609,7 +611,8 @@ def run_WGCNA(binarized_expressions,fname,
     return (modules,not_clustered)
 
 
-def run_Louvain(similarity,verbose = True,similarity_cutoffs = 1/3, m=False,plot=False):
+def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=False,
+                verbose = True,plot=False):
     t0 = time()
     if similarity.shape[0] == 0:
         print("no features to cluster",file =sys.stderr)
@@ -622,11 +625,10 @@ def run_Louvain(similarity,verbose = True,similarity_cutoffs = 1/3, m=False,plot
     
     modularities = []
     feature_clusters = {}
-    if m:
-        # scan the whole range between 1/3 and 3/4 with step 0.01 and stop whem modularity >= m
-        similarity_cutoffs = np.arange(1/4,4/5,0.01)
+    best_Q = np.nan
     for cutoff in similarity_cutoffs:
-        # scan the whole range of cutoffs 
+        # scan the whole range of similarity cutoffs 
+        # e.g. [1/4;9/10] with step 0.5
         sim_binary = similarity.copy()
         sim_binary[sim_binary<cutoff] = 0
         sim_binary[sim_binary> 0] = 1
@@ -640,39 +642,64 @@ def run_Louvain(similarity,verbose = True,similarity_cutoffs = 1/3, m=False,plot
         modularities.append(Q)
         feature_clusters[cutoff] = labels
     
+    # if one similarity_cutoffs contains only one value, choose it as best_cutoff
     if len(similarity_cutoffs)==1:
-        # if one cutoff value is chosen
         best_cutoff = similarity_cutoffs[0]
         best_Q = Q
-    elif m:
-        best_cutoff = 0
-        for i in range(len(modularities)):
-            if modularities[i] >= m:
-                best_cutoff = similarity_cutoffs[i]
-                best_Q = modularities[i]
-                labels = feature_clusters[best_cutoff]
-                break
         
+    # find best_cutoff automatically 
     else:
-        # find the knee point
-        from kneed import KneeLocator
-        try:
-            kn = KneeLocator (similarity_cutoffs,modularities, curve='concave', direction='increasing', online=True)
-            best_cutoff = kn.knee
-            best_Q = kn.knee_y
+        
+        
+        # check if modularity(cutoff)=const 
+        if len(set(modularities)) == 1:
+            best_cutoff = similarity_cutoffs[-1]
+            best_Q = modularities[0]
             labels = feature_clusters[best_cutoff]
-        except:
-            
-            print("Failed to identify similarity cutoff",file=sys.stderr)
-            print("Cutoff:",best_cutoff, "set to 1/2", file = sys.stdout)
-            best_cutoff = 1/2
-            print("Modularity:",modularities, file = sys.stdout)
-            plt.plot(similarity_cutoffs,modularities, 'bx-')
-            plt.xlabel('similarity cutoff')
-            plt.ylabel('modularity')
-            plt.show()
-            return [], [], None
-    
+        
+        #  if modularity!= const, scan the whole range of similarity cutoffs 
+        #  e.g. [1/4;9/10] with step 0.05
+        else:
+            # find the knee point in the dependency modularity(similarity curoff)
+            from kneed import KneeLocator
+            # define the type of the curve
+            curve_type = "increasing"
+            if modularities[0] >= modularities[-1]:
+                curve_type = "decreasing"
+            if verbose:
+                print("\tcurve type:",curve_type,file=sys.stdout)
+            # detect knee and choose the one with the highest modularity
+            try:
+                kn = KneeLocator (similarity_cutoffs, modularities, curve='concave', direction=curve_type, online=True)
+                best_cutoff = kn.knee
+                best_Q = kn.knee_y
+                labels = feature_clusters[best_cutoff]
+            except:
+                print("Failed to identify similarity cutoff",file=sys.stderr)
+                print("Cutoff:",best_cutoff, "set to 1/3", file = sys.stdout)
+                best_cutoff = 1/3
+                print("Modularity:",modularities, file = sys.stdout)
+                if plot:
+                    plt.plot(similarity_cutoffs,modularities, 'bx-')
+                    plt.xlabel('similarity cutoff')
+                    plt.ylabel('modularity')
+                    plt.show()
+                    #return [], [], None
+            if m:
+                # if upper threshold for modularity m is specified 
+                # chose the lowest similarity cutoff at which modularity reaches >= m
+                best_cutoff_m = 0
+                for i in range(len(modularities)):
+                    if modularities[i] >= m:
+                        best_cutoff_m = similarity_cutoffs[i]
+                        best_Q_m = modularities[i]
+                        labels_m = feature_clusters[best_cutoff]
+                        break
+                if best_cutoff_m<best_cutoff:
+                    best_cutoff = best_cutoff_m
+                    best_Q = best_Q_m
+                    labels_m = labels
+                    
     if plot and len(similarity_cutoffs)>1:
         plt.plot(similarity_cutoffs,modularities, 'bx-')
         plt.vlines(best_cutoff, plt.ylim()[0], plt.ylim()[1], linestyles='dashed',color= "red")
@@ -695,7 +722,6 @@ def run_Louvain(similarity,verbose = True,similarity_cutoffs = 1/3, m=False,plot
         print("\tmodules: {}, not clustered features {} ".format(len(modules),len(not_clustered)),file = sys.stdout)
         print("\t\tsimilarity cutoff: {:.2f} modularity: {:.3f}".format(best_cutoff,best_Q),file=sys.stdout)
     return modules, not_clustered, best_cutoff
-
 
 def run_MCL(similarity, inflations = list(np.arange(11,30)/10)+[3,3.5,4,5],verbose = True):
     if similarity.shape[0] == 0:
@@ -735,7 +761,6 @@ def run_MCL(similarity, inflations = list(np.arange(11,30)/10)+[3,3.5,4,5],verbo
     return [modules, not_clustered]
 
 def get_similarity_jaccard_signif(df,qval=0.01,J=0.33):
-    from fisher import pvalue
     # based on jaccard similarity
     t0 =  time()
     genes = df.columns.values
@@ -866,7 +891,7 @@ def make_TOM(similarity):
 
 
 ######## Make biclusters #########
-def cluster_samples(data,min_n_samples=10,seed=0,method="kmeans"):
+def cluster_samples(data,min_n_samples=5,seed=0,method="kmeans"):
     # identify identify bicluster and backgound groups using 2-means
     if method == "kmeans" or method == "Jenks":
         labels = KMeans(n_clusters=2, random_state=seed,n_init=5).fit(data).labels_
@@ -893,7 +918,7 @@ def cluster_samples(data,min_n_samples=10,seed=0,method="kmeans"):
 
 def modules2biclusters(modules, data_to_cluster,
                        method = "kmeans",
-                       min_n_samples=10,
+                       min_n_samples=5,
                        min_n_genes=2,seed=0,verbose = True):
     '''Identifies optimal sample set for each module: 
     splits samples into two sets in a subspace of each module
@@ -1067,6 +1092,147 @@ def make_biclusters(feature_clusters,
     return biclusters
 
 
+#### consensus biclusters ####
+
+def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
+                              similarity = "both",  # similarity could be also 'genes' or 'samples' 
+                              method="kmeans", min_n_genes =2, min_n_samples=5,
+                              seed = -1, plot = False):
+    # list of biclusters from several runs
+    if seed == -1:
+        seed = random.randint(0,1000000)
+        print("Seed for sample clustering: %s"%(seed),file=sys.stderr)
+    
+    # calculate pairwise bicluster 
+    all_biclusters = biclusters.T.to_dict()
+    J_heatmap = {}
+    s = set(exprs.columns.values)
+    g = set(exprs.index.values)
+    N_bics = biclusters.shape[0]
+    ### plot pairwise comparisons:
+    for bic_n1 in all_biclusters.keys():
+        b1 = all_biclusters[bic_n1]
+        g1 = b1["genes"]
+        s1 = b1["samples"]
+        J_heatmap[bic_n1] = {}
+        for bic_n2 in all_biclusters.keys():
+            b2 = all_biclusters[bic_n2]
+            g2 = b2["genes"]
+            s2 = b2["samples"]
+            g_overlap = g1.intersection(g2)
+            g_union = g1.union(g2)
+            s_overlap = s1.intersection(s2)
+            s_union = s1.union(s2)
+            J_g = len(g_overlap)/len(g_union)
+            J_s = len(s_overlap)/len(s_union)
+            J_heatmap[bic_n1][bic_n2] = 0
+            # significance of sample overlap
+            if similarity !="genes":
+                p_s =  pvalue(len(s_overlap),len(s1.difference(s2)),len(s2.difference(s1)),len(s.difference(s1|s2)))
+            
+            # significance of gene overlap
+            if similarity !="samples":
+                p_g =  pvalue(len(g_overlap),len(g1.difference(g2)),len(g2.difference(g1)),len(g.difference(g1|g2)))
+            
+            if similarity =="genes":
+                # only right tail is important for genes
+                if p_g.right_tail*(N_bics-1)*N_bics/2<0.05:
+                    J_heatmap[bic_n1][bic_n2] = J_g
+            elif similarity =="samples":
+                # for similarity==samples left-tail p-val matters too
+                # e.g. for biclusters constaining about a half of all samples
+                if min(p_s.right_tail,p_s.left_tail)*(N_bics-1)*N_bics/2<0.05:
+                    J_heatmap[bic_n1][bic_n2] = J_s
+            elif  similarity == "both": # both genes and samples considered
+                # consider significant overlaps in g and s and save max. J
+                if p_g.right_tail*(N_bics-1)*N_bics/2<0.05:
+                    if min(p_s.right_tail,p_s.left_tail)*(N_bics-1)*N_bics/2<0.05:
+                        J_heatmap[bic_n1][bic_n2] = max(J_s,J_g)
+                    
+    J_heatmap = pd.DataFrame.from_dict(J_heatmap)
+    
+    # if all biclusters are exactly the same
+    if J_heatmap.min().min()==1:
+        # return the first bicluster
+        consensus_biclusters = biclusters.iloc[[0],:].copy()
+        consensus_biclusters.index = [0]
+        consensus_biclusters.loc[0,'detected_n_times'] = biclusters.shape[0]
+        print("all biclusters are exactly the same",file = sys.stderr)
+        return consensus_biclusters
+    
+    if plot:
+        import seaborn as sns
+        g = sns.clustermap(J_heatmap,yticklabels=True, xticklabels=True, 
+                           linewidths=0, figsize=(17, 17),center=0)
+        g.ax_row_dendrogram.set_visible(False)
+        g.ax_col_dendrogram.set_visible(False)
+        g.cax.set_visible(False)
+        plt.show()
+    # cluster biclusters by similarity
+    matched, not_matched, cutoff = run_Louvain(J_heatmap,
+                                               similarity_cutoffs = np.arange(1/4,4/5,0.05),m=0.9,
+                                               verbose = True, plot=True)
+    
+    # make consensus biclusters
+    # for each group of matched biclusters, keep genes occuring at least n times
+    # cluster samples again in a subspace of a new gene set
+    consensus_biclusters = []
+
+    # for each group of matched biclusters 
+    for i in range(len(matched)):
+        gsets = biclusters.loc[matched[i],"genes"].values
+        
+        # count gene occurencies
+        gene_occurencies = {}
+        for gene in set().union(*gsets):
+            gene_occurencies[gene] = 0
+            for gset in gsets:
+                if gene in gset:
+                    gene_occurencies[gene]+=1
+        
+        gene_occurencies = pd.Series(gene_occurencies).sort_values()
+        passed_genes = sorted(gene_occurencies[gene_occurencies>=min_n_runs].index.values)
+        not_passed_genes  = sorted(gene_occurencies[gene_occurencies==min_n_runs].index.values)
+
+        
+        if len(passed_genes)<min_n_genes:
+            # move all biclusters to not matched
+            not_matched += list(matched[i])
+        else:
+            # cluster samples in a new gene set
+            bicluster = cluster_samples(exprs.loc[passed_genes,:].T,min_n_samples=min_n_samples,seed=seed,method=method)
+            # if bicluster is not empty, add it to consenesus
+            if "sample_indexes" in bicluster.keys():
+                bicluster["genes"] = set(passed_genes)
+                bicluster["n_genes"] = len(bicluster["genes"])
+                bicluster = update_bicluster_data(bicluster,exprs)
+                bicluster["detected_n_times"] = len(gsets)
+                consensus_biclusters.append(bicluster)
+    consensus_biclusters = pd.DataFrame.from_records(consensus_biclusters)
+    
+    print("biclusters found in %s+ runs:"%min_n_runs,consensus_biclusters.shape[0],
+          "in less then %s runs:"%min_n_runs,len(not_matched))
+    
+    # add not matched
+    not_changed_biclusters = biclusters.loc[not_matched,:]
+    not_changed_biclusters["detected_n_times"] = 1
+    consensus_biclusters = pd.concat([consensus_biclusters,not_changed_biclusters])
+
+    # add direction
+    consensus_biclusters["direction"] = "BOTH"
+    consensus_biclusters.loc[consensus_biclusters["n_genes"] == consensus_biclusters["genes_up"].apply(len),"direction"] = "UP"
+    consensus_biclusters.loc[consensus_biclusters["n_genes"] == consensus_biclusters["genes_down"].apply(len),"direction"] = "DOWN"
+
+    # sort
+    col_order = ['SNR','n_genes', 'n_samples', 'genes',  'samples',  'genes_up', 'genes_down',
+                 'gene_indexes','sample_indexes',"direction",'detected_n_times']
+    consensus_biclusters = consensus_biclusters.sort_values(by=["SNR","n_samples"],ascending=[False,True])
+    consensus_biclusters = consensus_biclusters.loc[:,col_order]
+    consensus_biclusters = consensus_biclusters.loc[consensus_biclusters["n_samples"]>=min_n_samples,:]
+    
+    consensus_biclusters.index = range(consensus_biclusters.shape[0])
+    
+    return consensus_biclusters
 #### reading and writing #####
 
 def read_bic_table(file_name, parse_metadata = False):

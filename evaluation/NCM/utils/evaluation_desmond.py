@@ -110,7 +110,6 @@ if __name__ == "__main__":
     exprs_file_t = join(
         base_data_dir,
         "TCGA-BRCA_1079_17Kgenes.Xena_TCGA_PanCan.log2_exprs_z_v6.tsv")
-    basename_t = "TCGA"
 
     t_subtypes = pd.read_csv(
         join(base_data_dir,
@@ -118,25 +117,17 @@ if __name__ == "__main__":
              "TCGA_PanCan.subtypes_and_signatures_v6.tsv"),
         sep="\t", index_col=0)
     t_annotation = pd.read_csv(
-        join(base_data_dir, "TCGA-BRCA_1079.Xena_TCGA_PanCan.annotation_v6.tsv"),
+        join(base_data_dir,
+             "TCGA-BRCA_1079.Xena_TCGA_PanCan.annotation_v6.tsv"),
         sep="\t", index_col=0)
 
     exprs_t = pd.read_csv(exprs_file_t, sep="\t", index_col=0)
     known_groups_t, freqs_t = make_ref_groups(
         t_subtypes, t_annotation, exprs_t)
 
-    fname = "/home/fabio/Downloads/desmod_run/D1/GDC/" + \
-        "GDC.alpha=0.5,beta_K=1.0,p_val=0.01,q=0.5.biclusters.permutations.tsv"
-
-    if not exists(fname[:-4] + "_edited.tsv"):
-        adapt_bicluster(exprs_t, fname)
-
-    result_t = read_bic_table(fname[:-4] + "_edited.tsv")
-
     # NOTE MBR
     exprs_file_m = join(
         base_data_dir, "METABRIC_1904_17Kgenes.log2_exprs_z_v6.tsv")
-    basename_m = "METABRIC"
 
     m_subtypes = pd.read_csv(
         join(base_data_dir,
@@ -147,29 +138,56 @@ if __name__ == "__main__":
         sep="\t", index_col=0)
 
     exprs_m = pd.read_csv(exprs_file_m, sep="\t", index_col=0)
-
-    fname = "/home/fabio/Downloads/desmod_run/D1/Mbr/" + \
-        "Mbr.alpha=0.5,beta_K=1.0,p_val=0.01,q=0.5.biclusters.permutations.tsv"
-
-    if not exists(fname[:-4] + "_edited.tsv"):
-        adapt_bicluster(exprs_m, fname)
-
-    result_m = read_bic_table(fname[:-4] + "_edited.tsv")
-
     known_groups_m, freqs_m = make_ref_groups(
         m_subtypes, m_annotation, exprs_m)
 
-    # NOTE calculations
-    performance_t = calculate_perfromance(result_t, known_groups_t,
-                                          freqs_t, set(exprs_t.columns.values),
-                                          classifications=classifications)
+    base_path = "/home/fabio/Downloads/desmod_run/D1"
 
-    performance_m = calculate_perfromance(result_m, known_groups_m,
-                                          freqs_m, set(exprs_m.columns.values),
-                                          classifications=classifications)
+    for folder, alpha in zip(["0_5", "2_5"], ["0.5", "2.5"]):
+        subt_t = []
+        subt_m = []
 
-    pd.DataFrame.from_records(performance_t, index=[0]).to_csv(
-        "/home/fabio/Downloads/desmod_run/D1/GDC/eval_gdc.tsv", sep="\t")
+        for n in range(5):
 
-    pd.DataFrame.from_records(performance_m, index=[0]).to_csv(
-        "/home/fabio/Downloads/desmod_run/D1/Mbr/eval_mbr.tsv", sep="\t")
+            # NOTE GDC
+            fname = f"/home/fabio/Downloads/desmod_run/D1/{folder}/GDC/{n}" + \
+                    f"/GDC.alpha={alpha},beta_K=1.0,p_val=0.01," + \
+                    "q=0.5.biclusters.permutations.tsv"
+
+            if not exists(fname[:-4] + "_edited.tsv"):
+                adapt_bicluster(exprs_t, fname)
+
+            result_t = read_bic_table(fname[:-4] + "_edited.tsv")
+
+            # NOTE MBR
+            fname = f"/home/fabio/Downloads/desmod_run/D1/{folder}/Mbr/{n}" + \
+                    f"/Mbr.alpha={alpha},beta_K=1.0,p_val=0.01," + \
+                    "q=0.5.biclusters.permutations.tsv"
+
+            if not exists(fname[:-4] + "_edited.tsv"):
+                adapt_bicluster(exprs_m, fname)
+
+            result_m = read_bic_table(fname[:-4] + "_edited.tsv")
+
+            # NOTE calculations
+            performance_t = calculate_perfromance(
+                result_t, known_groups_t,
+                freqs_t, set(
+                    exprs_t.columns.values),
+                classifications=classifications)
+            subt_t.append(performance_t)
+
+            performance_m = calculate_perfromance(
+                result_m, known_groups_m,
+                freqs_m, set(
+                    exprs_m.columns.values),
+                classifications=classifications)
+            subt_m.append(performance_m)
+
+        pd.DataFrame.from_records(subt_t).sort_index(axis=1).to_csv(
+            f"/home/fabio/Downloads/desmod_run/D1/{folder}/GDC/eval_gdc.tsv",
+            sep="\t")
+
+        pd.DataFrame.from_records(subt_m).sort_index(axis=1).to_csv(
+            f"/home/fabio/Downloads/desmod_run/D1/{folder}/Mbr/eval_mbr.tsv",
+            sep="\t")
