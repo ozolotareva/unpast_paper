@@ -689,7 +689,7 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
             if m:
                 # if upper threshold for modularity m is specified 
                 # chose the lowest similarity cutoff at which modularity reaches >= m
-                best_cutoff_m = 0
+                best_cutoff_m = 1
                 for i in range(len(modularities)):
                     if modularities[i] >= m:
                         best_cutoff_m = similarity_cutoffs[i]
@@ -699,7 +699,7 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
                 if best_cutoff_m<best_cutoff:
                     best_cutoff = best_cutoff_m
                     best_Q = best_Q_m
-                    labels_m = labels
+                    labels = labels_m
                     
     if plot and len(similarity_cutoffs)>1:
         plt.plot(similarity_cutoffs,modularities, 'bx-')
