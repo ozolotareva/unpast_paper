@@ -1131,17 +1131,7 @@ def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
             J_g = len(g_overlap)/len(g_union)
             J_s = len(s_overlap)/len(s_union)
             J_heatmap[bic_n1][bic_n2] = 0
-            
-            # significance of sample overlap
-            if similarity !="genes":
-                if len(s)<5000:
-                    p_s =  pvalue(len(s_overlap),len(s1.difference(s2)),len(s2.difference(s1)),len(s.difference(s1|s2)))
-                    # for similarity==samples left-tail p-val matters too
-                    # e.g. for biclusters constaining about a half of all samples
-                    p_s = min(p_s.right_tail,p_s.left_tail)
-                else:
-                    chi2, p_s, dof, expected = chi2_contingency([[len(s_overlap), len(s1.difference(s2))],
-                                                                     [len(s2.difference(s1)), len(s.difference(s1|s2))]]) 
+                    
             # significance of gene overlap
             if similarity !="samples":
                 if len(g_overlap)==0:
@@ -1155,6 +1145,22 @@ def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
                         # otherwise replacing exact Fisher's with chi2 
                         chi2, p_g, dof, expected = chi2_contingency([[len(g_overlap), len(g1.difference(g2))],
                                                                      [len(g2.difference(g1)), len(g.difference(g1|g2))]]) 
+            
+            # significance of sample overlap
+            if similarity !="genes":
+                # skip if similarity==both and gene overlap is empty
+                if similarity =="both" and len(g)==0: 
+                    p_s = 1
+                else:
+                    if len(s)<5000:
+                        p_s =  pvalue(len(s_overlap),len(s1.difference(s2)),len(s2.difference(s1)),len(s.difference(s1|s2)))
+                        # for similarity==samples left-tail p-val matters too
+                        # e.g. for biclusters constaining about a half of all samples
+                        p_s = min(p_s.right_tail,p_s.left_tail)
+                    else:
+                        chi2, p_s, dof, expected = chi2_contingency([[len(s_overlap), len(s1.difference(s2))],
+                                                                         [len(s2.difference(s1)), len(s.difference(s1|s2))]]) 
+            
             
             if similarity =="genes":
                 if p_g*(N_bics-1)*N_bics/2<0.05:
