@@ -10,6 +10,7 @@ import math
 
 from scipy.interpolate import interp1d
 from scipy.sparse.csr import csr_matrix
+from scipy.stats import chi2_contingency
 
 from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans,AgglomerativeClustering 
@@ -1094,29 +1095,33 @@ def make_biclusters(feature_clusters,
 
 #### consensus biclusters ####
 
-def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
+def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
                               similarity = "both",  # similarity could be also 'genes' or 'samples' 
                               method="kmeans", min_n_genes =2, min_n_samples=5,
                               seed = -1, plot = False):
+    t0 = time()
     # list of biclusters from several runs
+    biclusters = pd.concat(biclusters_list)
+    biclusters.index = range(biclusters.shape[0]) 
+    biclusters_dict = biclusters.T.to_dict()
+    
     if seed == -1:
         seed = random.randint(0,1000000)
         print("Seed for sample clustering: %s"%(seed),file=sys.stderr)
     
-    # calculate pairwise bicluster 
-    all_biclusters = biclusters.T.to_dict()
+    # calculate pairwise bicluster similarity
     J_heatmap = {}
     s = set(exprs.columns.values)
     g = set(exprs.index.values)
-    N_bics = biclusters.shape[0]
+    N_bics = len(biclusters.keys())
     ### plot pairwise comparisons:
-    for bic_n1 in all_biclusters.keys():
-        b1 = all_biclusters[bic_n1]
+    for bic_n1 in biclusters_dict.keys():
+        b1 = biclusters_dict[bic_n1]
         g1 = b1["genes"]
         s1 = b1["samples"]
         J_heatmap[bic_n1] = {}
-        for bic_n2 in all_biclusters.keys():
-            b2 = all_biclusters[bic_n2]
+        for bic_n2 in biclusters_dict.keys():
+            b2 = biclusters_dict[bic_n2]
             g2 = b2["genes"]
             s2 = b2["samples"]
             g_overlap = g1.intersection(g2)
@@ -1126,27 +1131,41 @@ def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
             J_g = len(g_overlap)/len(g_union)
             J_s = len(s_overlap)/len(s_union)
             J_heatmap[bic_n1][bic_n2] = 0
+            
             # significance of sample overlap
             if similarity !="genes":
-                p_s =  pvalue(len(s_overlap),len(s1.difference(s2)),len(s2.difference(s1)),len(s.difference(s1|s2)))
-            
+                if len(s)<5000:
+                    p_s =  pvalue(len(s_overlap),len(s1.difference(s2)),len(s2.difference(s1)),len(s.difference(s1|s2)))
+                    # for similarity==samples left-tail p-val matters too
+                    # e.g. for biclusters constaining about a half of all samples
+                    p_s = min(p_s.right_tail,p_s.left_tail)
+                else:
+                    chi2, p_s, dof, expected = chi2_contingency([[len(s_overlap), len(s1.difference(s2))],
+                                                                     [len(s2.difference(s1)), len(s.difference(s1|s2))]]) 
             # significance of gene overlap
             if similarity !="samples":
-                p_g =  pvalue(len(g_overlap),len(g1.difference(g2)),len(g2.difference(g1)),len(g.difference(g1|g2)))
+                if len(g_overlap)==0:
+                    p_g = 1
+                else:
+                    if len(g)<5000:
+                        # if not too many features, use Fisher's exact
+                        p_g =  pvalue(len(g_overlap),len(g1.difference(g2)),len(g2.difference(g1)),len(g.difference(g1|g2)))
+                        p_g = p_g.right_tail
+                    else:
+                        # otherwise replacing exact Fisher's with chi2 
+                        chi2, p_g, dof, expected = chi2_contingency([[len(g_overlap), len(g1.difference(g2))],
+                                                                     [len(g2.difference(g1)), len(g.difference(g1|g2))]]) 
             
             if similarity =="genes":
-                # only right tail is important for genes
-                if p_g.right_tail*(N_bics-1)*N_bics/2<0.05:
+                if p_g*(N_bics-1)*N_bics/2<0.05:
                     J_heatmap[bic_n1][bic_n2] = J_g
             elif similarity =="samples":
-                # for similarity==samples left-tail p-val matters too
-                # e.g. for biclusters constaining about a half of all samples
-                if min(p_s.right_tail,p_s.left_tail)*(N_bics-1)*N_bics/2<0.05:
+                if p_s*(N_bics-1)*N_bics/2<0.05:
                     J_heatmap[bic_n1][bic_n2] = J_s
             elif  similarity == "both": # both genes and samples considered
                 # consider significant overlaps in g and s and save max. J
-                if p_g.right_tail*(N_bics-1)*N_bics/2<0.05:
-                    if min(p_s.right_tail,p_s.left_tail)*(N_bics-1)*N_bics/2<0.05:
+                if p_g*(N_bics-1)*N_bics/2<0.05:
+                    if p_s*(N_bics-1)*N_bics/2<0.05:
                         J_heatmap[bic_n1][bic_n2] = max(J_s,J_g)
                     
     J_heatmap = pd.DataFrame.from_dict(J_heatmap)
@@ -1168,10 +1187,16 @@ def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
         g.ax_col_dendrogram.set_visible(False)
         g.cax.set_visible(False)
         plt.show()
+    
+    t1= time()
+    print(round(t1-t0),"s for similarity matrix")
+    
     # cluster biclusters by similarity
     matched, not_matched, cutoff = run_Louvain(J_heatmap,
                                                similarity_cutoffs = np.arange(1/4,4/5,0.05),m=0.9,
                                                verbose = True, plot=True)
+    t2 = time()
+    #print(round(t2-t1),"s for Louvain ")
     
     # make consensus biclusters
     # for each group of matched biclusters, keep genes occuring at least n times
@@ -1232,7 +1257,10 @@ def make_consensus_biclusters(biclusters,exprs, min_n_runs=2,
     
     consensus_biclusters.index = range(consensus_biclusters.shape[0])
     
+    print(round(time()-t2),"s for making consensus biclusters from consensus gene sets")
+    
     return consensus_biclusters
+
 #### reading and writing #####
 
 def read_bic_table(file_name, parse_metadata = False):
