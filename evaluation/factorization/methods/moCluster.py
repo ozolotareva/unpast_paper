@@ -1,7 +1,7 @@
 import subprocess
 import os
 import pandas as pd
-from .settings import MOCLUSTER_RANDOM_STATES, CLUSTER_RANGE, MOCLUSTER_RANGE
+from .settings import MOCLUSTER_RANDOM_STATES, CLUSTER_RANGE, MOCLUSTER_RANGE, MOCLUSTER_CENTER, MOCLUSTER_K, MOCLUSTER_METHOD, MOCLUSTER_OPTION, MOCLUSTER_SCALE, MOCLUSTER_SOLVER
 from .utils.miscellaneous import run_method
 from .utils import interpret_results, resultsHandler
 
@@ -11,20 +11,39 @@ def generate_arg_list(exprs_file, output_folder, ground_truth_file, cluster_rang
     for m in MOCLUSTER_RANDOM_STATES:
         for n_cluster in cluster_range:
             for n_dimensions in MOCLUSTER_RANGE:
-                output_path = os.path.join(output_folder, 
-                    f'n_dimensions={n_dimensions}',
-                    f'n_cluster={n_cluster}',
-                    f'random_state={m}', 
-                    )
+                for solver in MOCLUSTER_SOLVER:
+                    for center in MOCLUSTER_CENTER:
+                        for method in MOCLUSTER_METHOD:
+                            for option in MOCLUSTER_OPTION:
+                                for scale in MOCLUSTER_SCALE:
+                                    for k in MOCLUSTER_K:
+                                        
+                                        output_path = os.path.join(output_folder, 
+                                            f'n_dimensions={n_dimensions}',
+                                            f'n_cluster={n_cluster}',
+                                            f'random_state={m}', 
+                                            f'solver={solver}', 
+                                            f'center={center}', 
+                                            f'method={method}', 
+                                            f'option={option}', 
+                                            f'scale={scale}', 
+                                            f'k={k}', 
+                                            )
 
-                args = {'exprs_file': exprs_file,
-                        'output_path': output_path,
-                        'ground_truth_file': ground_truth_file,
-                        'n_dimensions': n_dimensions,
-                        'n_cluster': n_cluster,
-                        'random_state': m,
-                    }
-                arguments.append(args)
+                                        args = {'exprs_file': exprs_file,
+                                                'output_path': output_path,
+                                                'ground_truth_file': ground_truth_file,
+                                                'n_dimensions': n_dimensions,
+                                                'n_cluster': n_cluster,
+                                                'random_state': m,
+                                                'solver': solver,
+                                                'center': center,
+                                                'method': method,
+                                                'option': option,
+                                                'scale': scale,
+                                                'k': k,
+                                            }
+                                        arguments.append(args)
     return arguments
 
 def format_output(output_path, n_cluster):
@@ -36,19 +55,19 @@ def format_output(output_path, n_cluster):
             'samples': set(df_sub.index),
             'n_samples': len(df_sub.index)
         }
-    os.remove(os.path.join(output_path, 'mocluster_result.csv'))
+    # os.remove(os.path.join(output_path, 'mocluster_result.csv'))
     return pd.DataFrame(cluster).T
 
 def read_runtime(output_path):
     runtime_string = open(os.path.join(output_path, 'mocluster_runtime.txt'), 'r').read().strip()
     runtime = float(runtime_string)
-    os.remove(os.path.join(output_path, 'mocluster_runtime.txt'))
+    # os.remove(os.path.join(output_path, 'mocluster_runtime.txt'))
     return runtime
 
-def execute_algorithm(exprs_file, n_dimensions, n_cluster, random_state, output_path, **_):
+def execute_algorithm(exprs_file, n_dimensions, n_cluster, random_state, output_path, k, option, solver, center, scale, method, **_):
     # this saves the result to a file
     # time is measured inside the R script
-    subprocess.Popen(fr'Rscript ./methods/moCluster.R {exprs_file} {n_dimensions} {n_cluster} {random_state} {output_path}', shell=True).wait()
+    subprocess.Popen(fr'Rscript ./methods/moCluster.R {exprs_file} {n_dimensions} {n_cluster} {random_state} {output_path} {k} {option} {solver} {center} {scale} {method}', shell=True).wait()
     return format_output(output_path, n_cluster), read_runtime(output_path)
 
 def run_simulated(args):

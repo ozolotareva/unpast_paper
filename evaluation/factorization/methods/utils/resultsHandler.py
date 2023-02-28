@@ -53,7 +53,7 @@ def read_runtime(output_path):
 def read_samples(output_path):
     with open(os.path.join(output_path, OUTPUT_SAMPLES), 'r') as f:
         samples = f.read().split(',')
-        return samples
+        return set(samples)
     
 def calc_performance(found_clusters, all_samples, ground_truth_file,match_unique=True):
     

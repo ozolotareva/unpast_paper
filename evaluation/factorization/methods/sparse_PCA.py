@@ -6,11 +6,14 @@ import pandas as pd
 from .settings import S_PCA_ALPHA, S_PCA_MAX_ITER, S_PCA_METHOD, S_PCA_RIDGE_ALPHA, S_PCA_TOL, RANDOM_STATES, CLUSTER_RANGE
 from .utils.miscellaneous import run_method
 from .utils import interpret_results, resultsHandler
+import json
+import numpy as np
 
 
 def generate_arg_list(exprs_file, output_folder, ground_truth_file, cluster_range=CLUSTER_RANGE):
     arguments = []
-    # NMF - not transposed
+    cluster_range = list(cluster_range)
+    cluster_range.append(None)
     for m in RANDOM_STATES:
         for n_components in cluster_range:
             for alpha in S_PCA_ALPHA:
@@ -42,7 +45,7 @@ def generate_arg_list(exprs_file, output_folder, ground_truth_file, cluster_rang
                                 arguments.append(args)
     return arguments
 
-def execute_algorithm(exprs, n_components, alpha, ridge_alpha, max_iter, method, tol, random_state=101, **_):
+def execute_algorithm(exprs, n_components, alpha, ridge_alpha, max_iter, method, tol, output_path, random_state=101, **_):
     start = time.time()
     with sklearn.config_context(assume_finite=True):
         transformer = SparsePCA(n_components=n_components, alpha=alpha, ridge_alpha=ridge_alpha, max_iter=max_iter, method=method, tol=tol, random_state=random_state)
@@ -50,6 +53,16 @@ def execute_algorithm(exprs, n_components, alpha, ridge_alpha, max_iter, method,
     result = interpret_results.format_sklearn_output(exprs_transformed, n_components, exprs.index)
     end = time.time()
     runtime = end-start
+    
+    df = pd.DataFrame(transformer.components_, columns=exprs.columns)
+    df.to_csv(os.path.join(output_path, 'pca_components.tsv'), sep='\t')
+    gene_clusters = {}
+    for index, row in df.iterrows():
+        gene_cluster = list(row[row.map(lambda x : np.abs(x) > 0)].index)
+        gene_clusters[index] = gene_cluster
+
+    with open(os.path.join(output_path, 'gene_clusters.json'), 'w') as f:
+        json.dump(gene_clusters, f)
     return result, runtime
 
 def run_simulated(args):
