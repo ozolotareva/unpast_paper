@@ -491,6 +491,7 @@ def bic_survival(surv_anno,samples,event = "OS",surv_time = "",
             lower_95CI = res_table.loc["x","exp(coef) lower 95%"]
         except:
             pass
+    
     results = {"p_value":pval,"HR":hr,
                   "upper_95CI":upper_95CI,
                   "lower_95CI":lower_95CI}
@@ -510,7 +511,17 @@ def bic_survival(surv_anno,samples,event = "OS",surv_time = "",
 def add_survival(biclusters, # dataframes with biclustes
                  sample_data, # sample annotation
                  event= "OS", surv_time = "", # event and time column names
-                 covariates=[],verbose = True):
+                 covariates=[],
+                 min_n_events=5,
+                 verbose = True):
+    # if too few events, add na columns
+    if sample_data[event].sum() < min_n_events:
+        df = biclusters.copy()
+        for col in [".p_value",".p_value_BH",
+                    ".HR",".upper_95CI",".lower_95CI",
+                    ".LogR_p_value",".LogR_p_value_BH"]:
+            df[col] = np.nan
+        return df
     if not surv_time:
         surv_time= event+".time"
     surv_results = {}
@@ -558,14 +569,14 @@ def test_sample_overlap(row, sample_set, N):
 
 def add_sex(biclusters,males = [],females=[]):
     sample_sets = {}
-    if len(males)>0:
-        sample_sets["male"] = set(males)
-    if len(females)>0:
-        sample_sets["female"] = set(females)
+    #if len(males)>0:
+    sample_sets["male"] = set(males)
+    #if len(females)>0:
+    sample_sets["female"] = set(females)
     
     N = len(males)+len(females)
     dfs =[]
-    for sex in ["male","female"]:
+    for sex in sample_sets.keys():
         sample_set = sample_sets[sex]
         df = biclusters.apply(lambda row: test_sample_overlap(row, sample_set, N),axis=1)
         df.columns = [sex+"."+x for x in df.columns]
