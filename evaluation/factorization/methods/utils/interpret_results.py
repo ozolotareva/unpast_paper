@@ -11,6 +11,11 @@ def format_sklearn_output(M, n_cluster, labels, transposed=True):
     # select samples based on this: https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-7-78#Sec9
     # Operationally, this was achieved by sorting the genes in descending order by their coefficients in a given column of W (column j) and selecting only the first consecutive genes from the sorted list whose highest entry in W was the coefficient in column j
     group = {}
+    if n_cluster is None:
+        if transposed:
+            n_cluster = len(M[:, 1])
+        else:
+            n_cluster = len(M[1, :])
     for j in range(n_cluster):
         # get column in W and mark index --> (index, value)
         sample_factors_j = index_values(M[:, j]) if transposed else index_values(M[j, :])

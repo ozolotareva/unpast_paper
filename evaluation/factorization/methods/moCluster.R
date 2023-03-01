@@ -10,6 +10,13 @@ dimensions <- args[2]
 n_cluster <- args[3]
 seed <- as.numeric(args[4])
 output_folder <- args[5]
+k <- as.numeric(args[6])
+option <- args[7]
+solver <- args[8]
+center <- args[9] == 'True'
+scale <- args[10] == 'True'
+method <- args[11]
+
 
 set.seed(seed)
 exprs <- list(as.data.frame(as.matrix(fread(exprs_file),rownames=1)))
@@ -17,8 +24,8 @@ exprs <- list(as.data.frame(as.matrix(fread(exprs_file),rownames=1)))
 sapply(exprs, dim) # check dimensions of expression data
 
 start.time <- Sys.time()
-moas <- mbpca(exprs, ncomp = dimensions, k = 0.1, method = "globalScore", option = "lambda1", 
-              center=TRUE, scale=FALSE, moa = TRUE, svd.solver = "fast", maxiter = 1000)
+moas <- mbpca(exprs, ncomp = dimensions, k = k, method = method, option = option, 
+              center=center, scale=scale, moa = TRUE, svd.solver = solver, maxiter = 1000)
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 

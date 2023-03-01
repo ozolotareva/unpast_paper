@@ -1,7 +1,7 @@
 import subprocess
 import os
 import pandas as pd
-from .settings import RANDOM_STATES, CLUSTER_RANGE, MOFA2_FACTORS
+from .settings import RANDOM_STATES, CLUSTER_RANGE, MOFA2_FACTORS, MOFA2_ARD_WEIGHTS, MOFA2_SPIKESLAB_FACTORS, MOFA2_ARD_FACTORS, MOFA2_LIKELIHOODS, MOFA2_SPIKESLAB_WEIGHTS
 from .utils.miscellaneous import run_method
 from .utils import interpret_results, resultsHandler
 
@@ -12,33 +12,50 @@ def generate_arg_list(exprs_file, output_folder, ground_truth_file, cluster_rang
     for m in RANDOM_STATES:
         for n_cluster in cluster_range:
             for n_factors in MOFA2_FACTORS:
-                output_path = os.path.join(output_folder, 
-                    f'n_factors={n_factors}',
-                    f'n_cluster={n_cluster}',
-                    f'random_state={m}', 
-                    )
+                for ard_weights in MOFA2_ARD_WEIGHTS:
+                    for ard_factors in MOFA2_ARD_FACTORS:
+                        for likelihood in MOFA2_LIKELIHOODS:
+                            for spikeslab_weights in MOFA2_SPIKESLAB_WEIGHTS:
+                                for spikeslab_factors in MOFA2_SPIKESLAB_FACTORS:
+                                    output_path = os.path.join(output_folder, 
+                                        f'n_factors={n_factors}',
+                                        f'n_cluster={n_cluster}',
+                                        f'random_state={m}', 
+                                        f'ard_weights={ard_weights}', 
+                                        f'ard_factors={ard_factors}', 
+                                        f'likelihood={likelihood}', 
+                                        f'spikeslab_weights={spikeslab_weights}', 
+                                        f'spikeslab_factors={spikeslab_factors}', 
+                                        )
 
-                args = {'exprs_file': exprs_file,
-                        'output_path': output_path,
-                        'ground_truth_file': ground_truth_file,
-                        'n_factors': n_factors,
-                        'n_cluster': n_cluster,
-                        'random_state': m,
-                    }
-                arguments.append(args)
+                                    args = {'exprs_file': exprs_file,
+                                            'output_path': output_path,
+                                            'ground_truth_file': ground_truth_file,
+                                            'n_factors': n_factors,
+                                            'n_cluster': n_cluster,
+                                            'random_state': m,
+                                            'ard_weights': ard_weights,
+                                            'ard_factors': ard_factors,
+                                            'likelihood': likelihood,
+                                            'spikeslab_weights': spikeslab_weights,
+                                            'spikeslab_factors': spikeslab_factors,
+                                        }
+                                    arguments.append(args)
     return arguments
 
 def format_output(output_path, n_cluster):
     df_mofa2_cluster = pd.read_csv(os.path.join(output_path, 'mofa2_result.csv'))
     cluster = {}
+    if n_cluster == 'all':
+        n_cluster = len(df_mofa2_cluster['x'].unique())
     for i in range(1, n_cluster+1):
         df_sub = df_mofa2_cluster[df_mofa2_cluster['x']==i]
         cluster[i] = {
             'samples': set(df_sub.index),
             'n_samples': len(df_sub.index)
         }
-    os.remove(os.path.join(output_path, 'mofa2_result.csv'))
-    os.remove(os.path.join(output_path, 'mofa2_model.hdf5'))
+    # os.remove(os.path.join(output_path, 'mofa2_result.csv'))
+    # os.remove(os.path.join(output_path, 'mofa2_model.hdf5'))
     return pd.DataFrame(cluster).T
 
 def read_runtime(output_path):
@@ -47,10 +64,11 @@ def read_runtime(output_path):
     os.remove(os.path.join(output_path, 'mofa2_runtime.txt'))
     return runtime
 
-def execute_algorithm(exprs_file, n_factors, n_cluster, output_path, random_state=101, **_):
+def execute_algorithm(exprs_file, n_factors, n_cluster, output_path, likelihood, spikeslab_factors, spikeslab_weights, ard_factors, ard_weights, random_state=101, **_):
     # this saves the result to a file
     # time is measured inside the R script
-    subprocess.Popen(fr'Rscript ./methods/MOFA2.R {exprs_file} {n_factors} {n_cluster} {random_state} {output_path}', shell=True).wait()
+
+    subprocess.Popen(fr'Rscript ./methods/MOFA2.R {exprs_file} {n_factors} {n_cluster} {random_state} {output_path} {likelihood} {spikeslab_factors} {spikeslab_weights} {ard_factors} {ard_weights}', shell=True).wait()
     return format_output(output_path, n_cluster), read_runtime(output_path)
 
 def run_simulated(args):

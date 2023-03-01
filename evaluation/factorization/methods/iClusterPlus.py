@@ -64,7 +64,7 @@ def format_output(output_path, n_cluster, labels):
 def read_runtime(output_path):
     runtime_string = open(os.path.join(output_path, 'iclusterplus_runtime.txt'), 'r').read().strip()
     runtime = float(runtime_string)
-    os.remove(os.path.join(output_path, 'iclusterplus_runtime.txt'))
+    # os.remove(os.path.join(output_path, 'iclusterplus_runtime.txt'))
     return runtime
 
 def execute_algorithm(exprs_file, lambda_n, n_cluster, lambda_scale, iter_max, eps, type, burnin_n, draw_n, sdev, output_path, random_state, **_):
@@ -90,6 +90,7 @@ def run_real(args):
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
         print('Returning existing results:', args["output_path"])
     else:
+        print('Executing iClusterPlus')
         result, runtime = run_method(execute_algorithm, args)
         df_exprs = pd.read_csv(args['exprs_file'], sep='\t', index_col=0).T
         result = format_output(result[0], result[1], df_exprs.index)

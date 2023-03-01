@@ -1,7 +1,7 @@
 import numpy as np
 
 RANDOM_STATES = range(1, 6)
-CLUSTER_RANGE = range(4, 21)
+CLUSTER_RANGE = range(2, 21)
 # CLUSTER_RANGE = [10]
 
 # NMF
@@ -12,20 +12,32 @@ NMF_SOLVER = ['cd'] # , 'mu'
 NMF_INIT = ['nndsvd', 'nndsvda', 'random']
 NMF_SHUFFLE = [True, False]
 NMF_TOL = [1e-4] 
+NMF_MAXITER = [200, 1000] 
 
 # sparse PCA
 S_PCA_ALPHA = [1, 5] # 1.1, 2.5, 0.5, 
 S_PCA_RIDGE_ALPHA = [0.1, 0.01, 0.001]
-S_PCA_MAX_ITER = [5000]
+S_PCA_MAX_ITER = [1000]
 S_PCA_TOL = [1e-8] # 1e-9, 
 S_PCA_METHOD = ['cd', 'lars']
 
 # MOFA2
 MOFA2_FACTORS = range(1, 21)
+MOFA2_LIKELIHOODS = ['gaussian'] # , 'poisson', 'bernoulli'
+MOFA2_SPIKESLAB_WEIGHTS = [True] # ,False
+MOFA2_SPIKESLAB_FACTORS = [False] # True, 
+MOFA2_ARD_FACTORS = [False] # True, 
+MOFA2_ARD_WEIGHTS = [True] # , False
 
 # MOCLUSTER
 MOCLUSTER_RANGE = range(1, 21)
 MOCLUSTER_RANDOM_STATES = [1]
+MOCLUSTER_K = [0.1, 1]
+MOCLUSTER_OPTION = ["lambda1"] # , "inertia", "uniform"
+MOCLUSTER_SOLVER = ["fast"] # "svd", 
+MOCLUSTER_CENTER = [True] # , False
+MOCLUSTER_SCALE = [False] # True, 
+MOCLUSTER_METHOD = ["globalScore"] # , "blockScore", "blockLoading"
 
 # iCluster
 ICLUSTER_TYPES = ["gaussian"]  # "binomial","poisson" throw errors, "multinomial" is too slow 
