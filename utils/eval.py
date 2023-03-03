@@ -520,7 +520,7 @@ def add_survival(biclusters, # dataframes with biclustes
         for col in [".p_value",".p_value_BH",
                     ".HR",".upper_95CI",".lower_95CI",
                     ".LogR_p_value",".LogR_p_value_BH"]:
-            df[col] = np.nan
+            df[event+col] = np.nan
         return df
     if not surv_time:
         surv_time= event+".time"
@@ -585,4 +585,13 @@ def add_sex(biclusters,males = [],females=[]):
         dfs.append(df)
     dfs = pd.concat(dfs,axis=1)
     dfs["sex.pval_BH"] = dfs.loc[:,["male.pval_BH","female.pval_BH"]].min(axis=1)     
+    dfs["sex"] = ""
+    try:
+        dfs.loc[dfs["male.pval_BH"]<0.05,"sex"] = "male"
+    except:
+        pass
+    try:
+        dfs.loc[dfs["female.pval_BH"]<0.05,"sex"] = "female"
+    except:
+        pass
     return pd.concat([biclusters,dfs],axis=1)
