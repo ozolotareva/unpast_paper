@@ -6,6 +6,7 @@ from statsmodels.stats.multitest import fdrcorrection
 
 from utils.method import zscore
 from lifelines import CoxPHFitter
+from lifelines.statistics import logrank_test
 
 def generate_exprs(data_sizes, g_size=5, frac_samples=[0.05, 0.1, 0.25, 0.5], m=2.0, std=1,
                    z=True,
@@ -226,7 +227,7 @@ def evaluate_overlaps(biclusters, known_groups, all_elements, dimension="samples
         if not bic_members.intersection(all_elements) == bic_members:
             print("bicluster {} elements {} are not in 'all_elements'".format(i, " ".join(
                 bic_members.difference(all_elements))), file=sys.stderr)
-            return
+            bic_members = bic_members.intersection(all_elements)
     # sanity check and sorting
     group_names = list(known_groups.keys())
     sorted_group_names = [group_names[0]]  # group names ordered by group size
@@ -306,8 +307,7 @@ def find_best_matches(biclusters, known_groups, all_elements, FDR=0.05,
 
     # calculate overlap p-vals
     try:
-        df_pval, is_enriched, df_jaccard = evaluate_overlaps(biclusters, known_groups,
-                                                             all_elements, dimension=dimension)
+        df_pval, is_enriched, df_jaccard = evaluate_overlaps(biclusters, known_groups, all_elements, dimension=dimension)
     except:
         print("failed to calculate overlap p-values",file=sys.stderr)
         out = evaluate_overlaps(biclusters, known_groups, all_elements, dimension=dimension)
@@ -445,17 +445,10 @@ def find_best_matching_biclusters(bics1, bics2, N, by="genes", adj_pval_thr=0.05
     return best_matches
 
 
-def bic_survival(surv_anno,samples,event = "OS",surv_time = "",verbose = True):
+def bic_survival(surv_anno,samples,event = "OS",surv_time = "",
+                 lr = True, verbose = True):
     # check  complete separation
     # if all events are either inside or outside sample group
-    samples_with_event = set(surv_anno.loc[surv_anno[event]==1,:].index)
-    if len(samples_with_event)==0:
-        print("No events are in the group.",file = sys.stderr)
-        return None, {"p_value":0,"HR":0}
-    elif samples_with_event == samples.intersection(samples_with_event):
-        print("All events are in the group.",file = sys.stderr)
-        return None, {"p_value":0,"HR":np.inf}
-    
     if not surv_time:
         surv_time= event+".time"
     surv_data = surv_anno.copy()
@@ -466,51 +459,139 @@ def bic_survival(surv_anno,samples,event = "OS",surv_time = "",verbose = True):
     for col in v.index:
         if v[col] == 0:
             if verbose:
-                print(col,"excluded",file =sys.stderr)
+                print(col,"with zero variance excluded",file =sys.stderr)
             surv_data = surv_data.drop(col,axis=1)
-    #["age","sex","stage_2","stage_3","stage_4",surv,surv+".time"]]
+    
     surv_data.loc[:,"x"] = 0
     surv_data.loc[list(set(samples).intersection(set(surv_data.index.values))),"x"] = 1
 
-    in_bic = surv_data.loc[surv_data["x"]==1,:].shape[0]
-    in_bg = surv_data.loc[surv_data["x"]==0,:].shape[0]
-    if verbose:
-        print("biclsuter: %s,  background: %s"%(in_bic,in_bg))
+    pval = np.nan
+    hr, upper_95CI, lower_95CI =  np.nan,np.nan,np.nan
+    results = {}
     
-    cph = CoxPHFitter()
-    res = cph.fit(surv_data, duration_col=surv_time, event_col= event, show_progress=False)
-    res_table = res.summary
-    res_table  = res_table#.sort_values("p")
+    events = surv_data[event].astype(bool)
+    v1 = surv_data.loc[events, 'x'].var()
+    v2 = surv_data.loc[~events, 'x'].var()
     
-    pval = res_table.loc["x","p"]
-    hr = res_table.loc["x","exp(coef)"]
-    upper_95CI = res_table.loc["x","exp(coef) upper 95%"]
-    lower_95CI = res_table.loc["x","exp(coef) lower 95%"]
+    if v1 ==0 or v2 ==0:
+        if verbose:
+            in_bic = surv_data.loc[surv_data["x"]==1,:].shape[0]
+            in_bg = surv_data.loc[surv_data["x"]==0,:].shape[0]
+            print("perfect separation for biclsuter of  %s/%s samples"%(in_bic,in_bg),
+                 "variances: {:.2f} {:.2f}".format(v1, v2), file = sys.stderr)
+    else:
+        try:
+            cph = CoxPHFitter()
+            res = cph.fit(surv_data, duration_col=surv_time, event_col= event, show_progress=False)
+            res_table = res.summary
+            res_table  = res_table#.sort_values("p")    
+            pval = res_table.loc["x","p"]
+            hr = res_table.loc["x","exp(coef)"]
+            upper_95CI = res_table.loc["x","exp(coef) upper 95%"]
+            lower_95CI = res_table.loc["x","exp(coef) lower 95%"]
+        except:
+            pass
     
-    resuls = {"p_value":pval,"HR":hr,
-              "upper_95CI":upper_95CI,
-              "lower_95CI":lower_95CI}
-    return res_table,resuls
+    results = {"p_value":pval,"HR":hr,
+                  "upper_95CI":upper_95CI,
+                  "lower_95CI":lower_95CI}
+    # Log-rank test
+    if lr:
+        bic = surv_data.loc[surv_data["x"]==1,:]
+        bg = surv_data.loc[surv_data["x"]==0,:]
+        
+        lr_result = logrank_test(bic.loc[:,surv_time], bg.loc[:,surv_time],
+                                 event_observed_A=bic.loc[:,event],
+                                 event_observed_B=bg.loc[:,event])
+        results["LogR_p_value"] = lr_result.p_value
+    
+    
+    return results
 
-def add_survival(biclusters, sample_data, # dataframes with biclustes and sample annotation
+def add_survival(biclusters, # dataframes with biclustes
+                 sample_data, # sample annotation
                  event= "OS", surv_time = "", # event and time column names
-                 covariates=["age","stage_2","stage_3","stage_4"]):
+                 covariates=[],
+                 min_n_events=5,
+                 verbose = True):
+    # if too few events, add na columns
+    if sample_data[event].sum() < min_n_events:
+        df = biclusters.copy()
+        for col in [".p_value",".p_value_BH",
+                    ".HR",".upper_95CI",".lower_95CI",
+                    ".LogR_p_value",".LogR_p_value_BH"]:
+            df[event+col] = np.nan
+        return df
     if not surv_time:
         surv_time= event+".time"
     surv_results = {}
     for bic in biclusters.iterrows():
         sample_set = bic[1]["samples"]
         surv_data = sample_data.loc[:,covariates +[event,surv_time]]
-        try:
-            full_table, bic_results = bic_survival(surv_data,sample_set,event = event,
-                                                   surv_time = surv_time,verbose = False)
-            surv_results[bic[0]] = bic_results
-        except ConvergenceWarning:
-            print("ConvergenceWarning",bic[0] )
-        except:
-            print(bic.index,"failed to fit survival model, no ConvergenceWarning")
+        
+        surv_results[bic[0]] = bic_survival(surv_data,
+                                   sample_set,
+                                   event = event,
+                                   surv_time = surv_time,
+                                   verbose = verbose)
+        if "pval" in surv_results[bic[0]].keys():
+            if np.isnan(surv_results[bic[0]]["pval"]):
+                print("failed to fit CPH model for %s ~ bicluster %s"%(event,bic[0]),
+                  file = sys.stderr)
+        
     surv_results = pd.DataFrame.from_dict(surv_results).T
-    surv_results.columns = [event+"."+x for x in surv_results.columns ]
-    bh_res, adj_pval = fdrcorrection(surv_results[event+".p_value"].values, alpha=0.05)
-    surv_results[event+".p_value_BH"] = adj_pval
+    surv_results.columns = [event+"."+x for x in surv_results.columns]
+    
+    pvals = surv_results.loc[~surv_results[event+".p_value"].isna(),event+".p_value"].values
+    bh_res, adj_pval = fdrcorrection(pvals, alpha=0.05)
+    surv_results.loc[~surv_results[event+".p_value"].isna(),event+".p_value_BH"] = adj_pval
+    
+    pvals = surv_results.loc[~surv_results[event+".LogR_p_value"].isna(),event+".LogR_p_value"].values
+    bh_res, adj_pval = fdrcorrection(pvals, alpha=0.05)
+    surv_results.loc[~surv_results[event+".LogR_p_value"].isna(),event+".LogR_p_value_BH"] = adj_pval
+    
     return pd.concat([biclusters, surv_results],axis=1)
+
+
+def test_sample_overlap(row, sample_set, N):
+    # usage: 
+    # biclusters_df.apply(lambda row: test_sample_overlap(row, sample_set, N),axis=1)
+    # N - total number of samples in dataset
+    bic_samples = row["samples"]
+    o = len(sample_set.intersection(bic_samples))
+    bic_only = len(bic_samples)-o
+    sample_set_only = len(sample_set)-o
+    bg = N-o-bic_only-sample_set_only
+    p= pvalue(o,bic_only,sample_set_only,bg ).right_tail
+    #if p<0.001:
+    #    print(p,(o,bic_only,sample_set_only,bg),row["genes"])
+    return pd.Series({"pval":p,"counts":(o,bic_only,sample_set_only,bg)})
+
+def add_sex(biclusters,males = [],females=[]):
+    sample_sets = {}
+    #if len(males)>0:
+    sample_sets["male"] = set(males)
+    #if len(females)>0:
+    sample_sets["female"] = set(females)
+    
+    N = len(males)+len(females)
+    dfs =[]
+    for sex in sample_sets.keys():
+        sample_set = sample_sets[sex]
+        df = biclusters.apply(lambda row: test_sample_overlap(row, sample_set, N),axis=1)
+        df.columns = [sex+"."+x for x in df.columns]
+        bh_res, adj_pval = fdrcorrection(df[sex+".pval"].values, alpha=0.05)
+        df[sex+".pval_BH"] =  adj_pval
+        dfs.append(df)
+    dfs = pd.concat(dfs,axis=1)
+    dfs["sex.pval_BH"] = dfs.loc[:,["male.pval_BH","female.pval_BH"]].min(axis=1)     
+    dfs["sex"] = ""
+    try:
+        dfs.loc[dfs["male.pval_BH"]<0.05,"sex"] = "male"
+    except:
+        pass
+    try:
+        dfs.loc[dfs["female.pval_BH"]<0.05,"sex"] = "female"
+    except:
+        pass
+    return pd.concat([biclusters,dfs],axis=1)
