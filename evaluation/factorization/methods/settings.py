@@ -2,7 +2,6 @@ import numpy as np
 
 RANDOM_STATES = range(1, 6)
 CLUSTER_RANGE = range(2, 21)
-# CLUSTER_RANGE = [10]
 
 # NMF
 # NMF_ALPHAS = np.linspace(-0.4, 0.4, 9) # simulated
@@ -33,8 +32,8 @@ MOFA2_ARD_WEIGHTS = [True] # , False
 MOCLUSTER_RANGE = range(1, 21)
 MOCLUSTER_RANDOM_STATES = [1]
 MOCLUSTER_K = [0.1, 1]
-MOCLUSTER_OPTION = ["lambda1"] # , "inertia", "uniform"
-MOCLUSTER_SOLVER = ["fast"] # "svd", 
+MOCLUSTER_OPTION = ["lambda1", 'inertia', 'uniform'] # , "inertia", "uniform"
+MOCLUSTER_SOLVER = ["fast", 'svd'] # "svd", 
 MOCLUSTER_CENTER = [True] # , False
 MOCLUSTER_SCALE = [False] # True, 
 MOCLUSTER_METHOD = ["globalScore"] # , "blockScore", "blockLoading"

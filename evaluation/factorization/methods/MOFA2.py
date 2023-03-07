@@ -8,7 +8,7 @@ from .utils import interpret_results, resultsHandler
 
 def generate_arg_list(exprs_file, output_folder, ground_truth_file, cluster_range=CLUSTER_RANGE):
     arguments = []
-    # NMF - not transposed
+    # MOFA2 - not transposed
     for m in RANDOM_STATES:
         for n_cluster in cluster_range:
             for n_factors in MOFA2_FACTORS:
