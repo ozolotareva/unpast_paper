@@ -632,7 +632,7 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
         # e.g. [1/4;9/10] with step 0.5
         sim_binary = similarity.copy()
         sim_binary[sim_binary<cutoff] = 0
-        sim_binary[sim_binary> 0] = 1
+        sim_binary[sim_binary!= 0] = 1
         rsums = sim_binary.sum()
         non_zero_features = rsums[rsums>0].index
         sim_binary = sim_binary.loc[non_zero_features,non_zero_features]
@@ -641,21 +641,23 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
         labels = Louvain(modularity ='newman').fit_transform(sparse_matrix)  # modularity =  ['potts','dugue', 'newman']
         Q = modularity(sparse_matrix, labels)
         modularities.append(Q)
+        # if binary similarity matrix contains no zeroes
+        # bugfix for Louvain()
+        if sim_binary.min().min()==1: 
+            labels = np.zeros(len(labels))
         feature_clusters[cutoff] = labels
     
-    # if one similarity_cutoffs contains only one value, choose it as best_cutoff
+    # if similarity_cutoffs contains only one value, choose it as best_cutoff
     if len(similarity_cutoffs)==1:
         best_cutoff = similarity_cutoffs[0]
         best_Q = Q
         
     # find best_cutoff automatically 
     else:
-        
-        
         # check if modularity(cutoff)=const 
         if len(set(modularities)) == 1:
             best_cutoff = similarity_cutoffs[-1]
-            best_Q = modularities[0]
+            best_Q = modularities[-1]
             labels = feature_clusters[best_cutoff]
         
         #  if modularity!= const, scan the whole range of similarity cutoffs 
@@ -1188,7 +1190,7 @@ def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
     if plot:
         import seaborn as sns
         g = sns.clustermap(J_heatmap,yticklabels=True, xticklabels=True, 
-                           linewidths=0, figsize=(17, 17),center=0)
+                           linewidths=0, figsize=(17, 17),center=0,annot=True)
         g.ax_row_dendrogram.set_visible(False)
         g.ax_col_dendrogram.set_visible(False)
         g.cax.set_visible(False)
@@ -1203,6 +1205,7 @@ def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
                                                verbose = True, plot=True)
     t2 = time()
     #print(round(t2-t1),"s for Louvain ")
+    
     
     # make consensus biclusters
     # for each group of matched biclusters, keep genes occuring at least n times
