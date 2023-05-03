@@ -894,6 +894,7 @@ def make_TOM(similarity):
 
 
 ######## Make biclusters #########
+
 def cluster_samples(data,min_n_samples=5,seed=0,method="kmeans"):
     # identify identify bicluster and backgound groups using 2-means
     if method == "kmeans" or method == "Jenks":
@@ -1097,21 +1098,15 @@ def make_biclusters(feature_clusters,
 
 #### consensus biclusters ####
 
-def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
-                              similarity = "both",  # similarity could be also 'genes' or 'samples' 
-                              method="kmeans", min_n_genes =2, min_n_samples=5,
-                              seed = -1, plot = False):
-    t0 = time()
-    # list of biclusters from several runs
-    biclusters = pd.concat(biclusters_list)
-    biclusters.index = range(biclusters.shape[0]) 
+def calc_bicluster_similarities(biclusters,exprs,
+                                similarity="samples",plot=True): 
+    
     biclusters_dict = biclusters.T.to_dict()
     
-    if seed == -1:
-        seed = random.randint(0,1000000)
-        print("Seed for sample clustering: %s"%(seed),file=sys.stderr)
-    
-    # calculate pairwise bicluster similarity
+    if similarity not in ["genes","samples","both"]:
+        print("Similarity must be 'genes','samples','both'. Set to 'both'.",file=sys.stderr)
+        similarity = "both"
+        
     J_heatmap = {}
     s = set(exprs.columns.values)
     g = set(exprs.index.values)
@@ -1178,15 +1173,6 @@ def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
                     
     J_heatmap = pd.DataFrame.from_dict(J_heatmap)
     
-    # if all biclusters are exactly the same
-    if J_heatmap.min().min()==1:
-        # return the first bicluster
-        consensus_biclusters = biclusters.iloc[[0],:].copy()
-        consensus_biclusters.index = [0]
-        consensus_biclusters.loc[0,'detected_n_times'] = biclusters.shape[0]
-        print("all biclusters are exactly the same",file = sys.stderr)
-        return consensus_biclusters
-    
     if plot:
         import seaborn as sns
         g = sns.clustermap(J_heatmap,yticklabels=True, xticklabels=True, 
@@ -1195,9 +1181,40 @@ def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
         g.ax_col_dendrogram.set_visible(False)
         g.cax.set_visible(False)
         plt.show()
+        
+    return J_heatmap
+    
+def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
+                              similarity = "both", # can be 'both','genes','samples' 
+                              method="kmeans", min_n_genes =2, min_n_samples=5,
+                              seed = -1, plot = False):
+    t0 = time()
+    
+    if seed == -1:
+        seed = random.randint(0,1000000)
+        print("Seed for sample clustering: %s"%(seed),file=sys.stderr)
+    
+    # list of biclusters from several runs
+    biclusters = pd.concat(biclusters_list)
+    biclusters.index = range(biclusters.shape[0])
+    
+    # calculate pairwise bicluster similarity
+    J_heatmap = calc_bicluster_similarities(biclusters,exprs,
+                                            similarity = similarity,
+                                            plot=plot)
+    
+    # if all biclusters are exactly the same
+    if J_heatmap.min().min()==1:
+        # return the first bicluster
+        consensus_biclusters = biclusters.iloc[[0],:].copy()
+        consensus_biclusters.index = [0]
+        consensus_biclusters.loc[0,'detected_n_times'] = biclusters.shape[0]
+        print("all biclusters are exactly the same",file = sys.stderr)
+        return consensus_biclusters
+
     
     t1= time()
-    print(round(t1-t0),"s for similarity matrix")
+    print("%s s for similarity matrix"%round(t1-t0))
     
     # cluster biclusters by similarity
     matched, not_matched, cutoff = run_Louvain(J_heatmap,
@@ -1226,7 +1243,7 @@ def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
         
         gene_occurencies = pd.Series(gene_occurencies).sort_values()
         passed_genes = sorted(gene_occurencies[gene_occurencies>=min_n_runs].index.values)
-        not_passed_genes  = sorted(gene_occurencies[gene_occurencies==min_n_runs].index.values)
+        not_passed_genes  = sorted(gene_occurencies[gene_occurencies<min_n_runs].index.values)
 
         
         if len(passed_genes)<min_n_genes:
