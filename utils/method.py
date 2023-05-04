@@ -76,10 +76,12 @@ def validate_input_matrix(exprs, tol=0.01,standradize=True,verbose = True):
     if len(set(exprs.index.values)) < exprs.shape[0]:
         print("Row names are not unique.",file = sys.stderr)
     missing_values = exprs.isna().sum(axis=1)
-    if missing_values[missing_values>0].shape[0]>0:
-            print("Missing values detected in ",
-                  missing_values[missing_values>0].index.values,
-                  file = sys.stderr)
+    n_na = missing_values[missing_values>0].shape[0]
+    if n_na>0:
+        print("Missing values detected in ",
+              missing_values[missing_values>0].index.values,file = sys.stderr)
+        print("Features dropped:",n_na,file = sys.stderr)
+        exprs = exprs.dropna()
     return exprs
 
 
@@ -552,7 +554,7 @@ def run_WGCNA(binarized_expressions,fname,
               deepSplit=4,detectCutHeight=0.995, # see WGCNA documentation
               verbose = False,rscr_path=False):
     t0 = time()
-    
+        
     deepSplit = int(deepSplit)
     if not deepSplit in [0,1,2,3,4]:
         print("deepSplit must be 1,2,3 or 4. See WGCNA documentation.",file = sys.stderr)
@@ -565,9 +567,25 @@ def run_WGCNA(binarized_expressions,fname,
     if not rscr_path:
         # assume run_WGCNA.R is in the same folder
         rscr_path = "/".join(os.path.realpath(__file__).split("/")[:-1])+'/run_WGCNA.R'
-        
-    # save binarized expression to file
-    binarized_expressions.to_csv(fname, sep ="\t")
+    
+    # replace spaces in feature names
+    # otherwise won't parse R output
+    feature_names = (binarized_expressions.columns.values)
+    feature_names_with_space = [x for x in feature_names if " " in x]
+    if len(feature_names_with_space)>0:
+        #print("%s feature names containing spaces will be replaced."%len(feature_names_with_space),file=sys.stderr)
+        fn_mapping = {}
+        fn_mapping_back = {}
+        for fn in feature_names:
+            if " " in fn:
+                fn_ = fn.replace(" ","_")
+                fn_mapping[fn] = fn_
+                fn_mapping_back[fn_] = fn 
+        # save binarized expression to file
+        binarized_expressions.rename(fn_mapping,axis="columns").to_csv(fname, sep ="\t")
+    else:
+        # save binarized expression to file
+        binarized_expressions.to_csv(fname, sep ="\t")
     
     # run Rscript
     process = subprocess.Popen(['Rscript', rscr_path, fname, str(deepSplit), str(detectCutHeight)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -590,6 +608,11 @@ def run_WGCNA(binarized_expressions,fname,
     module_dict = modules_df.T.to_dict()
     for i in module_dict.keys():
         genes =  module_dict[i]["genes"].strip().split()
+        # return spaces in feature names back if necessary
+        if len(feature_names_with_space)>0:
+            for j in range(len(genes)):
+                if genes[j] in fn_mapping_back.keys():
+                    genes[j] = fn_mapping_back[genes[j]]
         if i == 0:
             not_clustered = genes
         else:
@@ -597,8 +620,8 @@ def run_WGCNA(binarized_expressions,fname,
     
     # remove WGCNA input and output files
     try:
-        os.remove(fname) 
-        os.remove(module_file)
+        pass #os.remove(fname) 
+        #os.remove(module_file)
     except:
         pass
     

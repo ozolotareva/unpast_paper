@@ -10,7 +10,8 @@ deepSplit <- as.integer(args[[2]])
 detectCutHeight <- as.numeric(args[[3]])
 nt <- "signed hybrid" # networkType = "unsigned", "signed hybrid"
 
-datExpr <- read.table(fileBinExprs,check.names=FALSE)
+datExpr <- read.csv(fileBinExprs,check.names=FALSE,sep = "\t",header = TRUE,row.names=1)
+print(head(datExpr,3))
 datExpr[] <- lapply(datExpr, as.numeric)
 
 #### finding power threshold #### 
