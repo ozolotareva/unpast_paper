@@ -15,8 +15,9 @@ def run(exprs_file, basename='', out_dir="./",
                 alpha=1,beta_K = 1, max_n_steps= 100, n_steps_for_convergence = 5, # for DESMOND
                 cluster_binary=False, 
                 merge = 1,
-                seed = -1,
-                verbose = True, plot_all = False):
+                seed = 42,
+                verbose = True, plot_all = False,
+                large_input=False):
     
     import sys
     from time import time
@@ -28,9 +29,9 @@ def run(exprs_file, basename='', out_dir="./",
     if out_dir[-1] != '/':
         out_dir += '/'
     
-    if seed == -1:
-        seed = random.randint(0,1000000)
-        print("seed=",seed,file = sys.stdout)
+    #if seed == -1:
+    #    seed = random.randint(0,1000000)
+    #    print("seed=",seed,file = sys.stdout)
         
     if not basename: 
         from datetime import datetime
@@ -39,7 +40,13 @@ def run(exprs_file, basename='', out_dir="./",
         print("set output basename to", basename, file = sys.stdout)
         
     # read inputs
-    exprs = pd.read_csv(exprs_file, sep="\t",index_col=0)
+    if large_input:
+        exprs = pd.read_csv(exprs_file, sep="\t",index_col=0,dtype=np.float16)
+        n_permutations=1
+    else:
+        exprs = pd.read_csv(exprs_file, sep="\t",index_col=0)
+        n_permutations=10000
+        
     if verbose:
         print("Read input from:",exprs_file ,file=sys.stdout)
         print("\t{} features x {} samples".format(exprs.shape[0],exprs.shape[1]) ,file=sys.stdout)
@@ -68,7 +75,8 @@ def run(exprs_file, basename='', out_dir="./",
                                  method=bin_method, save = save, load=load,
                                  min_n_samples = min_n_samples,pval=pval,
                                  plot_all = plot_all,show_fits = show_fits,
-                                 verbose= verbose,seed=seed,prob_cutoff=0.5)
+                                 verbose= verbose,seed=seed,
+                                 prob_cutoff=0.5, n_permutations=n_permutations)
     
     ######### gene clustering #########
     
@@ -177,8 +185,7 @@ def run(exprs_file, basename='', out_dir="./",
 
 def parse_args():
     parser = argparse.ArgumentParser("UnPaSt identifies differentially expressed biclusters in gene expression data.")
-    seed = random.randint(0,1000000)
-    parser.add_argument('--seed',metavar=seed, default=seed, type=int, help="random seed")
+    parser.add_argument('--seed',metavar=42, default=42, type=int, help="random seed")
     parser.add_argument('--exprs', metavar="exprs.z.tsv", required=True, 
                         help=".tsv file with standardized gene expressions. The first column and row must contain unique gene and sample ids, respectively.")
     parser.add_argument('--out_dir', metavar="./", default="./", help  = 'output folder')
@@ -198,8 +205,8 @@ def parse_args():
     parser.add_argument('--ds', default=0, metavar="0", type=int,choices=[0,1,2,3,4], help='deepSplit parameter, see WGCNA documentation')
     parser.add_argument('--dch', default=0.995, metavar="0.995", type=float, help='dynamicTreeCut parameter, see WGCNA documentation')
     parser.add_argument('--merge', default=1, metavar="1", type=float,help = "Whether to merge biclustres similar in samples with Jaccard index not less then the specified.")
-    parser.add_argument('--load_binary', action='store_true', help = "loads binarized features from <basename>.<bin_method>.seed="+str(seed)+".binarized.tsv, statistics from *.binarization_stats.tsv and the background SNR distribution from <basename>.<bin_method>.n=<n_permutations>.seed="+str(seed)+".background.tsv")
-    parser.add_argument('--save_binary', action='store_true', help = "saves binarized features to a file named as <basename>.<bin_method>.seed="+str(seed)+".binarized.tsv. If WGCNA is clustering method, binarized expressions are always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and background SNR distributions respectively will be created")
+    parser.add_argument('--load_binary', action='store_true', help = "loads binarized features from <basename>.<bin_method>.seed=42.binarized.tsv, statistics from *.binarization_stats.tsv and the background SNR distribution from <basename>.<bin_method>.n=<n_permutations>.seed=42.background.tsv")
+    parser.add_argument('--save_binary', action='store_true', help = "saves binarized features to a file named as <basename>.<bin_method>.seed=42.binarized.tsv. If WGCNA is clustering method, binarized expressions are always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and background SNR distributions respectively will be created")
     parser.add_argument('--verbose', action='store_true')
     #parser.add_argument('--plot', action='store_true', help = "show plots")
     
