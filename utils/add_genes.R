@@ -51,7 +51,7 @@ find_DE_genes <- function(exprs, dm,rna_seq) {
         voom_results <-  voom(exprs, dm, plot = F, save.plot=F)
         fit <- lmFit(voom_results, dm)
     } else{
-        fit <- lmFit(exprs$counts, dm)
+        fit <- lmFit(exprs, dm)
     }
     contr_fit <- contrasts.fit(fit, contrasts_matrix)
     result <- eBayes(contr_fit)
