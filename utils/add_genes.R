@@ -55,10 +55,10 @@ find_DE_genes <- function(exprs, dm,rna_seq) {
     }
     contr_fit <- contrasts.fit(fit, contrasts_matrix)
     result <- eBayes(contr_fit)
-    table_res <- topTable(result, adjust="BH",resort.by="P",p.value=0.05,lfc=2,confint=TRUE,number=500)
-    if (dim(table_res)[[1]]<=1) {
-        table_res <- topTable(result, adjust="BH",resort.by="P",p.value=0.05,lfc=1,confint=TRUE,number=500)
-    }
+    #table_res <- topTable(result, adjust="BH",resort.by="P",p.value=0.05,lfc=2,confint=TRUE,number=500)
+    #if (dim(table_res)[[1]]<=1) {
+    table_res <- topTable(result, adjust="BH",resort.by="P",p.value=0.05,lfc=1,confint=TRUE,number=500)
+    #}
     de_up <- sort(row.names(table_res[table_res$logFC>0,]))
     de_down <- sort(row.names(table_res[table_res$logFC<0,]))
     de_both <- unique(sort(c(de_up,de_down)))
