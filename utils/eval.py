@@ -160,8 +160,15 @@ def compare_gene_clusters(tcga_result,metabric_result, N):
     bm2 = find_best_matching_biclusters(metabric_result, tcga_result, N)
     bm2 = bm2.dropna()
     
-    bm = bm.loc[bm["n_shared"]>1,:].sort_values(by="n_shared",ascending = False)
-    bm2 = bm2.loc[bm2["n_shared"]>1,:].sort_values(by="n_shared",ascending = False)
+    if "n_shared" in bm.columns:
+        bm = bm.loc[bm["n_shared"]>1,:].sort_values(by="n_shared",ascending = False)
+    else:
+        # no match -> remove all rows 
+        bm = bm.head(0)
+    if "n_shared" in bm2.columns:
+        bm2 = bm2.loc[bm2["n_shared"]>1,:].sort_values(by="n_shared",ascending = False)
+    else:
+        bm2 = bm.head(0)
     
     
     clust_similarity = {}
@@ -172,11 +179,13 @@ def compare_gene_clusters(tcga_result,metabric_result, N):
     clust_similarity["percent_matched_1"] = bm.shape[0]/tcga_result.shape[0]
     clust_similarity["percent_matched_2"] = bm2.shape[0]/metabric_result.shape[0]
     #print("n matched genes:",bm.loc[:,"n_shared"].sum(),bm2.loc[:,"n_shared"].sum())
-    clust_similarity["n_shared_genes_1"] = bm.loc[:,"n_shared"].sum()
-    clust_similarity["n_shared_genes_2"] = bm2.loc[:,"n_shared"].sum()
+    if "n_shared" in bm.columns:
+        clust_similarity["n_shared_genes_1"] = bm.loc[:,"n_shared"].sum()
+        clust_similarity["avg_bm_J_1"] = bm.loc[:,"J"].mean()
+    if "n_shared" in bm2.columns:
+        clust_similarity["n_shared_genes_2"] = bm2.loc[:,"n_shared"].sum()
     #print("avg. J:",bm.loc[:,"J"].mean(),bm2.loc[:,"J"].mean())
-    clust_similarity["avg_bm_J_1"] = bm.loc[:,"J"].mean()
-    clust_similarity["avg_bm_J_2"] = bm2.loc[:,"J"].mean()
+        clust_similarity["avg_bm_J_2"] = bm2.loc[:,"J"].mean()
     
     
     return clust_similarity, bm, bm2
@@ -447,6 +456,8 @@ def find_best_matching_biclusters(bics1, bics2, N, by="genes", adj_pval_thr=0.05
 
 def bic_survival(surv_anno,samples,event = "OS",surv_time = "",
                  lr = True, verbose = True):
+    # surival annotation - annotation matrix with time,event, and covariates
+    # samples - samples in a group, e.g. biclsuter samples
     # check  complete separation
     # if all events are either inside or outside sample group
     if not surv_time:
@@ -470,8 +481,12 @@ def bic_survival(surv_anno,samples,event = "OS",surv_time = "",
     results = {}
     
     events = surv_data[event].astype(bool)
+    
     v1 = surv_data.loc[events, 'x'].var()
     v2 = surv_data.loc[~events, 'x'].var()
+    
+    v3 = surv_data.loc[surv_data["x"]==1, event].var()
+    v4 = surv_data.loc[surv_data["x"]==0, event].var()
     
     if v1 ==0 or v2 ==0:
         if verbose:
@@ -479,6 +494,25 @@ def bic_survival(surv_anno,samples,event = "OS",surv_time = "",
             in_bg = surv_data.loc[surv_data["x"]==0,:].shape[0]
             print("perfect separation for biclsuter of  %s/%s samples"%(in_bic,in_bg),
                  "variances: {:.2f} {:.2f}".format(v1, v2), file = sys.stderr)
+    if v3 == 0:
+        print("zero variance for events in group; all events are ",set(surv_data.loc[surv_data["x"]==1, event].values))
+    if v4 == 0:
+        print("zero variance for events in background; all events are ",set(surv_data.loc[surv_data["x"]==0, event].values))
+    
+    # check variance of covariates in event groups
+    exclude_covars =[]
+    for c in [x for x in surv_data.columns.values if not x in ["x",event, surv_time]]:
+        if surv_data.loc[events, c].var()==0:
+            exclude_covars.append(c)
+            print("\t",c,"variance is 0 in event group",file = sys.stdout)
+        if surv_data.loc[~events, c].var()==0:
+            exclude_covars.append(c)
+            print("\t",c,"variance is 0 in no-event group",file = sys.stdout)
+    #if len(exclude_covars)>0:
+    #    cols = surv_data.columns.values
+    #    cols = [x for x in cols if not x in exclude_covars]
+    #    surv_data = surv_data.loc[:,cols]
+    
     else:
         try:
             cph = CoxPHFitter()
