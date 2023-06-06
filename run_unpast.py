@@ -11,7 +11,7 @@ def run(exprs_file, basename='', out_dir="./",
                 show_fits = [],
                 pval = 0.01, # binarization p-value
                 modularity=1/3, similarity_cutoffs = -1, # for Louvain
-                ds = 0, dch = 0.995, # for WGCNA
+                ds = 0, dch = 0.995, rpath="", # for WGCNA
                 alpha=1,beta_K = 1, max_n_steps= 100, n_steps_for_convergence = 5, # for DESMOND
                 cluster_binary=False, 
                 merge = 1,
@@ -127,7 +127,8 @@ def run(exprs_file, basename='', out_dir="./",
             fname = out_dir+basename+ "."+bin_method+".pval="+str(pval)+".seed="+str(seed)+"."+d+suffix+".tsv"
             df = binarized_expressions.loc[:,stats["direction"]==d]
             if df.shape[0]>1:
-                modules, single_features = run_WGCNA(df,fname,deepSplit=ds,detectCutHeight=dch, verbose = verbose)  
+                modules, single_features = run_WGCNA(df,fname,deepSplit=ds,detectCutHeight=dch,
+                                                     verbose = verbose,rpath = rpath)  
                 feature_clusters+= modules
                 not_clustered+= single_features
 
@@ -204,6 +205,7 @@ def parse_args():
     # WGCNA parameters 
     parser.add_argument('--ds', default=0, metavar="0", type=int,choices=[0,1,2,3,4], help='deepSplit parameter, see WGCNA documentation')
     parser.add_argument('--dch', default=0.995, metavar="0.995", type=float, help='dynamicTreeCut parameter, see WGCNA documentation')
+    parser.add_argument('--rpath', default="", metavar="", type=float, help='Full path to Rscript.')
     parser.add_argument('--merge', default=1, metavar="1", type=float,help = "Whether to merge biclustres similar in samples with Jaccard index not less then the specified.")
     parser.add_argument('--load_binary', action='store_true', help = "loads binarized features from <basename>.<bin_method>.seed=42.binarized.tsv, statistics from *.binarization_stats.tsv and the background SNR distribution from <basename>.<bin_method>.n=<n_permutations>.seed=42.background.tsv")
     parser.add_argument('--save_binary', action='store_true', help = "saves binarized features to a file named as <basename>.<bin_method>.seed=42.binarized.tsv. If WGCNA is clustering method, binarized expressions are always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and background SNR distributions respectively will be created")
@@ -226,7 +228,7 @@ if __name__ == "__main__":
                 min_n_samples = args.min_n_samples, 
                 show_fits = [],
                 modularity = args.modularity, similarity_cutoffs = args.similarity_cutoffs, # for Louvain
-                ds = args.ds, dch = args.dch, # for WGCNA
+                ds = args.ds, dch = args.dch, rpath=args.rpath, # for WGCNA
                 cluster_binary = False, 
                 merge = args.merge,
                 seed = args.seed,

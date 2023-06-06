@@ -552,7 +552,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
 
 def run_WGCNA(binarized_expressions,fname,
               deepSplit=4,detectCutHeight=0.995, # see WGCNA documentation
-              verbose = False,rscr_path=False):
+              verbose = False,rscr_path=False, rpath = ""):
     t0 = time()
         
     deepSplit = int(deepSplit)
@@ -573,7 +573,7 @@ def run_WGCNA(binarized_expressions,fname,
     feature_names = (binarized_expressions.columns.values)
     feature_names_with_space = [x for x in feature_names if " " in x]
     if len(feature_names_with_space)>0:
-        #print("%s feature names containing spaces will be replaced."%len(feature_names_with_space),file=sys.stderr)
+        print("%s feature names containing spaces will be replaced."%len(feature_names_with_space),file=sys.stderr)
         fn_mapping = {}
         fn_mapping_back = {}
         for fn in feature_names:
@@ -588,7 +588,14 @@ def run_WGCNA(binarized_expressions,fname,
         binarized_expressions.to_csv(fname, sep ="\t")
     
     # run Rscript
-    process = subprocess.Popen(['Rscript', rscr_path, fname, str(deepSplit), str(detectCutHeight)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if len(rpath)>0:
+        rpath = rpath+"/"
+        
+    if verbose:
+        print("\tR command line:",file = sys.stdout)
+        print("\t"+" ".join([rpath+'Rscript', rscr_path, fname, str(deepSplit), str(detectCutHeight)]),file = sys.stdout)
+    
+    process = subprocess.Popen([rpath+'Rscript', rscr_path, fname, str(deepSplit), str(detectCutHeight)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     #stdout = stdout.decode('utf-8')
     module_file = fname.replace(".tsv",".modules.tsv") #stdout.rstrip()
@@ -619,11 +626,8 @@ def run_WGCNA(binarized_expressions,fname,
             modules.append(genes)
     
     # remove WGCNA input and output files
-    try:
-        pass #os.remove(fname) 
-        #os.remove(module_file)
-    except:
-        pass
+    #os.remove(fname) 
+    #os.remove(module_file)
     
     if verbose:
         print("\tmodules: {}, not clustered features {} ".format(len(modules),len(not_clustered)),file = sys.stdout)
@@ -920,15 +924,20 @@ def make_TOM(similarity):
 
 def cluster_samples(data,min_n_samples=5,seed=0,method="kmeans"):
     # identify identify bicluster and backgound groups using 2-means
+    max_n_iter = max(max(data.shape),500)
     if method == "kmeans" or method == "Jenks":
-        labels = KMeans(n_clusters=2, random_state=seed,n_init=5).fit(data).labels_
+        labels = KMeans(n_clusters=2,
+                        random_state=seed,
+                        init="random",
+                        n_init=10,
+                        max_iter=max_n_iter).fit(data).labels_
     elif method == "ward":
         labels = AgglomerativeClustering(n_clusters=2, linkage='ward').fit(data).labels_
     #elif method == "HC_ward":
     #        model = Ward(n_clusters=2).fit(data).labels_
     elif method == "GMM":
         labels = GaussianMixture(n_components=2, init_params="kmeans",
-                                 max_iter=data.shape[0], n_init = 5, 
+                                 max_iter=max_n_iter, n_init = 5, 
                                  covariance_type = "spherical",
                                  random_state = seed).fit_predict(data)
     ndx0 = np.where(labels == 0)[0]
@@ -1122,7 +1131,9 @@ def make_biclusters(feature_clusters,
 #### consensus biclusters ####
 
 def calc_bicluster_similarities(biclusters,exprs,
-                                similarity="samples",plot=True): 
+                                similarity="both",plot=True,
+                                figsize=(17, 17),labels=False,
+                                colorbar_off=True): 
     
     biclusters_dict = biclusters.T.to_dict()
     
@@ -1190,19 +1201,21 @@ def calc_bicluster_similarities(biclusters,exprs,
                     J_heatmap[bic_n1][bic_n2] = J_s
             elif  similarity == "both": # both genes and samples considered
                 # consider significant overlaps in g and s and save max. J
-                if p_g*(N_bics-1)*N_bics/2<0.05:
-                    if p_s*(N_bics-1)*N_bics/2<0.05:
+                if (p_g*(N_bics-1)*N_bics/2<0.05 and len(s_overlap)>0) or (p_s*(N_bics-1)*N_bics/2<0.05 and len(g_overlap)>0):
                         J_heatmap[bic_n1][bic_n2] = max(J_s,J_g)
                     
     J_heatmap = pd.DataFrame.from_dict(J_heatmap)
     
     if plot:
         import seaborn as sns
-        g = sns.clustermap(J_heatmap,yticklabels=True, xticklabels=True, 
-                           linewidths=0, figsize=(17, 17),center=0,annot=True)
+        g = sns.clustermap(J_heatmap,
+                           yticklabels=labels, xticklabels=labels, 
+                           linewidths=0,vmin=0,vmax=1,
+                           figsize=figsize,center=0,annot=False)
         g.ax_row_dendrogram.set_visible(False)
         g.ax_col_dendrogram.set_visible(False)
-        g.cax.set_visible(False)
+        if colorbar_off:
+            g.cax.set_visible(False)
         plt.show()
         
     return J_heatmap
@@ -1210,7 +1223,8 @@ def calc_bicluster_similarities(biclusters,exprs,
 def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
                               similarity = "both", # can be 'both','genes','samples' 
                               method="kmeans", min_n_genes =2, min_n_samples=5,
-                              seed = -1, plot = False):
+                              seed = -1, plot = False,
+                              figsize=(17, 17),labels=False,colorbar_off=True):
     t0 = time()
     
     if seed == -1:
@@ -1224,7 +1238,9 @@ def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
     # calculate pairwise bicluster similarity
     J_heatmap = calc_bicluster_similarities(biclusters,exprs,
                                             similarity = similarity,
-                                            plot=plot)
+                                            plot=plot,
+                                            figsize=figsize,labels=labels,
+                                            colorbar_off=colorbar_off)
     
     # if all biclusters are exactly the same
     if J_heatmap.min().min()==1:
@@ -1376,7 +1392,7 @@ def write_bic_table(bics_dict_or_df, results_file_name,to_str=True,
             bics["samples"] = bics["samples"].apply(lambda x:" ".join(map(str,sorted(x))))
             bics["gene_indexes"] = bics["gene_indexes"].apply(lambda x:" ".join(map(str,sorted(x))))
             bics["sample_indexes"] = bics["sample_indexes"].apply(lambda x:" ".join(map(str,sorted(x))))
-        bics.index = range(0,bics.shape[0])
+        #bics.index = range(0,bics.shape[0])
         bics.index.name = "id"
         cols =  bics.columns.values
         #first_cols = ["SNR","e_pval","n_genes","n_samples","direction","genes","samples"]

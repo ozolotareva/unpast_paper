@@ -11,7 +11,6 @@ detectCutHeight <- as.numeric(args[[3]])
 nt <- "signed hybrid" # networkType = "unsigned", "signed hybrid"
 
 datExpr <- read.csv(fileBinExprs,check.names=FALSE,sep = "\t",header = TRUE,row.names=1)
-print(head(datExpr,3))
 datExpr[] <- lapply(datExpr, as.numeric)
 
 #### finding power threshold #### 
@@ -37,7 +36,7 @@ TOMType = "unsigned",
 networkType = nt, 
 minModuleSize = 2,
 numericLabels = TRUE,
-maxBlockSize = 10000, #dim(datExpr)[[2]]+1,
+maxBlockSize = 20000, #dim(datExpr)[[2]]+1,
 detectCutHeight = detectCutHeight, #detectCutHeight = 0.995,
 #mergeCutHeight = 0.05,
 deepSplit = deepSplit,
@@ -52,4 +51,7 @@ for (i in unique(moduleLabels)){
 }
 sink()
 
-cat(fileModules,"\n")
+# save eigengenes 
+#print(paste0(sub(".tsv","",fileBinExprs),".MEs.tsv"))
+#write.table(net$MEs,file = paste0(sub(".tsv","",fileBinExprs),".MEs.tsv"),sep = "\t",quote = FALSE)
+#cat(fileModules,"\n")
