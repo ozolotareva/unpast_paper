@@ -15,6 +15,7 @@ def run(exprs_file, basename='', out_dir="./",
                 alpha=1,beta_K = 1, max_n_steps= 100, n_steps_for_convergence = 5, # for DESMOND
                 cluster_binary=False, 
                 merge = 1,
+                directions = ["DOWN","UP"], # could be ["DOWN","UP"] or ["BOTH"]
                 seed = 42,
                 verbose = True, plot_all = False,
                 large_input=False):
@@ -78,23 +79,37 @@ def run(exprs_file, basename='', out_dir="./",
                                  verbose= verbose,seed=seed,
                                  prob_cutoff=0.5, n_permutations=n_permutations)
     
+    bin_data_dict = {}
+    stats = stats.loc[stats["pval"]<=pval,:]
+    features_up = set(stats.loc[stats["direction"]=="UP",:].index.values)
+    features_up = sorted(set(binarized_expressions.columns.values).intersection(set(features_up)))
+    features_down = stats.loc[stats["direction"]=="DOWN",:].index.values
+    features_down = sorted(set(binarized_expressions.columns.values).intersection(set(features_down)))
+
+    df_up = binarized_expressions.loc[:,features_up]
+    df_down = binarized_expressions.loc[:,features_down]
+    if directions[0] == "BOTH":
+        bin_data_dict["BOTH"] = pd.concat([df_up,df_down],axis=1)
+    else:
+        bin_data_dict["UP"]  = df_up
+        bin_data_dict["DOWN"]  = df_down 
+        
     ######### gene clustering #########
-    
     if verbose:
         print("Clustering features ...\n",file=sys.stdout)
     feature_clusters, not_clustered, used_similarity_cutoffs = [], [], []
     if clust_method == "Louvain":
-        from utils.method import run_Louvain, make_TOM
+        from utils.method import run_Louvain
         #from utils.method import get_similarity_corr 
         from utils.method import get_similarity_jaccard
         
-        for d in ["DOWN","UP"]:
-            df = binarized_expressions.loc[:,stats["direction"]==d]
+        for d in directions:
+            df = bin_data_dict[d]
             if df.shape[0]>1:
-                
+
                 similarity = get_similarity_jaccard(df,verbose = verbose)
                 #similarity = get_similarity_corr(df,verbose = verbose)
-                
+
                 if similarity_cutoffs  == -1: # guess from the data
                     similarity_cutoffs = np.arange(0.3,0.9,0.01)
                 # if similarity cuttofs is a single value turns it to a list
@@ -102,7 +117,7 @@ def run(exprs_file, basename='', out_dir="./",
                     similarity_cutoffs = [elem for elem in similarity_cutoffs]
                 except:
                     similarity_cutoffs = [similarity_cutoffs]
-                
+
                 # if modularity m is defined, choses a similarity cutoff corresponding to this modularity
                 # and rund Louvain clustering
                 modules, single_features, similarity_cutoff = run_Louvain(similarity,
@@ -119,15 +134,18 @@ def run(exprs_file, basename='', out_dir="./",
         
     elif clust_method == "WGCNA":
         from utils.method import run_WGCNA
+        nt = "signed hybrid"
         # create unique suffix  for tmp files
         from datetime import datetime
         now = datetime.now()
         suffix = ".tmp_" + now.strftime("%y.%m.%d_%H:%M:%S")
-        for d in ["DOWN","UP"]:
+        for d in directions:
             fname = out_dir+basename+ "."+bin_method+".pval="+str(pval)+".seed="+str(seed)+"."+d+suffix+".tsv"
-            df = binarized_expressions.loc[:,stats["direction"]==d]
+            df = bin_data_dict[d] 
             if df.shape[0]>1:
-                modules, single_features = run_WGCNA(df,fname,deepSplit=ds,detectCutHeight=dch,
+                if d =="BOTH":
+                    nt = "unsigned"
+                modules, single_features = run_WGCNA(df,fname,deepSplit=ds,detectCutHeight=dch,nt = nt,
                                                      verbose = verbose,rpath = rpath)  
                 feature_clusters+= modules
                 not_clustered+= single_features
@@ -151,12 +169,12 @@ def run(exprs_file, basename='', out_dir="./",
     
     else:
         print("'clust_method' must be 'WGCNA' or 'Louvain', or 'DESMOND'.",file=sys.stderr)
-
+    
     ######### making biclusters #########
     if len(feature_clusters)==0:
         print("No biclusters found",file = sys.stderr)
         return pd.DataFrame()
-    
+        
     from utils.method import make_biclusters
     biclusters = make_biclusters(feature_clusters,binarized_expressions,exprs,null_distribution,
                              method = bin_method, merge = merge,
@@ -205,11 +223,12 @@ def parse_args():
     # WGCNA parameters 
     parser.add_argument('--ds', default=0, metavar="0", type=int,choices=[0,1,2,3,4], help='deepSplit parameter, see WGCNA documentation')
     parser.add_argument('--dch', default=0.995, metavar="0.995", type=float, help='dynamicTreeCut parameter, see WGCNA documentation')
+    parser.add_argument('--bidirectional', action='store_true', help='Whether to cluster up- and down-regulated features together.')
     parser.add_argument('--rpath', default="", metavar="", type=float, help='Full path to Rscript.')
     parser.add_argument('--merge', default=1, metavar="1", type=float,help = "Whether to merge biclustres similar in samples with Jaccard index not less then the specified.")
     parser.add_argument('--load_binary', action='store_true', help = "loads binarized features from <basename>.<bin_method>.seed=42.binarized.tsv, statistics from *.binarization_stats.tsv and the background SNR distribution from <basename>.<bin_method>.n=<n_permutations>.seed=42.background.tsv")
     parser.add_argument('--save_binary', action='store_true', help = "saves binarized features to a file named as <basename>.<bin_method>.seed=42.binarized.tsv. If WGCNA is clustering method, binarized expressions are always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and background SNR distributions respectively will be created")
-    parser.add_argument('--verbose', action='store_true')
+    parser.add_argument('-v','--verbose', action='store_true')
     #parser.add_argument('--plot', action='store_true', help = "show plots")
     
     
@@ -218,13 +237,18 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-        
+    
+    directions = ["DOWN","UP"]
+    if args.bidirectional:
+        directions = ["BOTH"]
+    
     biclusters = run(args.exprs, args.basename, out_dir=args.out_dir,  
                 save = args.save_binary, load = args.load_binary,
                 ceiling = args.ceiling,
                 bin_method = args.binarization, 
                 clust_method = args.clustering,
                 pval = args.pval,
+                directions = directions,
                 min_n_samples = args.min_n_samples, 
                 show_fits = [],
                 modularity = args.modularity, similarity_cutoffs = args.similarity_cutoffs, # for Louvain

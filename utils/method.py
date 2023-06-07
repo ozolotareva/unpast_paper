@@ -456,6 +456,8 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
         null_distribution = generate_null_dist(exprs.shape[1], min_n_samples,
                                                pval = pval,n_permutations=n_permutations,
                                                seed =seed,verbose = verbose)
+        
+        #null_distribution = pd.DataFrame(columns=range(n_permutations))
     
         if verbose:
             print("\tSNR thresholds for individual features computed in {:.2f} seconds".format(time()-t0))
@@ -551,7 +553,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
 #### Cluster binarized genes #####
 
 def run_WGCNA(binarized_expressions,fname,
-              deepSplit=4,detectCutHeight=0.995, # see WGCNA documentation
+              deepSplit=4,detectCutHeight=0.995, nt = "signed hybrid",# see WGCNA documentation
               verbose = False,rscr_path=False, rpath = ""):
     t0 = time()
         
@@ -568,12 +570,29 @@ def run_WGCNA(binarized_expressions,fname,
         # assume run_WGCNA.R is in the same folder
         rscr_path = "/".join(os.path.realpath(__file__).split("/")[:-1])+'/run_WGCNA.R'
     
+    binarized_expressions_ = binarized_expressions.loc[:,:].copy()
+    
+    # add suffixes to duplicated feature names
+    feature_names = binarized_expressions.columns.values
+    duplicated_feature_ndxs = np.arange(binarized_expressions.shape[1])[binarized_expressions.columns.duplicated()]
+    
+    if len(duplicated_feature_ndxs)>0:
+        new_feature_names = []
+        for i in range(len(feature_names)):
+            fn = feature_names[i]
+            if i in duplicated_feature_ndxs:
+                fn = str(fn)+"*"+str(i)
+            new_feature_names.append(fn)
+        print("\t\t%s duplicated feature names detected."%len(duplicated_feature_ndxs),file=sys.stdout)
+        dup_fn_mapping = dict(zip(new_feature_names,feature_names))
+        binarized_expressions_.columns = new_feature_names
+        
     # replace spaces in feature names
     # otherwise won't parse R output
     feature_names = (binarized_expressions.columns.values)
     feature_names_with_space = [x for x in feature_names if " " in x]
     if len(feature_names_with_space)>0:
-        print("%s feature names containing spaces will be replaced."%len(feature_names_with_space),file=sys.stderr)
+        print("\t\t%s feature names containing spaces will be replaced."%len(feature_names_with_space),file=sys.stdout)
         fn_mapping = {}
         fn_mapping_back = {}
         for fn in feature_names:
@@ -581,11 +600,10 @@ def run_WGCNA(binarized_expressions,fname,
                 fn_ = fn.replace(" ","_")
                 fn_mapping[fn] = fn_
                 fn_mapping_back[fn_] = fn 
-        # save binarized expression to file
-        binarized_expressions.rename(fn_mapping,axis="columns").to_csv(fname, sep ="\t")
-    else:
-        # save binarized expression to file
-        binarized_expressions.to_csv(fname, sep ="\t")
+        binarized_expressions_ =binarized_expressions.rename(fn_mapping,axis="columns")
+    
+    # save binarized expression to a file
+    binarized_expressions_.to_csv(fname, sep ="\t")
     
     # run Rscript
     if len(rpath)>0:
@@ -593,9 +611,9 @@ def run_WGCNA(binarized_expressions,fname,
         
     if verbose:
         print("\tR command line:",file = sys.stdout)
-        print("\t"+" ".join([rpath+'Rscript', rscr_path, fname, str(deepSplit), str(detectCutHeight)]),file = sys.stdout)
+        print("\t"+" ".join([rpath+'Rscript', rscr_path, fname, str(deepSplit), str(detectCutHeight), nt]),file = sys.stdout)
     
-    process = subprocess.Popen([rpath+'Rscript', rscr_path, fname, str(deepSplit), str(detectCutHeight)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen([rpath+'Rscript', rscr_path, fname, str(deepSplit), str(detectCutHeight), nt], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     #stdout = stdout.decode('utf-8')
     module_file = fname.replace(".tsv",".modules.tsv") #stdout.rstrip()
@@ -604,7 +622,7 @@ def run_WGCNA(binarized_expressions,fname,
     except:
         #print("WGCNA output:", stdout, file = sys.stdout)
         stderr = stderr.decode('utf-8')
-        print("WGCNA errors:", stderr, file = sys.stdout)
+        print("WGCNA error:", stderr, file = sys.stdout)
         modules_df = pd.DataFrame.from_dict({})
     if verbose:
         print("\tWGCNA runtime: modules detected in {:.2f} s.".format(time()-t0),file = sys.stdout)
@@ -615,11 +633,19 @@ def run_WGCNA(binarized_expressions,fname,
     module_dict = modules_df.T.to_dict()
     for i in module_dict.keys():
         genes =  module_dict[i]["genes"].strip().split()
+        # change feature names if they were modified
+        
         # return spaces in feature names back if necessary
         if len(feature_names_with_space)>0:
             for j in range(len(genes)):
                 if genes[j] in fn_mapping_back.keys():
                     genes[j] = fn_mapping_back[genes[j]]
+        # remove suffixes from duplicated feature names
+        if len(duplicated_feature_ndxs)>0:
+            for j in range(len(genes)):
+                if genes[j] in dup_fn_mapping.keys():
+                    genes[j] = dup_fn_mapping[genes[j]]
+        
         if i == 0:
             not_clustered = genes
         else:
