@@ -85,6 +85,7 @@ def run(exprs_file, basename='', out_dir="./",
     features_up = sorted(set(binarized_expressions.columns.values).intersection(set(features_up)))
     features_down = stats.loc[stats["direction"]=="DOWN",:].index.values
     features_down = sorted(set(binarized_expressions.columns.values).intersection(set(features_down)))
+    print(len(features_up),len(features_down))
 
     df_up = binarized_expressions.loc[:,features_up]
     df_down = binarized_expressions.loc[:,features_down]
@@ -134,7 +135,6 @@ def run(exprs_file, basename='', out_dir="./",
         
     elif clust_method == "WGCNA":
         from utils.method import run_WGCNA
-        nt = "signed hybrid"
         # create unique suffix  for tmp files
         from datetime import datetime
         now = datetime.now()
@@ -143,9 +143,7 @@ def run(exprs_file, basename='', out_dir="./",
             fname = out_dir+basename+ "."+bin_method+".pval="+str(pval)+".seed="+str(seed)+"."+d+suffix+".tsv"
             df = bin_data_dict[d] 
             if df.shape[0]>1:
-                if d =="BOTH":
-                    nt = "unsigned"
-                modules, single_features = run_WGCNA(df,fname,deepSplit=ds,detectCutHeight=dch,nt = nt,
+                modules, single_features = run_WGCNA(df,fname,deepSplit=ds,detectCutHeight=dch,nt = "signed_hybrid",
                                                      verbose = verbose,rpath = rpath)  
                 feature_clusters+= modules
                 not_clustered+= single_features

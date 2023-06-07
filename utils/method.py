@@ -109,7 +109,11 @@ def calc_mean_std_by_powers(powers):
     return mean, std
 
 def calc_SNR(ar1, ar2):
-    return (np.mean(ar1) - np.mean(ar2)) / (np.std(ar1) + np.std(ar2))
+    std_sum = np.std(ar1) + np.std(ar2)
+    if std_sum==0:
+        return 10
+    return (np.mean(ar1) - np.mean(ar2)) / std_sum
+
 
 
 ######### Binarization #########
@@ -553,7 +557,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
 #### Cluster binarized genes #####
 
 def run_WGCNA(binarized_expressions,fname,
-              deepSplit=4,detectCutHeight=0.995, nt = "signed hybrid",# see WGCNA documentation
+              deepSplit=0,detectCutHeight=0.995, nt = "signed_hybrid",# see WGCNA documentation
               verbose = False,rscr_path=False, rpath = ""):
     t0 = time()
         

@@ -1,4 +1,4 @@
-# usage: Rscript run_WGCNA.R binarized_expressions.tsv [deepSplit:0,1,2,3,4] [detectCutHeight:(0-1)] [network type:signed hybrid|unsigned]
+# usage: Rscript run_WGCNA.R binarized_expressions.tsv [deepSplit:0,1,2,3,4] [detectCutHeight:(0-1)] [network type:signed_hybrid|unsigned]
 suppressPackageStartupMessages(library("WGCNA"))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -9,6 +9,10 @@ fileModules <- paste0(sub(".tsv","",fileBinExprs),".modules.tsv")
 deepSplit <- as.integer(args[[2]])
 detectCutHeight <- as.numeric(args[[3]])
 nt <- args[[4]]
+
+if (nt=="signed_hybrid"){ 
+    nt <- "signed hybrid"
+}
 cat(nt)
 #nt <- "signed hybrid" # networkType = "unsigned", "signed hybrid"
 
