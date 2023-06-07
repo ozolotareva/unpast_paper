@@ -686,8 +686,11 @@ def run_WGCNA(binarized_expressions,fname,
             modules.append(genes)
     
     # remove WGCNA input and output files
-    #os.remove(fname) 
-    #os.remove(module_file)
+    try:
+        os.remove(fname) 
+        os.remove(module_file)
+    except:
+        pass
     
     if verbose:
         print("\tmodules: {}, not clustered features {} ".format(len(modules),len(not_clustered)),file = sys.stdout)

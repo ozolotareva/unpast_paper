@@ -132,7 +132,7 @@ def run(exprs_file, basename='', out_dir="./",
                 used_similarity_cutoffs.append(None)
         used_similarity_cutoffs = ",".join(map(str,used_similarity_cutoffs))
         
-    elif clust_method.str.contains("WGCNA"):
+    elif "WGCNA" in clust_method:
         if clust_method == "iWGCNA":
             from utils.method import run_WGCNA_iterative
             WGCNA_func = run_WGCNA_iterative
