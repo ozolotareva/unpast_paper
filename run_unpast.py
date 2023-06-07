@@ -85,7 +85,6 @@ def run(exprs_file, basename='', out_dir="./",
     features_up = sorted(set(binarized_expressions.columns.values).intersection(set(features_up)))
     features_down = stats.loc[stats["direction"]=="DOWN",:].index.values
     features_down = sorted(set(binarized_expressions.columns.values).intersection(set(features_down)))
-    print(len(features_up),len(features_down))
 
     df_up = binarized_expressions.loc[:,features_up]
     df_down = binarized_expressions.loc[:,features_down]
@@ -133,9 +132,14 @@ def run(exprs_file, basename='', out_dir="./",
                 used_similarity_cutoffs.append(None)
         used_similarity_cutoffs = ",".join(map(str,used_similarity_cutoffs))
         
-    elif clust_method == "WGCNA":
-        from utils.method import run_WGCNA
-        # create unique suffix  for tmp files
+    elif clust_method.str.contains("WGCNA"):
+        if clust_method == "iWGCNA":
+            from utils.method import run_WGCNA_iterative
+            WGCNA_func = run_WGCNA_iterative
+        else:
+            from utils.method import run_WGCNA
+            WGCNA_func = run_WGCNA
+        # create unique suffix for tmp files
         from datetime import datetime
         now = datetime.now()
         suffix = ".tmp_" + now.strftime("%y.%m.%d_%H:%M:%S")
@@ -143,30 +147,13 @@ def run(exprs_file, basename='', out_dir="./",
             fname = out_dir+basename+ "."+bin_method+".pval="+str(pval)+".seed="+str(seed)+"."+d+suffix+".tsv"
             df = bin_data_dict[d] 
             if df.shape[0]>1:
-                modules, single_features = run_WGCNA(df,fname,deepSplit=ds,detectCutHeight=dch,nt = "signed_hybrid",
+                modules, single_features = WGCNA_func(df,fname,deepSplit=ds,detectCutHeight=dch,nt = "signed_hybrid",
                                                      verbose = verbose,rpath = rpath)  
                 feature_clusters+= modules
                 not_clustered+= single_features
-
-    elif clust_method == "DESMOND":
-        from utils.pgm import run_sampling
-
-        # convergence
-        n_steps_averaged = 10
-        n_points_fit=10
-
-        clustering_results ={}
- 
-        exprs_bin = binarized_expressions
-        genes = exprs_bin.columns.values
-        feature_clusters, not_clustered  = run_sampling(exprs_bin,alpha=alpha,beta_K=beta_K,f=0.5,
-                    max_n_steps=max_n_steps, n_steps_averaged = n_steps_averaged,
-                    n_points_fit = n_points_fit, tol = 0.1,
-                    n_steps_for_convergence = n_steps_for_convergence,
-                    verbose =verbose,plot_all=plot_all)
     
     else:
-        print("'clust_method' must be 'WGCNA' or 'Louvain', or 'DESMOND'.",file=sys.stderr)
+        print("'clust_method' must be 'WGCNA', 'iWGCNA', or 'Louvain'.",file=sys.stderr)
     
     ######### making biclusters #########
     if len(feature_clusters)==0:
@@ -214,7 +201,7 @@ def parse_args():
                         choices=["kmeans","ward",'GMM', 'Jenks'], help='binarization method')
     parser.add_argument('-p','--pval', metavar=0.01, default=0.01, type=float, help  = 'binarization p-value')
     parser.add_argument('-c','--clustering', metavar="WGCNA", default="WGCNA", type=str,
-                        choices=['Louvain', 'WGCNA'], help='feature clustering method')
+                        choices=['Louvain', 'WGCNA','iWGCNA'], help='feature clustering method')
     # Louvain parameters
     parser.add_argument('-m','--modularity', default=1/3, metavar="1/3", type=float, help='Modularity corresponding to a cutoff for similarity matrix (Louvain clustering)')
     parser.add_argument('-r','--similarity_cutoffs', default=-1, metavar="-1", type=float, help='A cutoff or a list of cuttofs for similarity matrix (Louvain clustering). If set to -1, will be chosen authomatically from [1/5,4/5] using elbow method')

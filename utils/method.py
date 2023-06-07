@@ -556,6 +556,36 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     
 #### Cluster binarized genes #####
 
+
+def run_WGCNA_iterative(binarized_expressions,fname,
+              deepSplit=0,detectCutHeight=0.995, nt = "signed_hybrid",# see WGCNA documentation
+              verbose = False,rscr_path=False, rpath = ""):
+    
+    t0 = time()
+    
+    not_clustered = binarized_expressions.columns.values
+    binarized_expressions_ = binarized_expressions.loc[:,:].copy()
+    stop_condition = False
+    
+    modules = []
+    i=0
+    while len(not_clustered)>=3 and not stop_condition:
+        binarized_expressions_ = binarized_expressions_.loc[:,not_clustered]
+        m,not_clustered = run_WGCNA(binarized_expressions_,fname,
+                  deepSplit=deepSplit,detectCutHeight=detectCutHeight, nt = nt,
+                  verbose = verbose,rscr_path=rscr_path, rpath = rpath)
+        if verbose:
+            print("\t\t\tWGCNA iteration %s, modules:%s, not clustered:%s"%(i,len(m),len(not_clustered)),file=sys.stdout)
+        modules += m
+        # stop when the number of not clustred samples does not change
+        if len(m)==0:
+            stop_condition = True
+            if verbose:
+                print("\t\t\tWGCNA iterations terminated at step ",i,file=sys.stdout)
+        
+        i+=1
+    return (modules, not_clustered)
+
 def run_WGCNA(binarized_expressions,fname,
               deepSplit=0,detectCutHeight=0.995, nt = "signed_hybrid",# see WGCNA documentation
               verbose = False,rscr_path=False, rpath = ""):
