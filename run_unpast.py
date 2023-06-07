@@ -169,7 +169,7 @@ def run(exprs_file, basename='', out_dir="./",
     
     from utils.method import write_bic_table
     suffix  = ".seed="+str(seed)+".bin="+bin_method+",pval="+str(pval)+",clust="+clust_method
-    if clust_method == "WGCNA":
+    if "WGCNA" in clust_method:
         suffix2 = ",ds="+str(ds)+",dch="+str(dch)
         modularity, similarity_cutoff = None, None
     elif clust_method == "Louvain":
