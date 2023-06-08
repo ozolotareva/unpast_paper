@@ -117,19 +117,18 @@ def calc_SNR(ar1, ar2):
 
 
 ######### Binarization #########
-
-def generate_null_dist(N, min_n_samples,n_permutations = 10000,pval = 0.001,
+def generate_null_dist(N, sizes, n_permutations = 10000,pval = 0.001,
                        seed = 42,verbose = True):
-    # samples N values from standard normal distribution, and split them into bicluster  background
-    # returns bicluster sizes tested, SNR thresholds for each size, the distribution of SNR for each size
-    
+    # samples 'N' values from standard normal distribution, and split them into bicluster and background groups
+    # 'sizes' defines bicluster sizes to test
+    # returns a dataframe with the distribution of SNR for each bicluster size (sizes x n_permutations )
+    t0 = time()
     n_permutations = max(n_permutations,int(1.0/pval*10))
     
-    sizes = np.arange(min_n_samples,int(N/2)+1)
     if verbose:
-        print("\tGenerate empirical distribuition of SNR depending on the bicluster size ...")
-        print("\t\ttotal samples: %s,\n\t\tnumber of samples in a bicluster: %s - %s,\n\t\tn_permutations: %s"%(N,sizes[0],sizes[-1],n_permutations))
-        print("snr pval threshold:",pval)
+        print("\tGenerate background distribuition of SNR depending on the bicluster size ...",file = sys.stdout)
+        print("\t\ttotal samples: %s,\n\t\tnumber of samples in a bicluster: %s - %s,\n\t\tn_permutations: %s"%(N,min(sizes),max(sizes),n_permutations),file = sys.stdout)
+        print("\t\tsnr pval threshold:",pval,file = sys.stdout)
         
     exprs =  np.zeros((n_permutations,N)) # generate random expressions from st.normal
     #values = exprs.values.reshape(-1) # random samples from expression matrix
@@ -141,13 +140,15 @@ def generate_null_dist(N, min_n_samples,n_permutations = 10000,pval = 0.001,
     exprs_sums = exprs.sum(axis=1)
     exprs_sq_sums = np.square(exprs).sum(axis=1)
 
-    sizes = np.arange(min_n_samples,int(N/2)+1)
-    null_distribution = np.zeros((sizes.shape[0],n_permutations))
+    null_distribution = pd.DataFrame(np.zeros((sizes.shape[0],n_permutations)),index=sizes,columns = range(n_permutations))
     
     for s in sizes:
-        null_distribution[s-min_n_samples,:] = -1*calc_snr_per_row(s, N, exprs, exprs_sums,exprs_sq_sums)
-
+        null_distribution.loc[s,:] = -1*calc_snr_per_row(s, N, exprs, exprs_sums,exprs_sq_sums)
+    
+    if verbose:
+        print("\tBackground ditribution generated in {:.2f} s".format(time()-t0),file = sys.stdout)
     return null_distribution
+
 
 def get_trend(sizes, thresholds, plot= True):
     # smoothens the trend and retunrs a function min_SNR(size; p-val. cutoff)
@@ -165,8 +166,8 @@ def get_trend(sizes, thresholds, plot= True):
         plt.show()
     return get_min_snr
 
-def calc_e_pval(snr,size,min_n_samples,null_distribution):
-    e_dist = null_distribution[int(size - min_n_samples),]
+def calc_e_pval(snr,size,null_distribution):
+    e_dist = null_distribution.loc[int(size),:]
     return  (len(e_dist[e_dist>=abs(snr)])+1.0)/(null_distribution.shape[1]+1.0)
 
 def jenks_binarization(exprs, min_n_samples,verbose = True,
@@ -236,7 +237,7 @@ def jenks_binarization(exprs, min_n_samples,verbose = True,
         # logging
         if verbose:
             if i % 1000 == 0:
-                print("\t\tgenes processed:",i)
+                print("\t\tfeatures processed:",i)
         
         # plotting selected genes
         if gene in show_fits or abs(snr) > plot_SNR_thr:
@@ -440,16 +441,14 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     if not load or load_failed:
         if exprs is None:
             print("Provide either raw or binarized data.", file=sys.stderr)
-            return None       
+            return None
+        
         # binarize features 
         start_time = time()
         if verbose:
             print("\nBinarization started ....\n")
 
         t0 = time()
-    
-        if verbose:
-            print("\tSNR thresholds for individual features computed in {:.2f} seconds".format(time()-t0))
 
         if method=="Jenks":
             binarized_data, stats = jenks_binarization(exprs, min_n_samples,
@@ -464,32 +463,33 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
         else:
             print("Method must be 'GMM','kmeans','ward', or 'Jenks'.",file=sys.stderr)
             return
-        
-        if verbose:
-            print("\tBinarization runtime: {:.2f} s".format(time()-start_time ),file = sys.stdout)
 
     # load or generate empirical distributions for bicluster sizes
-    try:  
-        #load background distribution
-        null_distribution = pd.read_csv(bin_bg_fname, sep ="\t",index_col=0)
-        null_distribution = null_distribution.values
-        if verbose:
-            print("Load background distribution from",bin_bg_fname,"\n",file = sys.stdout)
-    except:
-        print("file "+bin_bg_fname+" is not found and will be created",file = sys.stderr)
-        null_distribution = generate_null_dist(exprs.shape[1], min_n_samples,
+    N = exprs.shape[1]
+    sizes = np.arange(min_n_samples,int(exprs.shape[1]/2)+1)
+    
+    load_failed = False
+    if load:
+        try:  
+            #load background distribution
+            null_distribution = pd.read_csv(bin_bg_fname, sep ="\t",index_col=0)
+            if verbose:
+                print("Load background distribution from",bin_bg_fname,"\n",file = sys.stdout)
+        except:
+            print("file "+bin_bg_fname+" is not found and will be created",file = sys.stderr)
+            load_failed = True
+    if not load or load_failed:
+        null_distribution = generate_null_dist(exprs.shape[1], sizes,
                                                pval = pval,n_permutations=n_permutations,
                                                seed =seed,verbose = verbose)
-    #print(null_distribution )
-    #print(null_distribution.shape)
+
     #if not load or load_failed:
     # add SNR p-val depends on bicluster size 
     stats = stats.dropna(subset=["size"])
-    stats["pval"] = stats.apply(lambda row: calc_e_pval(row["SNR"],row["size"],min_n_samples,null_distribution),axis=1)
+    stats["pval"] = stats.apply(lambda row: calc_e_pval(row["SNR"],row["size"],null_distribution),axis=1)
 
     # find SNR threshold 
-    sizes = np.arange(min_n_samples,int(exprs.shape[1]/2)+1)
-    thresholds = np.quantile(null_distribution,q=1-pval,axis=1)
+    thresholds = np.quantile(null_distribution.loc[sizes,:].values,q=1-pval,axis=1)
     size_snr_trend = get_trend(sizes, thresholds, plot= False)
     stats["SNR_threshold"] = stats["size"].apply(lambda x: size_snr_trend(x))
 
@@ -505,10 +505,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
             print("Statistics is saved to",bin_stats_fname,file = sys.stdout)
 
         # save null distribution: null_distribution, size,threshold 
-        df = pd.DataFrame(null_distribution, 
-                          index=range(null_distribution.shape[0]),
-                          columns=range(null_distribution.shape[1]))
-        df.to_csv(bin_bg_fname, sep ="\t")
+        null_distribution.to_csv(bin_bg_fname, sep ="\t")
         if verbose:
             print("Background sitribution is saved to",bin_bg_fname,file = sys.stdout)
             
@@ -1178,10 +1175,7 @@ def make_biclusters(feature_clusters,
     
     # add p-value for bicluster SNR (computed for avg. zscores) 
     # use the same distribution as for single features
-    biclusters["e_pval"] = biclusters.apply(lambda row: calc_e_pval(row["SNR"],
-                                                                        row["n_samples"],
-                                                                        min_n_samples,
-                                                                        null_distribution),axis=1) 
+    biclusters["e_pval"] = biclusters.apply(lambda row: calc_e_pval(row["SNR"], row["n_samples"], null_distribution),axis=1) 
     
     # sort and reindex
     biclusters = biclusters.sort_values(by=["e_pval","SNR"],ascending=[True,False])
