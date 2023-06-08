@@ -166,7 +166,7 @@ def get_trend(sizes, thresholds, plot= True):
     return get_min_snr
 
 def calc_e_pval(snr,size,min_n_samples,null_distribution):
-    e_dist = null_distribution[size - min_n_samples,]
+    e_dist = null_distribution[int(size - min_n_samples),]
     return  (len(e_dist[e_dist>=abs(snr)])+1.0)/(null_distribution.shape[1]+1.0)
 
 def jenks_binarization(exprs, min_n_samples,verbose = True,
@@ -465,6 +465,9 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
             print("Method must be 'GMM','kmeans','ward', or 'Jenks'.",file=sys.stderr)
             return
         
+        if verbose:
+            print("\tBinarization runtime: {:.2f} s".format(time()-start_time ),file = sys.stdout)
+
     # load or generate empirical distributions for bicluster sizes
     try:  
         #load background distribution
@@ -477,18 +480,18 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
         null_distribution = generate_null_dist(exprs.shape[1], min_n_samples,
                                                pval = pval,n_permutations=n_permutations,
                                                seed =seed,verbose = verbose)
-    if not load or load_failed:
-        # add SNR p-val depends on bicluster size 
-        stats["pval"] = stats.apply(lambda row: calc_e_pval(row["SNR"],row["size"],min_n_samples,null_distribution),axis=1)
+    #print(null_distribution )
+    #print(null_distribution.shape)
+    #if not load or load_failed:
+    # add SNR p-val depends on bicluster size 
+    stats = stats.dropna(subset=["size"])
+    stats["pval"] = stats.apply(lambda row: calc_e_pval(row["SNR"],row["size"],min_n_samples,null_distribution),axis=1)
 
-        # find SNR threshold 
-        sizes = np.arange(min_n_samples,int(exprs.shape[1]/2)+1)
-        thresholds = np.quantile(null_distribution,q=1-pval,axis=1)
-        size_snr_trend = get_trend(sizes, thresholds, plot= False)
-        stats["SNR_threshold"] = stats["size"].apply(lambda x: size_snr_trend(x))
-
-        if verbose:
-                print("\tBinarization runtime: {:.2f} s".format(time()-start_time ),file = sys.stdout)
+    # find SNR threshold 
+    sizes = np.arange(min_n_samples,int(exprs.shape[1]/2)+1)
+    thresholds = np.quantile(null_distribution,q=1-pval,axis=1)
+    size_snr_trend = get_trend(sizes, thresholds, plot= False)
+    stats["SNR_threshold"] = stats["size"].apply(lambda x: size_snr_trend(x))
 
     if save:        
         # save binarized data
