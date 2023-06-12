@@ -109,10 +109,7 @@ def calc_mean_std_by_powers(powers):
     return mean, std
 
 def calc_SNR(ar1, ar2):
-    std_sum = np.std(ar1) + np.std(ar2)
-    if std_sum==0:
-        return 10
-    return (np.mean(ar1) - np.mean(ar2)) / std_sum
+    return (np.mean(ar1) - np.mean(ar2)) / (np.std(ar1) + np.std(ar2))
 
 
 
@@ -493,7 +490,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     size_snr_trend = get_trend(sizes, thresholds, plot= False)
     stats["SNR_threshold"] = stats["size"].apply(lambda x: size_snr_trend(x))
 
-    if save:        
+    if not load and save:        
         # save binarized data
         binarized_data.to_csv(bin_exprs_fname, sep ="\t")
         if verbose:
@@ -1280,7 +1277,7 @@ def calc_bicluster_similarities(biclusters,exprs,
         
     return J_heatmap
     
-def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
+def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
                               similarity = "both", # can be 'both','genes','samples' 
                               method="kmeans", min_n_genes =2, min_n_samples=5,
                               seed = -1, plot = False,
@@ -1292,6 +1289,7 @@ def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
         print("Seed for sample clustering: %s"%(seed),file=sys.stderr)
     
     # list of biclusters from several runs
+    n_runs = len(biclusters_list)
     biclusters = pd.concat(biclusters_list)
     biclusters.index = range(biclusters.shape[0])
     
@@ -1341,8 +1339,8 @@ def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
                     gene_occurencies[gene]+=1
         
         gene_occurencies = pd.Series(gene_occurencies).sort_values()
-        passed_genes = sorted(gene_occurencies[gene_occurencies>=min_n_runs].index.values)
-        not_passed_genes  = sorted(gene_occurencies[gene_occurencies<min_n_runs].index.values)
+        passed_genes = sorted(gene_occurencies[gene_occurencies>=min(n_runs,len(matched))*frac_runs].index.values)
+        not_passed_genes  = sorted(gene_occurencies[gene_occurencies<min(n_runs,len(matched))*frac_runs].index.values)
 
         
         if len(passed_genes)<min_n_genes:
@@ -1359,10 +1357,7 @@ def make_consensus_biclusters(biclusters_list,exprs, min_n_runs=2,
                 bicluster["detected_n_times"] = len(gsets)
                 consensus_biclusters.append(bicluster)
     consensus_biclusters = pd.DataFrame.from_records(consensus_biclusters)
-    
-    print("biclusters found in %s+ runs:"%min_n_runs,consensus_biclusters.shape[0],
-          "in less then %s runs:"%min_n_runs,len(not_matched))
-    
+     
     # add not matched
     not_changed_biclusters = biclusters.loc[not_matched,:]
     not_changed_biclusters["detected_n_times"] = 1
