@@ -1,4 +1,4 @@
-# usage: Rscript run_WGCNA.R binarized_expressions.tsv [deepSplit:0,1,2,3,4] [detectCutHeight:(0-1)] [network type:signed_hybrid|unsigned]
+# usage: Rscript run_WGCNA.R binarized_expressions.tsv [deepSplit:0,1,2,3,4] [detectCutHeight:(0-1)] [network type:signed_hybrid|unsigned] max_power
 suppressPackageStartupMessages(library("WGCNA"))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -16,35 +16,51 @@ if (nt=="signed_hybrid"){
 cat(nt)
 #nt <- "signed hybrid" # networkType = "unsigned", "signed hybrid"
 
+max_power <- as.numeric(args[[5]])
+
 datExpr <- read.csv(fileBinExprs,check.names=FALSE,sep = "\t",header = TRUE,row.names=1)
 datExpr[] <- lapply(datExpr, as.numeric)
 
 #### finding power threshold #### 
-powers = c(c(1:10), seq(from = 12, to=20, by=2))
+powers = c(1:max_power) #c(c(1:10), seq(from = 12, to=20, by=2))
 rsqcuts <- seq(from = 0.9, to=0.05, by=-0.05)
-i = 1
+i = 0
 power <- NA
 while (is.na(power)){
 # Call the network topology analysis function
+ i<-i+1
  sft <- pickSoftThreshold(datExpr, powerVector = powers,verbose = 0,
                           networkType = nt,RsquaredCut =rsqcuts[[i]])  
  power <- sft$powerEstimate
- i<-i+1
 }
 
-#print(cat("\nR^2 threshold:",rsqcuts[[i]],"power:",power,"\n"))
+
+print(cat("\nR^2 threshold:",rsqcuts[[i]],"power:",power,"\n"))
 print(cat("networkType:",nt,"\n"))
-print(cat("maxBlockSize:",dim(datExpr)[[2]]+1,"\n"))
+
+
 
 #### find modules ####
+# if maxBlockSize is not exceeded, no pre-clustering is performed
+# not performed if < 100 features 
+maxBlockSize = max(100,as.integer(ncol(datExpr)/2)) 
+#maxBlockSize =as.integer(ncol(datExpr)+1) #  to switch off pre-clustering 
+print(cat("maxBlockSize:",maxBlockSize,"\n"))
+# number of pre-clustering centers 
+# equals min(ncol(datExpr)/20, 200), minimal for possible maxBlockSize is 5
+#nPreclusteringCenters = as.integer(min(ncol(datExpr)/20, 100*ncol(datExpr)/maxBlockSize)) # default
+#nPreclusteringCenters = as.integer(min(ncol(datExpr)/20, 10*ncol(datExpr)/maxBlockSize)) 
+#print(cat("nPreclusteringCenters:",nPreclusteringCenters,"\n"))
+
 net = blockwiseModules(datExpr, power = power,
 TOMType = "unsigned", 
 networkType = nt, 
 minModuleSize = 2,
 numericLabels = TRUE,
-maxBlockSize = 20000, #dim(datExpr)[[2]]+1,
+maxBlockSize = maxBlockSize, 
+#nPreclusteringCenters = nPreclusteringCenters, 
 detectCutHeight = detectCutHeight, #detectCutHeight = 0.995,
-#mergeCutHeight = 0.05,
+mergeCutHeight =0.05, # only modules with ME correlated with r>1-0.05 are merged
 deepSplit = deepSplit,
 verbose = 0)
 
