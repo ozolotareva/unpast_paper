@@ -18,7 +18,7 @@ def run(exprs_file, basename='', out_dir="./",
                 directions = ["DOWN","UP"], # could be ["DOWN","UP"] or ["BOTH"]
                 seed = 42,
                 verbose = True, plot_all = False,
-                large_input=False):
+                large_input=False,no_z = False):
     
     import sys
     from time import time
@@ -42,27 +42,28 @@ def run(exprs_file, basename='', out_dir="./",
         
     # read inputs
     if large_input:
-        exprs = pd.read_csv(exprs_file, sep="\t",index_col=0,dtype=np.float16)
-        n_permutations=1
+        exprs = pd.read_csv(exprs_file, sep="\t",index_col=0) # ,dtype=np.float16
+        n_permutations=100
     else:
         exprs = pd.read_csv(exprs_file, sep="\t",index_col=0)
-        n_permutations=10000
-        
+        n_permutations = max(10000,int(1.0/pval*10))
+    
     if verbose:
         print("Read input from:",exprs_file ,file=sys.stdout)
         print("\t{} features x {} samples".format(exprs.shape[0],exprs.shape[1]) ,file=sys.stdout)
 
-    #check if expressions are standardized (mean=0, std =1)
-    from utils.method import validate_input_matrix
-    exprs = validate_input_matrix(exprs,verbose = verbose)
+    if not no_z:
+        #check if expressions are standardized (mean=0, std =1)
+        from utils.method import validate_input_matrix
+        exprs = validate_input_matrix(exprs,verbose = verbose)
     
-    #set extreme z-scores to -x and x, e.g. -3,3
-    if ceiling:    
-        exprs[exprs>ceiling] = ceiling
-        exprs[exprs<-ceiling] = -ceiling
-        exprs.fillna(-ceiling, inplace = True)
-        if verbose:
-            print("Standardized expressions will be limited to [-%s,%s]:"%(ceiling,ceiling),file=sys.stdout)
+        #set extreme z-scores to -x and x, e.g. -3,3
+        if ceiling:    
+            exprs[exprs>ceiling] = ceiling
+            exprs[exprs<-ceiling] = -ceiling
+            exprs.fillna(-ceiling, inplace = True)
+            if verbose:
+                print("Standardized expressions will be limited to [-%s,%s]:"%(ceiling,ceiling),file=sys.stdout)
     
     if verbose:
         print("Mininal number of samples in a bicluster:",min_n_samples ,file=sys.stdout)
@@ -139,15 +140,14 @@ def run(exprs_file, basename='', out_dir="./",
         else:
             from utils.method import run_WGCNA
             WGCNA_func = run_WGCNA
-        # create unique suffix for tmp files
-        from datetime import datetime
-        now = datetime.now()
-        suffix = ".tmp_" + now.strftime("%y.%m.%d_%H:%M:%S")
+
         for d in directions:
-            fname = out_dir+basename+ "."+bin_method+".pval="+str(pval)+".seed="+str(seed)+"."+d+suffix+".tsv"
+            # WGCNA tmp file prefix
+            tmp_prefix = out_dir+basename+ "."+bin_method+".pval="+str(pval)+".seed="+str(seed)+"."+d
             df = bin_data_dict[d] 
             if df.shape[0]>1:
-                modules, single_features = WGCNA_func(df,fname,deepSplit=ds,detectCutHeight=dch,nt = "signed_hybrid",
+                modules, single_features = WGCNA_func(df,tmp_prefix=tmp_prefix, 
+                                                      deepSplit=ds,detectCutHeight=dch,nt = "signed_hybrid",
                                                      verbose = verbose,rpath = rpath)  
                 feature_clusters+= modules
                 not_clustered+= single_features

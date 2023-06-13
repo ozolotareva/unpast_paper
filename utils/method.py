@@ -120,13 +120,12 @@ def generate_null_dist(N, sizes, n_permutations = 10000,pval = 0.001,
     # 'sizes' defines bicluster sizes to test
     # returns a dataframe with the distribution of SNR for each bicluster size (sizes x n_permutations )
     t0 = time()
-    n_permutations = max(n_permutations,int(1.0/pval*10))
     
     if verbose:
         print("\tGenerate background distribuition of SNR depending on the bicluster size ...",file = sys.stdout)
         print("\t\ttotal samples: %s,\n\t\tnumber of samples in a bicluster: %s - %s,\n\t\tn_permutations: %s"%(N,min(sizes),max(sizes),n_permutations),file = sys.stdout)
         print("\t\tsnr pval threshold:",pval,file = sys.stdout)
-        
+    
     exprs =  np.zeros((n_permutations,N)) # generate random expressions from st.normal
     #values = exprs.values.reshape(-1) # random samples from expression matrix
     #exprs = np.random.choice(values,size=exprs.shape[1])
@@ -461,9 +460,14 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
             print("Method must be 'GMM','kmeans','ward', or 'Jenks'.",file=sys.stderr)
             return
 
-    # load or generate empirical distributions for bicluster sizes
+    # load or generate empirical distributions for all bicluster sizes
     N = exprs.shape[1]
-    sizes = np.arange(min_n_samples,int(exprs.shape[1]/2)+1)
+    # sizes of binarized features
+    sizes1 = set([x for x in stats["size"].values if not np.isnan(x)])
+    # no more than 100 of bicluster sizes are computed 
+    sizes2 = set(map(int,np.arange(min_n_samples,N,max(int((N-min_n_samples)/100),1))))
+    sizes = np.array(sorted(sizes1|sizes2))
+    #sizes = np.arange(min_n_samples,int(exprs.shape[1]/2)+1)
     
     load_failed = False
     if load:
@@ -554,7 +558,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
 #### Cluster binarized genes #####
 
 
-def run_WGCNA_iterative(binarized_expressions,fname,
+def run_WGCNA_iterative(binarized_expressions,tmp_prefix="",
               deepSplit=0,detectCutHeight=0.995, nt = "signed_hybrid",# see WGCNA documentation
               verbose = False,rscr_path=False, rpath = ""):
     
@@ -568,7 +572,8 @@ def run_WGCNA_iterative(binarized_expressions,fname,
     i=0
     while len(not_clustered)>=3 and not stop_condition:
         binarized_expressions_ = binarized_expressions_.loc[:,not_clustered]
-        m,not_clustered = run_WGCNA(binarized_expressions_,fname,
+        
+        m,not_clustered = run_WGCNA(binarized_expressions_,tmp_prefix=tmp_prefix,
                   deepSplit=deepSplit,detectCutHeight=detectCutHeight, nt = nt,
                   verbose = verbose,rscr_path=rscr_path, rpath = rpath)
         if verbose:
@@ -583,11 +588,17 @@ def run_WGCNA_iterative(binarized_expressions,fname,
         i+=1
     return (modules, not_clustered)
 
-def run_WGCNA(binarized_expressions,fname,
+def run_WGCNA(binarized_expressions,tmp_prefix="",
               deepSplit=0,detectCutHeight=0.995, nt = "signed_hybrid",# see WGCNA documentation
               verbose = False,rscr_path=False, rpath = ""):
     t0 = time()
-        
+    # create unique suffix for tmp files
+    from datetime import datetime
+    now = datetime.now()
+    fname = "tmpWGCNA_" + now.strftime("%y.%m.%d_%H:%M:%S")+".tsv"
+    if len(tmp_prefix)>0:
+        fname = tmp_prefix+"."+fname 
+    
     deepSplit = int(deepSplit)
     if not deepSplit in [0,1,2,3,4]:
         print("deepSplit must be 1,2,3 or 4. See WGCNA documentation.",file = sys.stderr)
@@ -683,11 +694,11 @@ def run_WGCNA(binarized_expressions,fname,
             modules.append(genes)
     
     # remove WGCNA input and output files
-    try:
-        os.remove(fname) 
-        os.remove(module_file)
-    except:
-        pass
+    #try:
+    #    os.remove(fname) 
+    #    os.remove(module_file)
+    #except:
+    #    pass
     
     if verbose:
         print("\tmodules: {}, not clustered features {} ".format(len(modules),len(not_clustered)),file = sys.stdout)
@@ -1172,13 +1183,13 @@ def make_biclusters(feature_clusters,
     
     # add p-value for bicluster SNR (computed for avg. zscores) 
     # use the same distribution as for single features
-    biclusters["e_pval"] = biclusters.apply(lambda row: calc_e_pval(row["SNR"], row["n_samples"], null_distribution),axis=1) 
+    #biclusters["e_pval"] = biclusters.apply(lambda row: calc_e_pval(row["SNR"], row["n_samples"], null_distribution),axis=1) 
     
     # sort and reindex
-    biclusters = biclusters.sort_values(by=["e_pval","SNR"],ascending=[True,False])
+    biclusters = biclusters.sort_values(by=["SNR","n_genes"],ascending=[False,False])
     biclusters.index = range(0,biclusters.shape[0])
     
-    biclusters = biclusters.loc[:,["SNR","e_pval","n_genes","n_samples","genes","samples","direction",
+    biclusters = biclusters.loc[:,["SNR","n_genes","n_samples","genes","samples","direction",
                                    "genes_up","genes_down","gene_indexes","sample_indexes"]]
     
     
