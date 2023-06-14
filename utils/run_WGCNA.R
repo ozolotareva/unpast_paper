@@ -1,4 +1,4 @@
-# usage: Rscript run_WGCNA.R binarized_expressions.tsv [deepSplit:0,1,2,3,4] [detectCutHeight:(0-1)] [network type:signed_hybrid|unsigned] max_power
+# usage: Rscript run_WGCNA.R binarized_expressions.tsv [deepSplit:0,1,2,3,4] [detectCutHeight:(0-1)] [network type:signed_hybrid|unsigned] [max_power precluster:T/F]
 suppressPackageStartupMessages(library("WGCNA"))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -13,10 +13,12 @@ nt <- args[[4]]
 if (nt=="signed_hybrid"){ 
     nt <- "signed hybrid"
 }
-cat(nt)
 #nt <- "signed hybrid" # networkType = "unsigned", "signed hybrid"
 
 max_power <- as.numeric(args[[5]])
+
+precluster <- as.logical(args[[6]])
+
 
 datExpr <- read.csv(fileBinExprs,check.names=FALSE,sep = "\t",header = TRUE,row.names=1)
 datExpr[] <- lapply(datExpr, as.numeric)
@@ -43,9 +45,14 @@ print(cat("networkType:",nt,"\n"))
 #### find modules ####
 # if maxBlockSize is not exceeded, no pre-clustering is performed
 # not performed if < 100 features 
-maxBlockSize = max(100,as.integer(ncol(datExpr)/2)) 
-#maxBlockSize =as.integer(ncol(datExpr)+1) #  to switch off pre-clustering 
+if (precluster){
+    maxBlockSize = max(100,as.integer(ncol(datExpr)/2))
+} else {
+maxBlockSize =as.integer(ncol(datExpr)+1) #  to switch off pre-clustering, much faster and less modules
+}
+print(cat("n_features:",ncol(datExpr),"\n"))
 print(cat("maxBlockSize:",maxBlockSize,"\n"))
+print(cat("pre-clustering:",precluster,"\n"))
 # number of pre-clustering centers 
 # equals min(ncol(datExpr)/20, 200), minimal for possible maxBlockSize is 5
 #nPreclusteringCenters = as.integer(min(ncol(datExpr)/20, 100*ncol(datExpr)/maxBlockSize)) # default

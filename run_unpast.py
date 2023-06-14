@@ -11,7 +11,7 @@ def run(exprs_file, basename='', out_dir="./",
                 show_fits = [],
                 pval = 0.01, # binarization p-value
                 modularity=1/3, similarity_cutoffs = -1, # for Louvain
-                ds = 0, dch = 0.995, max_power=10, rpath="", # for WGCNA
+                ds = 0, dch = 0.995, max_power=10, precluster=False, rpath="", # for WGCNA
                 alpha=1,beta_K = 1, max_n_steps= 100, n_steps_for_convergence = 5, # for DESMOND
                 cluster_binary=False, 
                 merge = 1,
@@ -148,7 +148,7 @@ def run(exprs_file, basename='', out_dir="./",
             if df.shape[0]>1:
                 modules, single_features = WGCNA_func(df,tmp_prefix=tmp_prefix, 
                                                       deepSplit=ds,detectCutHeight=dch,nt = "signed_hybrid",
-                                                      max_power = max_power,
+                                                      max_power = max_power, precluster=precluster,
                                                      verbose = verbose,rpath = rpath)  
                 feature_clusters+= modules
                 not_clustered+= single_features

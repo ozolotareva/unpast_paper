@@ -14,7 +14,6 @@ from scipy.stats import chi2_contingency
 
 from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans,AgglomerativeClustering 
-import jenkspy
 from fisher import pvalue
 
 import matplotlib.pyplot as plt
@@ -168,6 +167,7 @@ def calc_e_pval(snr,size,null_distribution):
 
 def jenks_binarization(exprs, min_n_samples,verbose = True,
                       plot=True, plot_SNR_thr= 3.0, show_fits = []):
+    import jenkspy
     e_pval = -1
     t0= time()
     if verbose:
@@ -560,7 +560,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
 
 def run_WGCNA_iterative(binarized_expressions,tmp_prefix="",
               deepSplit=0,detectCutHeight=0.995, nt = "signed_hybrid",# see WGCNA documentation
-              max_power = 10,
+              max_power = 10,precluster=False,
               verbose = False,rscr_path=False, rpath = ""):
     
     t0 = time()
@@ -576,7 +576,7 @@ def run_WGCNA_iterative(binarized_expressions,tmp_prefix="",
         
         m,not_clustered = run_WGCNA(binarized_expressions_,tmp_prefix=tmp_prefix,
                   deepSplit=deepSplit,detectCutHeight=detectCutHeight, nt = nt,
-                  max_power = max_power,
+                  max_power = max_power, precluster=precluster,
                   verbose = verbose,rscr_path=rscr_path, rpath = rpath)
         if verbose:
             print("\t\t\tWGCNA iteration %s, modules:%s, not clustered:%s"%(i,len(m),len(not_clustered)),file=sys.stdout)
@@ -592,7 +592,7 @@ def run_WGCNA_iterative(binarized_expressions,tmp_prefix="",
 
 def run_WGCNA(binarized_expressions,tmp_prefix="",
               deepSplit=0,detectCutHeight=0.995, nt = "signed_hybrid",# see WGCNA documentation
-              max_power = 10,
+              max_power = 10,precluster=False,
               verbose = False,rscr_path=False, rpath = ""):
     t0 = time()
     # create unique suffix for tmp files
@@ -602,6 +602,13 @@ def run_WGCNA(binarized_expressions,tmp_prefix="",
     if len(tmp_prefix)>0:
         fname = tmp_prefix+"."+fname 
     
+    
+    print("\tWGCNA pre-clustering:",precluster,file=sys.stdout)
+    if precluster:
+        precluster = "T"
+    else:
+        precluster = "F"
+        
     deepSplit = int(deepSplit)
     if not deepSplit in [0,1,2,3,4]:
         print("deepSplit must be 1,2,3 or 4. See WGCNA documentation.",file = sys.stderr)
@@ -656,9 +663,11 @@ def run_WGCNA(binarized_expressions,tmp_prefix="",
         
     if verbose:
         print("\tR command line:",file = sys.stdout)
-        print("\t"+" ".join([rpath+'Rscript', rscr_path, fname, str(deepSplit), str(detectCutHeight), nt,str(max_power)]),file = sys.stdout)
+        print("\t"+" ".join([rpath+'Rscript', rscr_path, fname, 
+                             str(deepSplit), str(detectCutHeight), nt,str(max_power),precluster]),file = sys.stdout)
     
-    process = subprocess.Popen([rpath+'Rscript', rscr_path, fname, str(deepSplit), str(detectCutHeight), nt,str(max_power)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen([rpath+'Rscript', rscr_path, fname, 
+                                str(deepSplit), str(detectCutHeight), nt,str(max_power),precluster], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     #stdout = stdout.decode('utf-8')
     module_file = fname.replace(".tsv",".modules.tsv") #stdout.rstrip()
