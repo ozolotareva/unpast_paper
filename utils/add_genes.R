@@ -86,11 +86,14 @@ make_design_matrix <- function(bic_samples, exprs) {
 
 add_genes_to_clusters <- function(row,exprs=exprs,rna_seq=rna_seq) {
     bic_samples <- row["samples"]
-    bic_samples <- strsplit(bic_samples,' ',fixed=TRUE)$samples
+    bic_samples <- as.character(bic_samples)
+    bic_samples <- strsplit(bic_samples,' ',fixed=TRUE)
+    bic_samples <- unlist(bic_samples)
     dm <- make_design_matrix(bic_samples,exprs)
     biomarkers <- find_DE_genes(exprs, dm,rna_seq)
     return (biomarkers)
 }
+
 
 
 df <- apply(clusters,1,add_genes_to_clusters,exprs=exprs,rna_seq=rna_seq)
