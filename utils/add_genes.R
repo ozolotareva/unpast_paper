@@ -72,13 +72,16 @@ find_DE_genes <- function(exprs, dm,rna_seq) {
     return(list("genes"=de_both,"n_genes"=n_genes,"genes_up"=de_up,"genes_down"=de_down))
 }
 
-make_design_matrix <- function(bic_samples,exprs) {
-    dm <- t(as.data.frame(matrix(0, ncol = 2, nrow = length(colnames(exprs))),row.names = colnames(exprs)))
-    row.names(dm) <- c("bic","bg")
-    dm <- t(dm)
-    dm[bic_samples,"bic"] = 1
-    dm[! row.names(dm) %in% bic_samples ,"bg"] = 1
-    return(dm)
+make_design_matrix <- function(bic_samples, exprs) {
+  dm <- t(as.data.frame(matrix(0, ncol = 2, nrow = length(colnames(exprs))), row.names = colnames(exprs)))
+  row.names(dm) <- c("bic", "bg")
+  dm <- t(dm)
+    
+  bic_samples <- gsub("\\.", "-", bic_samples)
+  matching_rows <- row.names(dm) %in% bic_samples
+  dm[matching_rows, "bic"] = 1
+  dm[!matching_rows, "bg"] = 1
+  return(dm)
 }
 
 add_genes_to_clusters <- function(row,exprs=exprs,rna_seq=rna_seq) {
