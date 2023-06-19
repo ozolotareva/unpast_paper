@@ -471,16 +471,31 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     
     load_failed = False
     if load:
-        try:  
+        try:
             #load background distribution
             null_distribution = pd.read_csv(bin_bg_fname, sep ="\t",index_col=0)
+            null_distribution.columns = [int(x) for x in null_distribution.columns.values]
             if verbose:
-                print("Load background distribution from",bin_bg_fname,"\n",file = sys.stdout)
+                print("Loaded background distribution from",bin_bg_fname,"\n",file = sys.stdout)
+            # check if any new sizes need to be precomputed
+            precomputed_sizes = null_distribution.index.values
+            add_sizes = np.array(sorted(set(sizes).difference(set(precomputed_sizes))))
+            if len(add_sizes)>0:
+                null_distribution2 = generate_null_dist(N, add_sizes,
+                                               pval = pval,n_permutations=n_permutations,
+                                               seed =seed,verbose = verbose)
+                null_distribution2.columns = [int(x) for x in null_distribution2.columns.values]
+                null_distribution = pd.concat([null_distribution,null_distribution2.loc[:,null_distribution.columns.values]],axis=0)
+                if save:
+                    null_distribution.loc[sorted(null_distribution.index.values),:].to_csv(bin_bg_fname, sep ="\t")
+                    if verbose:
+                        print("Background sitribution in %s is updated"%bin_bg_fname,file = sys.stdout)
+                null_distribution = null_distribution.loc[sizes,:]
         except:
             print("file "+bin_bg_fname+" is not found and will be created",file = sys.stderr)
             load_failed = True
     if not load or load_failed:
-        null_distribution = generate_null_dist(exprs.shape[1], sizes,
+        null_distribution = generate_null_dist(N, sizes,
                                                pval = pval,n_permutations=n_permutations,
                                                seed =seed,verbose = verbose)
 
@@ -494,21 +509,24 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     size_snr_trend = get_trend(sizes, thresholds, plot= False)
     stats["SNR_threshold"] = stats["size"].apply(lambda x: size_snr_trend(x))
 
-    if not load and save:        
+    if save:        
         # save binarized data
-        binarized_data.to_csv(bin_exprs_fname, sep ="\t")
-        if verbose:
-            print("Binarized gene expressions are saved to",bin_exprs_fname,file = sys.stdout)
+        if not os.path.exists(bin_exprs_fname):
+            binarized_data.to_csv(bin_exprs_fname, sep ="\t")
+            if verbose:
+                print("Binarized gene expressions are saved to",bin_exprs_fname,file = sys.stdout)
 
-        # save binarization statistics 
-        stats.to_csv(bin_stats_fname, sep ="\t")
-        if verbose:
-            print("Statistics is saved to",bin_stats_fname,file = sys.stdout)
+        # save binarization statistics
+        if not os.path.exists(bin_stats_fname):
+            stats.to_csv(bin_stats_fname, sep ="\t")
+            if verbose:
+                print("Statistics is saved to",bin_stats_fname,file = sys.stdout)
 
         # save null distribution: null_distribution, size,threshold 
-        null_distribution.to_csv(bin_bg_fname, sep ="\t")
-        if verbose:
-            print("Background sitribution is saved to",bin_bg_fname,file = sys.stdout)
+        if not os.path.exists(bin_bg_fname):
+            null_distribution.to_csv(bin_bg_fname, sep ="\t")
+            if verbose:
+                print("Background sitribution is saved to",bin_bg_fname,file = sys.stdout)
             
     
     ### keep features passed binarization
@@ -1414,9 +1432,9 @@ def read_bic_table(file_name, parse_metadata = False):
         return pd.DataFrame()
     else:
         biclusters.loc[:,["genes_up","genes_down"]] = biclusters.loc[:, ["genes_up","genes_down"]].fillna("")
-        biclusters["genes"] = biclusters["genes"].apply(lambda x: set(x.split(" ")))
-        biclusters["genes_up"] = biclusters["genes_up"].apply(lambda x: set(x.split(" ")))
-        biclusters["genes_down"] = biclusters["genes_down"].apply(lambda x: set(x.split(" ")))
+        biclusters["genes"] = biclusters["genes"].apply(lambda x: set([g for g in x.split(" ") if not g =='']))
+        biclusters["genes_up"] = biclusters["genes_up"].apply(lambda x: set([g for g in x.split(" ") if not g =='']))
+        biclusters["genes_down"] = biclusters["genes_down"].apply(lambda x: set([g for g in x.split(" ") if not g =='']))
         biclusters["samples"] = biclusters["samples"].apply(lambda x: set(x.split(" ")))
         biclusters["gene_indexes"] = biclusters["gene_indexes"].apply(lambda x: set(map(int, set(x.split(" ")))))
         biclusters["sample_indexes"] = biclusters["sample_indexes"].apply(lambda x: set(map(int, set(x.split(" ")))))
