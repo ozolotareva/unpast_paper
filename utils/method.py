@@ -503,6 +503,8 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     # add SNR p-val depends on bicluster size 
     stats = stats.dropna(subset=["size"])
     stats["pval"] = stats.apply(lambda row: calc_e_pval(row["SNR"],row["size"],null_distribution),axis=1)
+    accepted, pval_adj = fdrcorrection(stats["pval"])
+    stats["pval_BH"] = pval_adj
 
     # find SNR threshold 
     thresholds = np.quantile(null_distribution.loc[sizes,:].values,q=1-pval,axis=1)
@@ -531,6 +533,8 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     
     ### keep features passed binarization
     passed = stats.loc[stats["SNR"]>stats["SNR_threshold"],:]
+    #passed = stats.loc[stats["pval_BH"]<pval,:]
+    
     if verbose:
         print("\t\tUP-regulated features:\t%s"%(passed.loc[passed["direction"]=="UP",:].shape[0]),file = sys.stdout)
         print("\t\tDOWN-regulated features:\t%s"%(passed.loc[passed["direction"]=="DOWN",:].shape[0]),file = sys.stdout)
@@ -1452,23 +1456,28 @@ def read_bic_table(file_name, parse_metadata = False):
     return biclusters
 
 def write_bic_table(bics_dict_or_df, results_file_name,to_str=True,
-                    add_metadata=False,
+                    add_metadata=False, 
                     seed = None, min_n_samples =None,
                     bin_method = None, clust_method = None, pval = None,
+                    directions = [],
                     alpha=None, beta_K = None, similarity_cutoff = None,
-                    ds = None, dch = None, m=None):
+                    ds = None, dch = None, m=None,
+                   max_power=None, precluster=None, merge = None):
     if add_metadata:
         metadata = "#seed="+str(seed)+"; "+"pval="+str(pval)+"; "+"min_n_samples="+str(min_n_samples)+"; "
         metadata = metadata + "b="+bin_method+"; "
         metadata = metadata + "c="+clust_method+"; "
+        if len(directions):
+            metadata = metadata + "directions="+"-".join(directions)+"; "
         if clust_method == "Louvain":
             metadata = metadata + "simiarity_cutoff="+str(similarity_cutoff)+"; modularity="+str(m)
         elif "WGCNA" in clust_method:
-            metadata = metadata + "ds="+str(ds)+"; dch="+str(dch)
+            metadata = metadata + "ds="+str(ds)+"; dch="+str(dch)+"; max_power="+str(max_power)+"; precluster="+str(precluster)
         elif clust_method == "DESMOND":
             metadata = metadata + "alpha="+str(alpha)+"; " + "beta_K="+str(beta_K)
         else:
             print("Unknown 'clust_method'",clust_method,file= sys.stderr)
+        metadata = metadata + "merge="+str(merge)
         with open(results_file_name, 'w') as f:
             f.write(metadata+"\n")
         write_mode = 'a'
