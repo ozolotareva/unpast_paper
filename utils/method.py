@@ -156,7 +156,7 @@ def get_trend(sizes, thresholds, plot= True):
         plt.plot(sizes, thresholds,"b--",lw=2)
         plt.plot(sizes,get_min_snr(sizes),"r-",lw=2)
         plt.xlabel("n_samples")
-        plt.ylabel("SNR threshold")
+        plt.ylabel("SNR")
         plt.ylim((0,5))
         plt.show()
     return get_min_snr
@@ -249,13 +249,19 @@ def jenks_binarization(exprs, min_n_samples,verbose = True,
     return binarized_expressions, stats
 
 
-def  plot_binarized_feature(feature_name, down_group,up_group,colors,hist_range,snr,e_pval):
+def  plot_binarized_feature(feature_name, down_group,up_group,colors,hist_range,snr):
     down_color,up_color = colors
     n_bins = int(max(20,(len(down_group)+len(up_group))/10))
     n_bins = min(n_bins,200)
-    tmp = plt.hist(down_group, bins=n_bins, alpha=0.5, color=down_color,range=hist_range)
-    tmp = plt.hist(up_group, bins=n_bins, alpha=0.5, color=up_color,range=hist_range)
-    tmp = plt.title("{}: SNR={:.2f}, neg={}, pos={}, p-val={:.2e}".format(feature_name,snr,len(down_group),len(up_group),e_pval))
+    fig, ax = plt.subplots()
+    tmp = ax.hist(down_group, bins=n_bins, alpha=0.5, color=down_color,range=hist_range)
+    tmp = ax.hist(up_group, bins=n_bins, alpha=0.5, color=up_color,range=hist_range)
+    #tmp = plt.title("{}:    SNR={:.2f},    neg={}, pos={}".format(feature_name,snr,len(down_group),len(up_group)))
+    n_samples = min(len(down_group),len(up_group))
+    #tmp = ax.set_title("SNR={:.2f},   n_samples={}".format(snr,n_samples))
+    ax.text(0.05,0.95,feature_name, ha='left', va='top',transform=ax.transAxes,  fontsize=24)
+    ax.text(0.95,0.95,"SNR="+str(round(snr,2))+"\nn_samples="+str(n_samples), ha='right', va='top',transform=ax.transAxes,  fontsize=14)
+    tmp = plt.savefig("figs_binarization/"+feature_name+".hist.svg", bbox_inches='tight', transparent=True)
     plt.show()
 
 def select_pos_neg(row, min_n_samples, seed=42, prob_cutoff=0.5, method = "GMM"):
@@ -334,7 +340,9 @@ def select_pos_neg(row, min_n_samples, seed=42, prob_cutoff=0.5, method = "GMM")
     return mask_pos, mask_neg, abs(snr), size, is_converged
 
 
-def GM_binarization(exprs, min_n_samples, verbose=True, plot=True, plot_SNR_thr=2, show_fits=[],seed=1,prob_cutoff=0.5, method = "GMM"):
+def GM_binarization(exprs, min_n_samples, verbose=True, 
+                    plot=True, plot_SNR_thr=2, show_fits=[],
+                    seed=1,prob_cutoff=0.5, method = "GMM"):
     t0 = time()
     
     binarized_expressions = {}
@@ -345,45 +353,51 @@ def GM_binarization(exprs, min_n_samples, verbose=True, plot=True, plot_SNR_thr=
         row = row.values
         pos_mask, neg_mask, snr, size, is_converged = select_pos_neg(row, min_n_samples, seed=seed,prob_cutoff=prob_cutoff, method = method)
         
-        direction = None
-        
         # logging
         if verbose:
             if i % 1000 == 0:
                 print("\t\tgenes processed:",i)
-                
-        #snr = abs(snr)
-
-        hist_range = row.min(), row.max()
-        colors = ["grey", "grey"]
+        
+        
         up_group = row[pos_mask]
         down_group = row[neg_mask]
         n_up = len(up_group)
         n_down = len(down_group)
-
-        if n_down-n_up >= 0: #-min_n_samples: # up-regulated group is bicluster
+        
+        # if smaller sample group shows over- or under-expression
+        if n_up <= n_down: # up-regulated group is bicluster
             binarized_expressions[gene] = pos_mask.astype(int)
-            colors[1]='red'
             direction ="UP"
-
-        if n_up-n_down > 0: #-min_n_samples: # down-regulated group is bicluster
+        else: # down-regulated group is bicluster
             binarized_expressions[gene] = neg_mask.astype(int)
-            colors[0]="blue"
             direction ="DOWN"
-
-        # in case of insignificant size difference 
-        # between up- and down-regulated groups
-        # the bigger half is treated as signal too
-        if abs(n_up-n_down) <= min_n_samples:
-            colors = 'blue', 'red'
-            
-        # plotting selected genes
-        if gene in show_fits or abs(snr) > plot_SNR_thr:
-            plot_binarized_feature(gene,down_group,up_group,colors,hist_range,snr,e_pval)
         
         stats[gene] = {"pval":0,"SNR":snr,"size":size,"direction":direction,"convergence":is_converged}
         
-    
+        if gene in show_fits or (abs(snr) > plot_SNR_thr and plot):
+            hist_range = row.min(), row.max()
+            
+            # set colors to two sample groups
+            # red - overexpression
+            # blue - under-expression
+            # grey - background (group size > 1/2 of all samples)
+            colors = ["grey", "grey"]
+            
+            if n_down-n_up >= 0: # up-regulated group is bicluster
+                colors[1]='red'
+
+            if n_up-n_down > 0: # down-regulated group is bicluster
+                colors[0]="blue"
+
+            # in case of insignificant size difference 
+            # between up- and down-regulated groups
+            # the bigger half is treated as signal too
+            if abs(n_up-n_down) <= min_n_samples:
+                colors = 'blue', 'red'
+                
+            # plotting
+            plot_binarized_feature(gene,down_group,up_group,colors,hist_range,snr)
+        
     stats = pd.DataFrame.from_dict(stats).T
     
     binarized_expressions = pd.DataFrame.from_dict(binarized_expressions)
@@ -465,7 +479,8 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
     # sizes of binarized features
     sizes1 = set([x for x in stats["size"].values if not np.isnan(x)])
     # no more than 100 of bicluster sizes are computed 
-    sizes2 = set(map(int,np.arange(min_n_samples,N,max(int((N-min_n_samples)/100),1))))
+    step = max(int((N-min_n_samples)/100),1)
+    sizes2 = set(map(int,np.arange(min_n_samples,int(N/2),step)))
     sizes = np.array(sorted(sizes1|sizes2))
     #sizes = np.arange(min_n_samples,int(exprs.shape[1]/2)+1)
     
@@ -547,32 +562,44 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
         
     if plot_all:
         # plot null distribution of SNR(size) - for shuffled genes n_permutation times for each size
-        e_stats = []
-        for i in range(null_distribution.shape[0]):
-            for j in range(max(100,null_distribution.shape[1])): # limit to 100 points per sample group size
-                e_stats.append({"size":min_n_samples+i,"SNR":null_distribution[i,j]})
-        e_stats = pd.DataFrame.from_records(e_stats)
+        #e_stats = []
+        #for s in sizes:
+        #    for i in null_distribution.T.head(100).index.values:
+        #        e_stats.append({"size":s,"SNR":null_distribution.loc[s,i]})
+        #e_stats = pd.DataFrame.from_records(e_stats)
         # downsample to 1000 points in total
-        if e_stats.shape[0]>1000:
-            e_stats = e_stats.sample(n=1000)
-        if verbose:
-            print(e_stats.shape[0],"points from null distribution plotted",file = sys.stderr)
-        tmp  = plt.figure(figsize=(20,10))
-        tmp = plt.scatter(e_stats["size"],e_stats["SNR"],alpha = 1, color = "grey")
+        #if e_stats.shape[0]>1000:
+        #    e_stats = e_stats.sample(n=1000)
+        #if verbose:
+        #    print(e_stats.shape[0],"points from null distribution plotted",file = sys.stderr)
+        
+        #tmp  = plt.figure(figsize=(20,10))
+        #tmp = plt.scatter(e_stats["size"],e_stats["SNR"],alpha = 0.2, color = "grey",label='background dist.')
+        fig, ax  = plt.subplots(figsize = (10,4.5))
         
         # plot binarization results for real genes
         passed = stats.loc[stats["SNR"]> stats["SNR_threshold"],:]
         failed = stats.loc[stats["SNR"]<= stats["SNR_threshold"],:]
-        tmp = plt.scatter(failed["size"],failed["SNR"],alpha = 0.2, color = "black")
-        tmp = plt.scatter(passed["size"],passed["SNR"],alpha = 0.7, color = "red")
+        tmp = ax.scatter(failed["size"],failed["SNR"],alpha = 1, color = "black",label='not passed')
+        for i, txt in enumerate(failed["size"].index.values):
+            ax.annotate(txt, (failed["size"][i], failed["SNR"][i]+0.1), fontsize=18)
+        tmp = ax.scatter(passed["size"],passed["SNR"],alpha = 1, color = "red",label='passed')
+        for i, txt in enumerate(passed["size"].index.values):
+            ax.annotate(txt, (passed["size"][i], passed["SNR"][i]+0.1), fontsize=18)
+
+        
         
         # plot cutoff 
-        sizes  = sorted(list(set(stats["size"].values)))
-        tmp = plt.plot(sizes,[size_snr_trend(x) for x in sizes], c="yellow",lw=2)
-        tmp = plt.xlabel("n_samples")
-        tmp = plt.ylabel("SNR threshold")
-        tmp = plt.ylim((0,5))
+        tmp = ax.plot(sizes,[size_snr_trend(x) for x in sizes], color="darkred",lw=2, ls = "--",
+                       label="e.pval<"+str(pval))
+        plt.gca().legend(('not passed','passed',"e.pval<"+str(pval)), fontsize=18)
+        tmp = ax.set_xlabel("n_samples", fontsize=18)
+        tmp = ax.yaxis.tick_right()
+        tmp = ax.set_ylabel("SNR", fontsize=18)
+        tmp = ax.set_ylim((0,4))
+        tmp = plt.savefig("figs_binarization/dist.svg", bbox_inches='tight', transparent=True)
         tmp = plt.show()
+        
 
     return binarized_data, stats, null_distribution
 
