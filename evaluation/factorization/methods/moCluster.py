@@ -67,7 +67,7 @@ def read_runtime(output_path):
 def execute_algorithm(exprs_file, n_dimensions, n_cluster, random_state, output_path, k, option, solver, center, scale, method, **_):
     # this saves the result to a file
     # time is measured inside the R script
-    subprocess.Popen(fr'Rscript ./methods/moCluster.R {exprs_file} {n_dimensions} {n_cluster} {random_state} {output_path} {k} {option} {solver} {center} {scale} {method}', shell=True).wait()
+    subprocess.Popen(fr'/home/bba1401/anaconda3/envs/unpast/bin/Rscript ./methods/moCluster.R {exprs_file} {n_dimensions} {n_cluster} {random_state} {output_path} {k} {option} {solver} {center} {scale} {method}', shell=True).wait()
     return format_output(output_path, n_cluster), read_runtime(output_path)
 
 def run_simulated(args):
@@ -81,7 +81,13 @@ def run_simulated(args):
     # save results
     resultsHandler.save(result, runtime, args["output_path"])
 
-def run_real(args):
+def run_real(args, is_terminated=False):
+    if is_terminated:
+        try:
+            return resultsHandler.read_result(args["output_path"]), resultsHandler.read_runtime(args["output_path"])
+        except:
+            return False, False
+        
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
         print('Returning existing results:', args["output_path"])
     else:

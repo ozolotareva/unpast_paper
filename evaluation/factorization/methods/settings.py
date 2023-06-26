@@ -18,7 +18,7 @@ S_PCA_ALPHA = [1, 5] # 1.1, 2.5, 0.5,
 S_PCA_RIDGE_ALPHA = [0.1, 0.01, 0.001]
 S_PCA_MAX_ITER = [1000]
 S_PCA_TOL = [1e-8] # 1e-9, 
-S_PCA_METHOD = ['cd', 'lars']
+S_PCA_METHOD = ['cd'] # 'lars' takes too long
 
 # MOFA2
 MOFA2_FACTORS = range(1, 21)

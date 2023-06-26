@@ -61,8 +61,11 @@ def execute_algorithm(exprs, n_components, alpha, ridge_alpha, max_iter, method,
         gene_cluster = list(row[row.map(lambda x : np.abs(x) > 0)].index)
         gene_clusters[index] = gene_cluster
 
-    with open(os.path.join(output_path, 'gene_clusters.json'), 'w') as f:
-        json.dump(gene_clusters, f)
+    df_gene_clusters = pd.DataFrame([{'gene_cluster': key, 'genes': values} for key, values in gene_clusters.items()])
+    df_gene_clusters.to_csv(os.path.join(output_path, 'gene_clusters.csv'))
+    
+    result['genes'] = df_gene_clusters['genes']
+    result['n_genes'] = df_gene_clusters['genes'].map(len)
     return result, runtime
 
 def run_simulated(args):
@@ -78,7 +81,12 @@ def run_simulated(args):
     resultsHandler.save(result, runtime, args["output_path"])
 
 
-def run_real(args):
+def run_real(args, is_terminated=False):
+    if is_terminated:
+        try:
+            return resultsHandler.read_result(args["output_path"]), resultsHandler.read_runtime(args["output_path"])
+        except:
+            return False, False
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
         print('Returning existing results:', args["output_path"])
     else:

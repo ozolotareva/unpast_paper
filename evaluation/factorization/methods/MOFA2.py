@@ -3,7 +3,7 @@ import os
 import pandas as pd
 from .settings import RANDOM_STATES, CLUSTER_RANGE, MOFA2_FACTORS, MOFA2_ARD_WEIGHTS, MOFA2_SPIKESLAB_FACTORS, MOFA2_ARD_FACTORS, MOFA2_LIKELIHOODS, MOFA2_SPIKESLAB_WEIGHTS
 from .utils.miscellaneous import run_method
-from .utils import interpret_results, resultsHandler
+from .utils import resultsHandler
 
 
 def generate_arg_list(exprs_file, output_folder, ground_truth_file, cluster_range=CLUSTER_RANGE):
@@ -68,7 +68,7 @@ def execute_algorithm(exprs_file, n_factors, n_cluster, output_path, likelihood,
     # this saves the result to a file
     # time is measured inside the R script
 
-    subprocess.Popen(fr'Rscript ./methods/MOFA2.R {exprs_file} {n_factors} {n_cluster} {random_state} {output_path} {likelihood} {spikeslab_factors} {spikeslab_weights} {ard_factors} {ard_weights}', shell=True).wait()
+    subprocess.Popen(fr'/home/bba1401/anaconda3/envs/unpast_mofa2/bin/Rscript ./methods/MOFA2.R {exprs_file} {n_factors} {n_cluster} {random_state} {output_path} {likelihood} {spikeslab_factors} {spikeslab_weights} {ard_factors} {ard_weights}', shell=True).wait()
     return format_output(output_path, n_cluster), read_runtime(output_path)
 
 def run_simulated(args):
@@ -82,7 +82,12 @@ def run_simulated(args):
     resultsHandler.save(result, runtime, args["output_path"])
     resultsHandler.write_samples(args["output_path"], df_exprs.index)
 
-def run_real(args):
+def run_real(args, is_terminated=False):
+    if is_terminated:
+        try:
+            return resultsHandler.read_result(args["output_path"]), resultsHandler.read_runtime(args["output_path"])
+        except:
+            return False, False
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
         print('Returning existing results:', args["output_path"])
     else:

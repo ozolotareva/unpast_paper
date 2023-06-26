@@ -36,9 +36,9 @@ def generate_arg_list(exprs_file, output_folder, ground_truth_file, cluster_rang
                                                 f'k={k}',
                                                 f'init={init}',
                                                 f'tol={tol}',
-                                                f'random_state={m}', 
-                                                f'alpha_W={alpha_W}', 
-                                                f'alpha_H={alpha_H}', 
+                                                f'random_state={m}',
+                                                f'alpha_W={alpha_W}',
+                                                f'alpha_H={alpha_H}',
                                                 f'shuffle={shuffle}',
                                                 f'solver={solver}',
                                                 f'beta_loss={beta_loss}',
@@ -77,12 +77,14 @@ def execute_algorithm(exprs, k, output_path, init='random', tol=1e-4, random_sta
         H = model.components_
         pd.DataFrame(W).to_csv(os.path.join(output_path, 'W.csv'))
         pd.DataFrame(H).to_csv(os.path.join(output_path, 'H.csv'))
+        
+    # W we cluster based on columns, H based on rows!!
     if transposed:
         result = interpret_results.format_sklearn_output(W, k, exprs.index, transposed)
-        result_genes = interpret_results.format_sklearn_output(H, k, exprs.columns, transposed)
+        result_genes = interpret_results.format_sklearn_output(H, k, exprs.columns, not transposed)
     else:
         result = interpret_results.format_sklearn_output(H, k, exprs.columns, transposed)
-        result_genes = interpret_results.format_sklearn_output(W, k, exprs.index, transposed)
+        result_genes = interpret_results.format_sklearn_output(W, k, exprs.index, not transposed)
     end = time.time()
     runtime = end-start
     return (result, result_genes), runtime
@@ -102,9 +104,15 @@ def run_simulated(args):
     resultsHandler.save(result, runtime, args["output_path"])
     return
 
-def run_real(args):
+def run_real(args, is_terminated=False ):
+    if is_terminated:
+        try:
+            return resultsHandler.read_result(args["output_path"]), resultsHandler.read_runtime(args["output_path"])
+        except:
+            return False, False
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
-        print('Returning existing results:', args["output_path"])
+        # print('Returning existing results:', args["output_path"])
+        pass
     else:
         df_exprs = pd.read_csv(args['exprs_file'], sep='\t', index_col=0)
         args['exprs'] = preprocess_exprs(df_exprs)

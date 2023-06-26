@@ -86,7 +86,12 @@ def run_simulated(args):
     resultsHandler.save(result, runtime, args["output_path"])
     resultsHandler.write_samples(args["output_path"], df_exprs.index)
     
-def run_real(args):
+def run_real(args, is_terminated=False):
+    if is_terminated:
+        try:
+            return resultsHandler.read_result(args["output_path"]), resultsHandler.read_runtime(args["output_path"])
+        except:
+            return False, False
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
         print('Returning existing results:', args["output_path"])
     else:

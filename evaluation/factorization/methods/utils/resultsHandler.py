@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 
 OUTPUT_CLUSTER = 'result.csv'
+OUTPUT_GENES = 'result_genes.csv'
+OUTPUT_GENES_JSON = 'result_genes.json'
 OUTPUT_RUNTIME = 'runtime.txt'
 OUTPUT_SAMPLES = 'samples.txt'
 
@@ -44,6 +46,19 @@ def read_result(output_path):
        df_data = _fix_result(df_data)
     except Exception:
         df_data['samples'] = df_data['samples'].map(lambda x: set(x.split(',')) if not isinstance(x, float) else set())
+        
+    try:
+        df_data_genes = pd.read_csv(os.path.join(output_path, OUTPUT_GENES), index_col=0)
+        # fucked up saving data, some contain the string 'set()' instead of NaN or an actual set {...} 
+        try:
+            df_data_genes = _fix_result(df_data_genes)
+        except Exception:
+            df_data_genes['samples'] = df_data_genes['samples'].map(lambda x: set(x.split(',')) if not isinstance(x, float) else set())
+        df_data['genes'] = df_data_genes['samples']
+    except:
+        # methods does not return genes, will throw file not found exception
+        pass
+    
     return df_data
 
 def read_runtime(output_path):
