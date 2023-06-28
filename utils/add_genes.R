@@ -12,9 +12,9 @@ rna_seq <- args[[3]]
 outfile <- paste0(sub(".tsv","",clusters_file),".with_genes.tsv")
 
 # check if the 5th argument is available, if not, set a default value
-pval_cutoff <- ifelse(length(args) >= 4, args[[5]], 0.05)
+pval_cutoff <- ifelse(length(args) >= 4, args[[4]], 0.05)
 # check if the 4th argument is available, if not, set a default value
-logFC_cutoff <- ifelse(length(args) >= 5, args[[4]], 1)
+logFC_cutoff <- ifelse(length(args) >= 5, args[[5]], 1)
 
 clusters <- read.delim(clusters_file, row.names = 1)
 #clusters$samples <- strsplit(as.character(clusters$samples),' ',fixed=TRUE)
