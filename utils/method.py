@@ -49,6 +49,8 @@ def zscore(df):
     return df
         
 def validate_input_matrix(exprs, tol=0.01,standradize=True,verbose = True):
+    exprs.index = [str(x) for x in exprs.index.values]
+    exprs.columns = [str(x) for x in exprs.columns.values]
     m = exprs.mean(axis=1)
     std = exprs.std(axis=1)
     # find zero variance rows
@@ -145,11 +147,12 @@ def generate_null_dist(N, sizes, n_permutations = 10000,pval = 0.001,
     return null_distribution
 
 
-def get_trend(sizes, thresholds, plot= True):
+def get_trend(sizes, thresholds, plot= True, verbose = True):
     # smoothens the trend and retunrs a function min_SNR(size; p-val. cutoff)
     lowess = sm.nonparametric.lowess
     frac = max(5,min(math.floor(int(0.1*len(sizes))),15))/len(sizes)
-    print("\t\tLOWESS frac=",round(frac,2), file = sys.stdout)
+    if verbose:
+        print("\t\t\tLOWESS frac=",round(frac,2), file = sys.stdout)
     lowess_curve = lowess(thresholds,sizes,frac= frac,return_sorted=True,is_sorted=False)
     get_min_snr = interp1d(lowess_curve[:,0],lowess_curve[:,1])#,kind="nearest-up",fill_value="extrapolate")
     if plot:
@@ -261,7 +264,7 @@ def  plot_binarized_feature(feature_name, down_group,up_group,colors,hist_range,
     #tmp = ax.set_title("SNR={:.2f},   n_samples={}".format(snr,n_samples))
     ax.text(0.05,0.95,feature_name, ha='left', va='top',transform=ax.transAxes,  fontsize=24)
     ax.text(0.95,0.95,"SNR="+str(round(snr,2))+"\nn_samples="+str(n_samples), ha='right', va='top',transform=ax.transAxes,  fontsize=14)
-    tmp = plt.savefig("figs_binarization/"+feature_name+".hist.svg", bbox_inches='tight', transparent=True)
+    #tmp = plt.savefig("figs_binarization/"+feature_name+".hist.svg", bbox_inches='tight', transparent=True)
     plt.show()
 
 def select_pos_neg(row, min_n_samples, seed=42, prob_cutoff=0.5, method = "GMM"):
@@ -523,7 +526,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
 
     # find SNR threshold 
     thresholds = np.quantile(null_distribution.loc[sizes,:].values,q=1-pval,axis=1)
-    size_snr_trend = get_trend(sizes, thresholds, plot= False)
+    size_snr_trend = get_trend(sizes, thresholds, plot= False,verbose = verbose)
     stats["SNR_threshold"] = stats["size"].apply(lambda x: size_snr_trend(x))
 
     if save:        
@@ -597,7 +600,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
         tmp = ax.yaxis.tick_right()
         tmp = ax.set_ylabel("SNR", fontsize=18)
         tmp = ax.set_ylim((0,4))
-        tmp = plt.savefig("figs_binarization/dist.svg", bbox_inches='tight', transparent=True)
+        #tmp = plt.savefig("figs_binarization/dist.svg", bbox_inches='tight', transparent=True)
         tmp = plt.show()
         
 
@@ -651,8 +654,8 @@ def run_WGCNA(binarized_expressions,tmp_prefix="",
     if len(tmp_prefix)>0:
         fname = tmp_prefix+"."+fname 
     
-    
-    print("\tWGCNA pre-clustering:",precluster,file=sys.stdout)
+    if verbose:
+        print("\t\tWGCNA pre-clustering:",precluster,file=sys.stdout)
     if precluster:
         precluster = "T"
     else:
@@ -755,11 +758,11 @@ def run_WGCNA(binarized_expressions,tmp_prefix="",
             modules.append(genes)
     
     # remove WGCNA input and output files
-    #try:
-    #    os.remove(fname) 
-    #    os.remove(module_file)
-    #except:
-    #    pass
+    try:
+        os.remove(fname) 
+        os.remove(module_file)
+    except:
+        pass
     
     if verbose:
         print("\tmodules: {}, not clustered features {} ".format(len(modules),len(not_clustered)),file = sys.stdout)
@@ -1083,6 +1086,52 @@ def cluster_samples(data,min_n_samples=5,seed=0,method="kmeans"):
 
     bicluster = {"sample_indexes":set(samples),"n_samples":len(samples)}
     return bicluster
+
+def modules2biclusters_2(modules, data_to_cluster,
+                       method = "kmeans",
+                       min_n_samples=5,
+                       min_n_genes=2,seed=0,verbose = True):
+    '''Identifies optimal sample set for each module: 
+    splits samples into two sets in a subspace of each module
+    '''
+    t0 = time()
+    biclusters = {}
+    wrong_sample_number = 0
+    low_SNR = 0
+    i = 0
+    
+    for mid in range(0,len(modules)):
+        genes = modules[mid]
+        if len(genes) >= min_n_genes:
+            # cluster samples in a space of selected genes
+            data = data_to_cluster.loc[genes,:].T
+            bicluster = cluster_samples(data,min_n_samples=min_n_samples,seed=seed,method = method)
+            if len(bicluster)>0:
+                bicluster["id"] = i
+                bicluster["genes"] = set(genes)
+                bicluster["n_genes"] = len(bicluster["genes"])
+                
+                bic = data_to_cluster.loc[genes,:].iloc[:,sorted(bicluster["sample_indexes"])]
+                bg = data_to_cluster.loc[genes,:].iloc[:,[ndx for ndx in range(data_to_cluster.shape[1]) if not ndx in bicluster["sample_indexes"]]]
+                bicluster["genes_up"] = bic[bic.mean(axis=1) >= bg.mean(axis=1)].index.values
+                bicluster["genes_down"] = bic[bic.mean(axis=1) < bg.mean(axis=1)].index.values
+                
+                if len (bicluster["genes_up"])>0 and len(bicluster["genes_down"])>0:
+                    bic_profile = data_to_cluster.loc[bicluster["genes_up"],:].mean(axis=0) - data_to_cluster.loc[sorted(bicluster["genes_down"]),:].mean(axis=0)
+                else:
+                    bic_profile = data_to_cluster.loc[bicluster["genes"],:].mean(axis=0)
+                bicluster2 = cluster_samples(bic_profile.T.values.reshape(-1, 1),min_n_samples=min_n_samples,seed=seed,method = method)
+                bicluster["sample_indexes"]= bicluster2["sample_indexes"]
+                bicluster["n_samples"]= bicluster2["n_samples"]
+                biclusters[i] = bicluster
+                i+=1
+      
+    if verbose:
+        print("time:\tIdentified optimal sample sets for %s modules in %s s." %(len(modules),round(time()-t0,2)))
+        print("Passed biclusters (>=%s genes, >= samples %s): %s"%(min_n_genes,min_n_samples,i-1), file = sys.stdout)
+        print()
+    
+    return biclusters
 
 def modules2biclusters(modules, data_to_cluster,
                        method = "kmeans",
