@@ -1,4 +1,4 @@
-# usage: Rscript add_genes.R clusters.tsv expressions.tsv is_rna_seq [pval logFC]
+# usage: Rscript add_genes.R clusters.tsv expressions.tsv is_rna_seq [pval logFC  num_genes]
 # output: clusters.with_genes.tsv 
 suppressPackageStartupMessages(library("limma"))
 suppressPackageStartupMessages(library("edgeR"))
@@ -11,10 +11,10 @@ exprs_file <- args[[2]]
 rna_seq <- args[[3]]
 outfile <- paste0(sub(".tsv","",clusters_file),".with_genes.tsv")
 
-# check if the 5th argument is available, if not, set a default value
-pval_cutoff <- ifelse(length(args) >= 4, args[[4]], 0.05)
-# check if the 4th argument is available, if not, set a default value
-logFC_cutoff <- ifelse(length(args) >= 5, args[[5]], 1)
+# check if the argument is available, if not, set a default value
+pval_cutoff <- ifelse(length(args) >= 4, as.numeric(args[[4]]), 0.05)
+logFC_cutoff <- ifelse(length(args) >= 5, as.numeric(args[[5]]), 1)
+num_genes <- ifelse(length(args) >= 6, as.numeric(args[[6]]), 500) 
 
 clusters <- read.delim(clusters_file, row.names = 1)
 #clusters$samples <- strsplit(as.character(clusters$samples),' ',fixed=TRUE)
@@ -30,7 +30,7 @@ if (rna_seq){
  exprs <- DGEList(exprs)
 }
 
-find_DE_genes <- function(exprs, dm,rna_seq, pval_cutoff, logFC_cutoff) {
+find_DE_genes <- function(exprs, dm, rna_seq, pval_cutoff, logFC_cutoff, num_genes) {
 
     group1 <- "bic"
     group2 <- "bg"
@@ -61,7 +61,7 @@ find_DE_genes <- function(exprs, dm,rna_seq, pval_cutoff, logFC_cutoff) {
     result <- eBayes(contr_fit)
     #table_res <- topTable(result, adjust="BH",resort.by="P",p.value=0.05,lfc=2,confint=TRUE,number=500)
     #if (dim(table_res)[[1]]<=1) {
-    table_res <- topTable(result, adjust="BH",resort.by="P",p.value=pval_cutoff,lfc=logFC_cutoff,confint=TRUE,number=500)
+    table_res <- topTable(result, adjust="BH",resort.by="P",p.value=pval_cutoff,lfc=logFC_cutoff,confint=TRUE,number=num_genes)
     #}
     de_up <- sort(row.names(table_res[table_res$logFC>0,]))
     de_down <- sort(row.names(table_res[table_res$logFC<0,]))
@@ -88,19 +88,19 @@ make_design_matrix <- function(bic_samples, exprs) {
   return(dm)
 }
 
-add_genes_to_clusters <- function(row,exprs=exprs,rna_seq=rna_seq, pval_cutoff=pval_cutoff, logFC_cutoff=logFC_cutoff) {
+add_genes_to_clusters <- function(row,exprs=exprs,rna_seq=rna_seq, pval_cutoff=pval_cutoff, logFC_cutoff=logFC_cutoff, num_genes=num_genes) {
     bic_samples <- row["samples"]
     bic_samples <- as.character(bic_samples)
     bic_samples <- strsplit(bic_samples,' ',fixed=TRUE)
     bic_samples <- unlist(bic_samples)
     dm <- make_design_matrix(bic_samples,exprs)
-    biomarkers <- find_DE_genes(exprs, dm,rna_seq, pval_cutoff, logFC_cutoff)
+    biomarkers <- find_DE_genes(exprs, dm,rna_seq, pval_cutoff, logFC_cutoff, num_genes)
     return (biomarkers)
 }
 
 
 
-df <- apply(clusters,1,add_genes_to_clusters,exprs=exprs,rna_seq=rna_seq, pval_cutoff=pval_cutoff, logFC_cutoff=logFC_cutoff)
+df <- apply(clusters,1,add_genes_to_clusters,exprs=exprs,rna_seq=rna_seq, pval_cutoff=pval_cutoff, logFC_cutoff=logFC_cutoff, num_genes=num_genes)
 df <- as.data.frame(do.call(cbind,df))
 df<-t(df)
 

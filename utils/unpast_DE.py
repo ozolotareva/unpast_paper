@@ -34,6 +34,7 @@ def run_add_genes_script(
     counts: bool = False,
     adj_p_value_cut_off: float = 0.05,
     logFC_cut_off: float = 1,
+    num_genes_cut_off = float('inf'),
     r_script_path: str = None,
     r_executable_path: str = None,
 ) -> str:
@@ -52,9 +53,10 @@ def run_add_genes_script(
             r_script_path,
             samples_to_compare,
             expression_matrix_path,
-            counts,
-            adj_p_value_cut_off,
-            logFC_cut_off,
+            str(counts).upper(),
+            str(adj_p_value_cut_off),
+            str(logFC_cut_off),
+            str(num_genes_cut_off)
         ]
     )
 
@@ -67,6 +69,7 @@ def run_add_genes_script(
             str(counts).upper(),
             str(adj_p_value_cut_off),
             str(logFC_cut_off),
+            str(num_genes_cut_off)
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -149,7 +152,7 @@ def read_dataframe_from_file(file_path: str) -> pd.DataFrame:
     return df
 
 
-def write_dataframe_with_comment(df: pd.DataFrame, input_file_path: str, output_file_path: str) -> None:
+def write_result(df: pd.DataFrame, input_file_path: str, output_file_path: str) -> None:
     # Checking if input file exists and if it's not empty
     if not os.path.isfile(input_file_path):
         logging.error("Input file does not exist: %s", input_file_path)
@@ -184,6 +187,7 @@ def run_de_for_unpast(
     counts: bool = False,
     adj_p_value_cut_off: float = 0.05,
     logFC_cut_off: float = 1,
+    num_genes_cut_off: float = float('inf'),
     r_script_path: str = None,
     r_executable_path: str = None,
 ) -> None:
@@ -211,6 +215,7 @@ def run_de_for_unpast(
         counts,
         adj_p_value_cut_off,
         logFC_cut_off,
+        num_genes_cut_off,
         r_script_path,
         r_executable_path,
     )
@@ -226,8 +231,8 @@ def run_de_for_unpast(
     # write new_unpast_df to file
     # use the original unpast_df file name and add _DE to the end
     # also add the comment line from the original unpast_df to the top of the new file
-    output_path_de = unpast_output_path.replace(".tsv", "_DE.tsv")
-    write_dataframe_with_comment(new_unpast_df, unpast_output_path, output_path_de)
+    output_path_de = unpast_output_path.replace(".tsv", f'_DE.pval{adj_p_value_cut_off}.logFC{logFC_cut_off}.tsv')
+    write_result(new_unpast_df, unpast_output_path, output_path_de)
 
     # remove the temporary files
     logging.info("Removing temporary files")
