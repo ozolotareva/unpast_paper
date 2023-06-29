@@ -89,7 +89,8 @@ def run_simulated(args):
 def run_real(args, is_terminated=False):
     if is_terminated:
         try:
-            return resultsHandler.read_result(args["output_path"]), resultsHandler.read_runtime(args["output_path"])
+            result = resultsHandler.read_result(args["output_path"]), resultsHandler.read_runtime(args["output_path"])
+            return result
         except:
             return False, False
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
