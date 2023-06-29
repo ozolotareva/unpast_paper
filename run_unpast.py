@@ -169,18 +169,20 @@ def run(exprs_file, basename='', out_dir="./",
 
     
     from utils.method import write_bic_table
-    suffix  = ".seed="+str(seed)+".bin="+bin_method+",pval="+str(pval)+",clust="+clust_method
+    suffix  = ".seed="+str(seed)+".bin="+bin_method+",pval="+str(pval)+",clust="+clust_method+",direction="+"-".join(directions)
     if "WGCNA" in clust_method:
-        suffix2 = ",ds="+str(ds)+",dch="+str(dch)
+        suffix2 = ",ds="+str(ds)+",dch="+str(dch)+",max_power="+str(max_power)+",precluster="+str(precluster)
         modularity, similarity_cutoff = None, None
     elif clust_method == "Louvain":
         suffix2 = ",m="+str(round(modularity,2))
         ds, dhs = None, None
     write_bic_table(biclusters, out_dir+basename+suffix+suffix2+".biclusters.tsv",to_str=True,
                     add_metadata=True, seed = seed, min_n_samples = min_n_samples, pval = pval,
-                    bin_method = bin_method, clust_method = clust_method, 
+                    bin_method = bin_method, clust_method = clust_method, directions = directions,
                     alpha=alpha, beta_K = beta_K, similarity_cutoff = used_similarity_cutoffs,
-                    m=modularity, ds = ds, dch = dch)
+                    m=modularity, ds = ds, dch = dch, 
+                    max_power=max_power, precluster=precluster,
+                    merge = merge)
 
     if verbose:
         print(out_dir+basename+suffix+suffix2+".biclusters.tsv", file = sys.stdout)
@@ -210,7 +212,7 @@ def parse_args():
     parser.add_argument('--ds', default=0, metavar="0", type=int,choices=[0,1,2,3,4], help='deepSplit parameter, see WGCNA documentation')
     parser.add_argument('--dch', default=0.995, metavar="0.995", type=float, help='dynamicTreeCut parameter, see WGCNA documentation')
     parser.add_argument('--bidirectional', action='store_true', help='Whether to cluster up- and down-regulated features together.')
-    parser.add_argument('--rpath', default="", metavar="", type=float, help='Full path to Rscript.')
+    parser.add_argument('--rpath', default="", metavar="", type=str, help='Full path to Rscript.')
     parser.add_argument('--merge', default=1, metavar="1", type=float,help = "Whether to merge biclustres similar in samples with Jaccard index not less then the specified.")
     parser.add_argument('--load_binary', action='store_true', help = "loads binarized features from <basename>.<bin_method>.seed=42.binarized.tsv, statistics from *.binarization_stats.tsv and the background SNR distribution from <basename>.<bin_method>.n=<n_permutations>.seed=42.background.tsv")
     parser.add_argument('--save_binary', action='store_true', help = "saves binarized features to a file named as <basename>.<bin_method>.seed=42.binarized.tsv. If WGCNA is clustering method, binarized expressions are always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and background SNR distributions respectively will be created")
