@@ -27,7 +27,7 @@ R:
 </pre>
 
 ## Examples
-* UnPaSt requires a tab-separated file with standardized expressions of genes (or transcripts) in rows, and samples in columns. Gene and sample names must be unique. 
+* UnPaSt requires a tab-separated file with features (e.g. genes) in rows, and samples in columns. Gene and sample names must be unique. 
 * A subset of 200 randomly chosen samples from TCGA-BRCA and UnPaSt output:
 [test data](https://drive.google.com/file/d/1GXR_1ErIPtQkEOxE66at0uqQN76qNG7a/view?usp=sharing)
 
