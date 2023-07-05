@@ -158,7 +158,8 @@ def run(exprs_file, basename='', out_dir="./",
     
     ######### making biclusters #########
     if len(feature_clusters)==0:
-        print("No biclusters found",file = sys.stderr)
+        if verbose:
+            print("No biclusters found",file = sys.stderr)
         return pd.DataFrame()
         
     from utils.method import make_biclusters

@@ -64,13 +64,16 @@ def validate_input_matrix(exprs, tol=0.01,standradize=True,verbose = True):
     mean_passed = np.all(np.abs(m)<tol)
     std_passed = np.all(np.abs(std-1)<tol)
     if not (mean_passed and std_passed):
-        print("Input is not standardized.",file = sys.stderr)
+        if verbose:
+            print("Input is not standardized.",file = sys.stderr)
         if standradize:
             exprs = zscore(exprs)
             if not mean_passed:
-                print("Centering mean to 0",file= sys.stderr)
+                if verbose:
+                    print("Centering mean to 0",file= sys.stderr)
             if not std_passed:
-                print("Scaling std to 1",file= sys.stderr)
+                if verbose:
+                    print("Scaling std to 1",file= sys.stderr)
     else:
         if verbose:
             print("Input is standardized.",file = sys.stderr)
@@ -728,7 +731,8 @@ def run_WGCNA(binarized_expressions,tmp_prefix="",
     except:
         #print("WGCNA output:", stdout, file = sys.stdout)
         stderr = stderr.decode('utf-8')
-        print("WGCNA error:", stderr, file = sys.stdout)
+        if verbose:
+            print("WGCNA error:", stderr, file = sys.stdout)
         modules_df = pd.DataFrame.from_dict({})
     if verbose:
         print("\tWGCNA runtime: modules detected in {:.2f} s.".format(time()-t0),file = sys.stdout)
@@ -1238,7 +1242,8 @@ def merge_biclusters(biclusters,data,J=0.8,
     # merge biclusters with overlapping sample sets
     for bic_group in merged:
         bic_group = sorted(bic_group)
-        print("merged biclustres",bic_group,file = sys.stderr)
+        if verbose:
+            print("merged biclustres",bic_group,file = sys.stderr)
         new_bicluster = biclusters[bic_group[0]]
         # update genes
         for bic_id in bic_group[1:]:
@@ -1437,7 +1442,7 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
     # cluster biclusters by similarity
     matched, not_matched, cutoff = run_Louvain(J_heatmap,
                                                similarity_cutoffs = np.arange(1/4,4/5,0.05),m=0.9,
-                                               verbose = True, plot=True)
+                                               verbose = True, plot=plot)
     t2 = time()
     #print(round(t2-t1),"s for Louvain ")
     
