@@ -510,7 +510,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
                 if save:
                     null_distribution.loc[sorted(null_distribution.index.values),:].to_csv(bin_bg_fname, sep ="\t")
                     if verbose:
-                        print("Background sitribution in %s is updated"%bin_bg_fname,file = sys.stdout)
+                        print("Background ditribution in %s is updated"%bin_bg_fname,file = sys.stdout)
                 null_distribution = null_distribution.loc[sizes,:]
         except:
             print("file "+bin_bg_fname+" is not found and will be created",file = sys.stderr)
@@ -534,6 +534,10 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
 
     if save:        
         # save binarized data
+        fpath= "/".join(bin_exprs_fname.split("/")[:-1])
+        if not os.path.exists(fpath):
+            os.makedirs(fpath)
+            
         if not os.path.exists(bin_exprs_fname):
             binarized_data.to_csv(bin_exprs_fname, sep ="\t")
             if verbose:
@@ -778,8 +782,8 @@ def run_WGCNA(binarized_expressions,tmp_prefix="",
     return (modules,not_clustered)
 
 
-def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=False,
-                verbose = True,plot=False):
+def run_Louvain(similarity, similarity_cutoffs = np.arange(0.33,0.95,0.05), m=False,
+                verbose = True,plot=False,modularity_measure = "newman"):
     t0 = time()
     if similarity.shape[0] == 0:
         print("no features to cluster",file =sys.stderr)
@@ -788,6 +792,7 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
     
     if verbose:
         print("\tRunning Louvain ...")
+        
     from sknetwork.clustering import Louvain, modularity
     
     modularities = []
@@ -804,7 +809,7 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
         sim_binary = sim_binary.loc[non_zero_features,non_zero_features]
         gene_names = sim_binary.index.values
         sparse_matrix = csr_matrix(sim_binary)
-        labels = Louvain(modularity ='newman').fit_transform(sparse_matrix)  # modularity =  ['potts','dugue', 'newman']
+        labels = Louvain(modularity =modularity_measure).fit_transform(sparse_matrix)
         Q = modularity(sparse_matrix, labels)
         modularities.append(Q)
         # if binary similarity matrix contains no zeroes
@@ -845,8 +850,9 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
                 labels = feature_clusters[best_cutoff]
             except:
                 print("Failed to identify similarity cutoff",file=sys.stderr)
-                print("Cutoff:",best_cutoff, "set to 1/3", file = sys.stdout)
-                best_cutoff = 1/3
+                print("Similarity cutoff: set to ",similarity_cutoffs[0], file = sys.stdout)
+                best_cutoff = similarity_cutoffs[0]
+                best_Q = np.nan
                 print("Modularity:",modularities, file = sys.stdout)
                 if plot:
                     plt.plot(similarity_cutoffs,modularities, 'bx-')
@@ -891,6 +897,7 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
         print("\tmodules: {}, not clustered features {} ".format(len(modules),len(not_clustered)),file = sys.stdout)
         print("\t\tsimilarity cutoff: {:.2f} modularity: {:.3f}".format(best_cutoff,best_Q),file=sys.stdout)
     return modules, not_clustered, best_cutoff
+
 
 def run_MCL(similarity, inflations = list(np.arange(11,30)/10)+[3,3.5,4,5],verbose = True):
     if similarity.shape[0] == 0:
@@ -1394,7 +1401,7 @@ def calc_bicluster_similarities(biclusters,exprs,
         g = sns.clustermap(J_heatmap,
                            yticklabels=labels, xticklabels=labels, 
                            linewidths=0,vmin=0,vmax=1,
-                           figsize=figsize,center=0,annot=False)
+                           figsize=figsize,center=0,annot=labels)
         g.ax_row_dendrogram.set_visible(False)
         g.ax_col_dendrogram.set_visible(False)
         if colorbar_off:
@@ -1405,7 +1412,9 @@ def calc_bicluster_similarities(biclusters,exprs,
     
 def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
                               similarity = "both", # can be 'both','genes','samples' 
-                              method="kmeans", min_n_genes =2, min_n_samples=5,
+                              min_similarity = 0.33,
+                              method="kmeans", modularity_measure = "potts",
+                              min_n_genes =2, min_n_samples=5,
                               seed = -1, plot = False,
                               figsize=(17, 17),labels=False,colorbar_off=True):
     t0 = time()
@@ -1417,6 +1426,8 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
     # list of biclusters from several runs
     n_runs = len(biclusters_list)
     biclusters = pd.concat(biclusters_list)
+    if not "detected_n_times" in biclusters.columns.values:
+        biclusters["detected_n_times"] = 1
     biclusters.index = range(biclusters.shape[0])
     
     # calculate pairwise bicluster similarity
@@ -1441,8 +1452,9 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
     
     # cluster biclusters by similarity
     matched, not_matched, cutoff = run_Louvain(J_heatmap,
-                                               similarity_cutoffs = np.arange(1/4,4/5,0.05),m=0.9,
-                                               verbose = True, plot=plot)
+                                               similarity_cutoffs = np.arange(min_similarity,0.9,0.05),m=0.9,
+                                               verbose = True, plot=plot,
+                                               modularity_measure = modularity_measure)
     t2 = time()
     #print(round(t2-t1),"s for Louvain ")
     
@@ -1455,7 +1467,7 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
     # for each group of matched biclusters 
     for i in range(len(matched)):
         gsets = biclusters.loc[matched[i],"genes"].values
-        
+        detected_n_times = biclusters.loc[matched[i],"detected_n_times"].sum()
         # count gene occurencies
         gene_occurencies = {}
         for gene in set().union(*gsets):
@@ -1480,13 +1492,13 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
                 bicluster["genes"] = set(passed_genes)
                 bicluster["n_genes"] = len(bicluster["genes"])
                 bicluster = update_bicluster_data(bicluster,exprs)
-                bicluster["detected_n_times"] = len(gsets)
+                bicluster["detected_n_times"] = detected_n_times
                 consensus_biclusters.append(bicluster)
     consensus_biclusters = pd.DataFrame.from_records(consensus_biclusters)
      
     # add not matched
     not_changed_biclusters = biclusters.loc[not_matched,:]
-    not_changed_biclusters["detected_n_times"] = 1
+    #not_changed_biclusters["detected_n_times"] = 1
     consensus_biclusters = pd.concat([consensus_biclusters,not_changed_biclusters])
 
     # add direction
