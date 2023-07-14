@@ -1525,9 +1525,9 @@ def make_consensus_biclusters2(biclusters_list,exprs, frac_runs=1/2,
                               min_similarity = 0.33,
                               method="kmeans", modularity_measure = "potts",
                               min_n_genes =2, min_n_samples=5, p=0.05,
-                              seed = -1, plot = False,
+                              seed = -1, plot = False, verbose = True,
                               figsize=(17, 17),labels=False,colorbar_off=True):
-    from utils.eval import find_best_matching_biclusters
+    #from utils.eval import find_best_matching_biclusters
     t0 = time()
     N = exprs.shape[0]
     
@@ -1549,9 +1549,11 @@ def make_consensus_biclusters2(biclusters_list,exprs, frac_runs=1/2,
     J_heatmap = pd.DataFrame(np.zeros((n_bics, n_bics)),index=bic_ids,columns=bic_ids)
     
     # add only best matches to Jaccard similarity matrix
+    avg_J_sim = {}
     for i in range(n_runs):
         bics1 = biclusters.loc[biclusters["run"]==i,:]
         J_heatmap.loc[bics1.index.values,bics1.index.values] = np.identity(bics1.shape[0])
+        avg_J_sim[i]={i:1}
         for j in range(n_runs):
             if i!=j:
                 bics2 = biclusters.loc[biclusters["run"]==j,:]
@@ -1560,17 +1562,25 @@ def make_consensus_biclusters2(biclusters_list,exprs, frac_runs=1/2,
                                                    by = similarity,min_g=min_n_genes,adj_pval_thr=p)
                 bm = bm.dropna()
                 if bm.shape[0]>0:
+                    avg_J_sim[i][j] = np.mean(bm["J"])
                     df = bm.loc[:,["bm_id","J"]]
                     for row in df.iterrows():
                         J_heatmap.loc[row[0],row[1]["bm_id"]] += row[1]["J"]/2
                         J_heatmap.loc[row[1]["bm_id"],row[0]] += row[1]["J"]/2
-                
+                        
     
-    # plot similarity heatmap 
+    # plot similarity heatmaps
     if plot: 
         import seaborn as sns
+        
+        avg_J_sim = pd.DataFrame.from_dict(avg_J_sim)
+        g = sns.clustermap(avg_J_sim,linewidths=0,vmin=0,vmax=1,figsize=(3,3),
+                           center=0,annot=True)
+        g.ax_cbar.set_visible(False)
+        plt.show()
+        
         labels = True
-        if len(bic_ids)>50:
+        if len(bic_ids)>20:
             labels = False
         g = sns.clustermap(J_heatmap,
                            yticklabels=labels, xticklabels=labels, 
