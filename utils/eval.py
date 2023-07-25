@@ -150,40 +150,41 @@ def make_ref_groups(subtypes, annotation,exprs):
             
     return known_groups, freqs
 
-def compare_gene_clusters(tcga_result,metabric_result, N):
+def compare_gene_clusters(bics1,bics2, N):
     # N - total number of genes
-    # finds best matched TCGA -> METABRIC and METABRIC -> TCGA
-    # calculates % of matched clusterst, number of genes in matched cluster, 
+    # finds best matched B1 -> B2 and B2 -> B1
+    # calculates % of matched clusters, number of genes in matched clusters, 
     # and the average J index for best matches 
-    bm = find_best_matching_biclusters(tcga_result,metabric_result, N)
+    bm = find_best_matching_biclusters(bics1,bics2,(N,0),by = "genes")
     bm = bm.dropna()
-    bm2 = find_best_matching_biclusters(metabric_result, tcga_result, N)
+    bm2 = find_best_matching_biclusters(bics2,bics1,(N,0),by = "genes")
     bm2 = bm2.dropna()
     
-    if "n_shared" in bm.columns:
-        bm = bm.loc[bm["n_shared"]>1,:].sort_values(by="n_shared",ascending = False)
+    if "n_shared_genes" in bm.columns:
+        bm = bm.loc[bm["n_shared_genes"]>1,:].sort_values(by="n_shared_genes",ascending = False)
     else:
         # no match -> remove all rows 
         bm = bm.head(0)
-    if "n_shared" in bm2.columns:
-        bm2 = bm2.loc[bm2["n_shared"]>1,:].sort_values(by="n_shared",ascending = False)
+    if "n_shared_genes" in bm2.columns:
+        bm2 = bm2.loc[bm2["n_shared_genes"]>1,:].sort_values(by="n_shared_genes",ascending = False)
     else:
         bm2 = bm.head(0)
     
     
     clust_similarity = {}
     # number of biclusters 
-    clust_similarity["n_1"] = tcga_result.shape[0]
-    clust_similarity["n_2"] = metabric_result.shape[0]
+    clust_similarity["n_1"] = bics1.shape[0]
+    clust_similarity["n_2"] = bics2.shape[0]
     #print("% matched biclusters:",bm.shape[0]/tcga_result.shape[0],bm2.shape[0]/metabric_result.shape[0])
-    clust_similarity["percent_matched_1"] = bm.shape[0]/tcga_result.shape[0]
-    clust_similarity["percent_matched_2"] = bm2.shape[0]/metabric_result.shape[0]
+    clust_similarity["percent_matched_1"] = bm.shape[0]/bics1.shape[0]
+    clust_similarity["percent_matched_2"] = bm2.shape[0]/bics2.shape[0]
+    
     #print("n matched genes:",bm.loc[:,"n_shared"].sum(),bm2.loc[:,"n_shared"].sum())
-    if "n_shared" in bm.columns:
-        clust_similarity["n_shared_genes_1"] = bm.loc[:,"n_shared"].sum()
+    if "n_shared_genes" in bm.columns:
+        clust_similarity["n_shared_genes_1"] = bm.loc[:,"n_shared_genes"].sum()
         clust_similarity["avg_bm_J_1"] = bm.loc[:,"J"].mean()
-    if "n_shared" in bm2.columns:
-        clust_similarity["n_shared_genes_2"] = bm2.loc[:,"n_shared"].sum()
+    if "n_shared_genes" in bm2.columns:
+        clust_similarity["n_shared_genes_2"] = bm2.loc[:,"n_shared_genes"].sum()
     #print("avg. J:",bm.loc[:,"J"].mean(),bm2.loc[:,"J"].mean())
         clust_similarity["avg_bm_J_2"] = bm2.loc[:,"J"].mean()
     
@@ -377,79 +378,137 @@ def find_best_matches(biclusters, known_groups, all_elements, FDR=0.05,
     return results
 
 
-def find_best_matching_biclusters(bics1, bics2, N, by="genes", adj_pval_thr=0.05):
+def calc_overlap_pval(overlap, group1_only,group2_only,background, max_N=5000):
+    # if sample size < max_N), use Fisher's exact
+    # otherwise replacing exact Fisher's with chi2 
+    if overlap+group1_only+group2_only+background<max_N:
+        pval = pvalue(overlap, group1_only,group2_only,background).right_tail
+    else:
+        chi2, pval, dof, expected = chi2_contingency([[overlap, group1_only],[group2_only,background]])
+    return pval
+
+def find_best_matching_biclusters(bics1, bics2, sizes, by="genes", adj_pval_thr=0.05, min_g = 2):
     # takes two biluster dafaframes from read_bic_table
-    # by = "genes" or "samples"
-    # N - total number of objects (genes or samples)
+    # by = "genes" or "samples" or "both"
+    # sizes - dimensions of input matrix (n_genes,n_samples)
     # finds best matches of bics1 biclusters among bics2 biclusters
+
+    N_g, N_s = sizes
     n_bics1 = bics1.shape[0]
     n_bics2 = bics2.shape[0]
+    
     best_matches = {}  # OrderedDict({})
     for row1 in bics1.iterrows():
         bic1 = row1[1]
         i1 = row1[0]
-        set1 = bic1[by]
-        s1 = len(set1)
-
+        
         best_matches[i1] = {}
         bm_J = 0
         bm_o = 0
         bm_adj_pval = 1
-        bm_id = -1
+        bm_id = None
 
         for row2 in bics2.iterrows():
             bic2 = row2[1]
             i2 = row2[0]
-            set2 = bic2[by]
-            o = len(set1.intersection(set2))
+            
+            g1 = bic1["genes"]
+            s1 = bic1["samples"]
+            g2 = bic2["genes"]
+            s2 = bic2["samples"]
+            o_g = len(g1.intersection(g2))
+            o_s = len(s1.intersection(s2))
+            s1 = len(s1)
+            s2 = len(s2)
+            g1 = len(g1)
+            g2 = len(g2)
             J = 0
             adj_pval = 1
-            if o > 0:
-                s2 = len(set2)
-                s2_ = s2 - o
-                s1_ = s1 - o
-                u = s1_ + s2_ + o
-                bg = N - u
-                if by == "genes":
-                    pval = pvalue(o, s1_, s2_, bg).right_tail
-                    J = o * 1.0 / u
-                elif by == "samples":
-                    # two-tailed pvalue is computed for samples
-                    # because bicluster and background sets can be flipped 
-                    pval = pvalue(o, s1_, s2_, bg)
-                    if pval.right_tail <= pval.left_tail:
-                        pval = pval.right_tail
-                    elif max(s1,
-                             s2) > 0.4 * N:  # try flipping the largest bicluster if it is close to 50% of the cohort
-                        pval = pval.left_tail
+            # if not by="samples", ignore overlaps with gene < min_g
+            if (by!="samples" and o_g >= min_g) or by=="samples": 
+                if by=="genes" or by == "both":
+                    g2_ = g2 - o_g # genes exclusively in bicluster 2
+                    g1_ = g1 - o_g
+                    u_g = g1_ + g2_ + o_g
+                    bg_g = N_g - u_g
+                    J_g = o_g * 1.0 / u_g
+                    if not by == "both":
+                        pval_g = calc_overlap_pval(o_g, g1_, g2_, bg_g)
+                elif by=="samples" or by == "both":
+                    s2_ = s2 - o_s # samples exclusively in bicluster 2
+                    s1_ = s1 - o_s
+                    u_s = s1_ + s2_ + o_s
+                    bg_s = N_s - u_s
+                    pval_s = calc_overlap_pval(o_s, s1_, s2_, bg_s)
+                    # if p-val is high but one of the biclusters is large,
+                    # try flipping the largest bicluster if it is close to 50% of the cohort                              
+                    if pval_s>adj_pval_thr and max(s1,s2) > 0.4 * N_s:  
                         if s1 > s2:  # flip s1
-                            u = bg + s2
-                            o = s2_
-                        else:
-                            u = bg + s1
-                            o = s1_
-                    J = o * 1.0 / u
-
-                adj_pval = pval * n_bics2 * n_bics1 / 2
-                if adj_pval < adj_pval_thr:
-
+                            s1 = N_s-s1
+                            u_s = bg_s + s2
+                            o_s = s2_
+                            s2_ = s2 - o_s
+                            bg_s = s1_
+                            s1_ = s1 - o_s
+                        else:  # flip s2
+                            s2 = N_s - s2
+                            u_s = bg_s + s1
+                            o_s = s1_
+                            s1_ = s1 - o_s
+                            bg_s = s2_
+                            s2_ = s2 - o_s
+                        assert bg_s == N_s - u_s, "i1=%s; i2=%s: bg=%s, N_s=%s, u_s=%s"%(i1,i2,bg_s,N_s,u_s)
+                        assert u_s == o_s + s1_ + s2_, "i1=%s; i2=%s: u_s=%s, o_s=%s, s1_=%s, s2_=%s"%(i1,i2,u_s,o_s,s1_,s2_)
+                        if not by == "both":
+                            # compute p-value again
+                            pval_s = calc_overlap_pval(o_s, s1_, s2_, bg_s)
+                    J_s = o_s * 1.0 / u_s
+               
+                if by == "genes":
+                    J = J_g
+                    pval = pval_g
+                    o = o_g
+                elif by == "samples":
+                    J= J_s
+                    pval = pval_s
+                    o = o_s
+                else:
+                    o = o_s*o_g # bicluster overlap
+                    b1_ = s1*g1-o # exclusive bicluster 1 area
+                    b2_ = s2*g2 -o
+                    u = o + b1_ + b2_
+                    bg = N_s*N_g - u
+                    J = o*1.0/u
+                    pval = calc_overlap_pval(o, b1_, b2_, bg)
+                        
+                adj_pval = pval * n_bics2* n_bics1
+                if adj_pval < adj_pval_thr and J>0:
                     if J > bm_J or (J == bm_J and adj_pval < bm_adj_pval):
                         bm_J = J
                         bm_adj_pval = adj_pval
                         bm_id = i2
                         bm_o = o
-
-        best_matches[i1][by] = set1
-        best_matches[i1]["n_" + by] = s1
-        if bm_id != -1:
-            best_matches[i1]["bm_" + by] = bics2.loc[bm_id, by]
-            best_matches[i1]["bm_n_" + by] = bics2.loc[bm_id, "n_" + by]
-            best_matches[i1]["n_shared"] = bm_o
-            best_matches[i1]["J"] = bm_J
-            best_matches[i1]["adj_pval"] = bm_adj_pval
-            best_matches[i1]["shared_" + by] = bics2.loc[bm_id, by].intersection(set1)
-            # best_matches[i1]["bic_n_"+by] = bics2.loc[bm_id,"n_"+by]
-            best_matches[i1]["bm_id"] = bm_id
+        best_matches[i1]["bm_id"] = bm_id
+        best_matches[i1]["J"] = bm_J
+        best_matches[i1]["adj_pval"] = bm_adj_pval
+        if "genes" in bics1.columns and  "genes" in bics2.columns:
+            if bm_id:
+                best_matches[i1]["shared_genes"] = bics2.loc[bm_id, "genes"].intersection(bics1.loc[i1, "genes"])
+                best_matches[i1]["n_shared_genes"] = len(best_matches[i1]["shared_genes"])
+                best_matches[i1]["bm_genes"] = bics2.loc[bm_id,"genes"]
+                best_matches[i1]["bm_n_genes"] = bics2.loc[bm_id,"n_genes"]
+            best_matches[i1]["genes"] = bics1.loc[i1,"genes"]
+            best_matches[i1]["n_genes"] = bics1.loc[i1,"n_genes"]
+        if "samples" in bics1.columns and "samples" in bics2.columns:
+            best_matches[i1]["n_samples"] = bics1.loc[i1,"n_samples"]
+            best_matches[i1]["samples"] = bics1.loc[i1,"samples"]
+            if bm_id:
+                best_matches[i1]["bm_n_samples"] = bics2.loc[bm_id,"n_samples"]
+                best_matches[i1]["bm_samples"] = bics2.loc[bm_id,"samples"]
+                best_matches[i1]["shared_samples"] = bics2.loc[bm_id, "samples"].intersection(bics1.loc[i1, "samples"])
+                best_matches[i1]["n_shared_samples"] = len(best_matches[i1]["shared_samples"])
+            
+                                                  
     best_matches = pd.DataFrame.from_dict(best_matches).T
     return best_matches
 

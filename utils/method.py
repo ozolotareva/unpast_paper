@@ -64,13 +64,16 @@ def validate_input_matrix(exprs, tol=0.01,standradize=True,verbose = True):
     mean_passed = np.all(np.abs(m)<tol)
     std_passed = np.all(np.abs(std-1)<tol)
     if not (mean_passed and std_passed):
-        print("Input is not standardized.",file = sys.stderr)
+        if verbose:
+            print("Input is not standardized.",file = sys.stderr)
         if standradize:
             exprs = zscore(exprs)
             if not mean_passed:
-                print("Centering mean to 0",file= sys.stderr)
+                if verbose:
+                    print("Centering mean to 0",file= sys.stderr)
             if not std_passed:
-                print("Scaling std to 1",file= sys.stderr)
+                if verbose:
+                    print("Scaling std to 1",file= sys.stderr)
     else:
         if verbose:
             print("Input is standardized.",file = sys.stderr)
@@ -507,7 +510,7 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
                 if save:
                     null_distribution.loc[sorted(null_distribution.index.values),:].to_csv(bin_bg_fname, sep ="\t")
                     if verbose:
-                        print("Background sitribution in %s is updated"%bin_bg_fname,file = sys.stdout)
+                        print("Background ditribution in %s is updated"%bin_bg_fname,file = sys.stdout)
                 null_distribution = null_distribution.loc[sizes,:]
         except:
             print("file "+bin_bg_fname+" is not found and will be created",file = sys.stderr)
@@ -531,6 +534,10 @@ def binarize(binarized_fname_prefix, exprs=None, method='GMM',
 
     if save:        
         # save binarized data
+        fpath= "/".join(bin_exprs_fname.split("/")[:-1])
+        if not os.path.exists(fpath):
+            os.makedirs(fpath)
+            
         if not os.path.exists(bin_exprs_fname):
             binarized_data.to_csv(bin_exprs_fname, sep ="\t")
             if verbose:
@@ -728,7 +735,8 @@ def run_WGCNA(binarized_expressions,tmp_prefix="",
     except:
         #print("WGCNA output:", stdout, file = sys.stdout)
         stderr = stderr.decode('utf-8')
-        print("WGCNA error:", stderr, file = sys.stdout)
+        if verbose:
+            print("WGCNA error:", stderr, file = sys.stdout)
         modules_df = pd.DataFrame.from_dict({})
     if verbose:
         print("\tWGCNA runtime: modules detected in {:.2f} s.".format(time()-t0),file = sys.stdout)
@@ -774,8 +782,8 @@ def run_WGCNA(binarized_expressions,tmp_prefix="",
     return (modules,not_clustered)
 
 
-def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=False,
-                verbose = True,plot=False):
+def run_Louvain(similarity, similarity_cutoffs = np.arange(0.33,0.95,0.05), m=False,
+                verbose = True,plot=False,modularity_measure = "newman"):
     t0 = time()
     if similarity.shape[0] == 0:
         print("no features to cluster",file =sys.stderr)
@@ -784,6 +792,7 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
     
     if verbose:
         print("\tRunning Louvain ...")
+        
     from sknetwork.clustering import Louvain, modularity
     
     modularities = []
@@ -800,7 +809,7 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
         sim_binary = sim_binary.loc[non_zero_features,non_zero_features]
         gene_names = sim_binary.index.values
         sparse_matrix = csr_matrix(sim_binary)
-        labels = Louvain(modularity ='newman').fit_transform(sparse_matrix)  # modularity =  ['potts','dugue', 'newman']
+        labels = Louvain(modularity =modularity_measure).fit_transform(sparse_matrix)
         Q = modularity(sparse_matrix, labels)
         modularities.append(Q)
         # if binary similarity matrix contains no zeroes
@@ -841,8 +850,9 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
                 labels = feature_clusters[best_cutoff]
             except:
                 print("Failed to identify similarity cutoff",file=sys.stderr)
-                print("Cutoff:",best_cutoff, "set to 1/3", file = sys.stdout)
-                best_cutoff = 1/3
+                print("Similarity cutoff: set to ",similarity_cutoffs[0], file = sys.stdout)
+                best_cutoff = similarity_cutoffs[0]
+                best_Q = np.nan
                 print("Modularity:",modularities, file = sys.stdout)
                 if plot:
                     plt.plot(similarity_cutoffs,modularities, 'bx-')
@@ -887,6 +897,7 @@ def run_Louvain(similarity, similarity_cutoffs = np.arange(1/5,4/5,0.05), m=Fals
         print("\tmodules: {}, not clustered features {} ".format(len(modules),len(not_clustered)),file = sys.stdout)
         print("\t\tsimilarity cutoff: {:.2f} modularity: {:.3f}".format(best_cutoff,best_Q),file=sys.stdout)
     return modules, not_clustered, best_cutoff
+
 
 def run_MCL(similarity, inflations = list(np.arange(11,30)/10)+[3,3.5,4,5],verbose = True):
     if similarity.shape[0] == 0:
@@ -1238,7 +1249,8 @@ def merge_biclusters(biclusters,data,J=0.8,
     # merge biclusters with overlapping sample sets
     for bic_group in merged:
         bic_group = sorted(bic_group)
-        print("merged biclustres",bic_group,file = sys.stderr)
+        if verbose:
+            print("merged biclustres",bic_group,file = sys.stderr)
         new_bicluster = biclusters[bic_group[0]]
         # update genes
         for bic_id in bic_group[1:]:
@@ -1389,7 +1401,7 @@ def calc_bicluster_similarities(biclusters,exprs,
         g = sns.clustermap(J_heatmap,
                            yticklabels=labels, xticklabels=labels, 
                            linewidths=0,vmin=0,vmax=1,
-                           figsize=figsize,center=0,annot=False)
+                           figsize=figsize,center=0,annot=labels)
         g.ax_row_dendrogram.set_visible(False)
         g.ax_col_dendrogram.set_visible(False)
         if colorbar_off:
@@ -1400,7 +1412,9 @@ def calc_bicluster_similarities(biclusters,exprs,
     
 def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
                               similarity = "both", # can be 'both','genes','samples' 
-                              method="kmeans", min_n_genes =2, min_n_samples=5,
+                              min_similarity = 0.33,
+                              method="kmeans", modularity_measure = "potts",
+                              min_n_genes =2, min_n_samples=5,
                               seed = -1, plot = False,
                               figsize=(17, 17),labels=False,colorbar_off=True):
     t0 = time()
@@ -1412,6 +1426,8 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
     # list of biclusters from several runs
     n_runs = len(biclusters_list)
     biclusters = pd.concat(biclusters_list)
+    if not "detected_n_times" in biclusters.columns.values:
+        biclusters["detected_n_times"] = 1
     biclusters.index = range(biclusters.shape[0])
     
     # calculate pairwise bicluster similarity
@@ -1436,8 +1452,9 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
     
     # cluster biclusters by similarity
     matched, not_matched, cutoff = run_Louvain(J_heatmap,
-                                               similarity_cutoffs = np.arange(1/4,4/5,0.05),m=0.9,
-                                               verbose = True, plot=True)
+                                               similarity_cutoffs = np.arange(min_similarity,0.9,0.05),m=False,
+                                               verbose = True, plot=plot,
+                                               modularity_measure = modularity_measure)
     t2 = time()
     #print(round(t2-t1),"s for Louvain ")
     
@@ -1450,7 +1467,7 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
     # for each group of matched biclusters 
     for i in range(len(matched)):
         gsets = biclusters.loc[matched[i],"genes"].values
-        
+        detected_n_times = biclusters.loc[matched[i],"detected_n_times"].sum()
         # count gene occurencies
         gene_occurencies = {}
         for gene in set().union(*gsets):
@@ -1475,13 +1492,13 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
                 bicluster["genes"] = set(passed_genes)
                 bicluster["n_genes"] = len(bicluster["genes"])
                 bicluster = update_bicluster_data(bicluster,exprs)
-                bicluster["detected_n_times"] = len(gsets)
+                bicluster["detected_n_times"] = detected_n_times
                 consensus_biclusters.append(bicluster)
     consensus_biclusters = pd.DataFrame.from_records(consensus_biclusters)
      
     # add not matched
     not_changed_biclusters = biclusters.loc[not_matched,:]
-    not_changed_biclusters["detected_n_times"] = 1
+    #not_changed_biclusters["detected_n_times"] = 1
     consensus_biclusters = pd.concat([consensus_biclusters,not_changed_biclusters])
 
     # add direction
@@ -1502,6 +1519,160 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
     
     return consensus_biclusters
 
+
+def make_consensus_biclusters2(biclusters_list,exprs, frac_runs=1/2,
+                              similarity = "both", # can be 'both','genes','samples' 
+                              min_similarity = 0.33,
+                              method="kmeans", modularity_measure = "potts",
+                              min_n_genes =2, min_n_samples=5, p=0.05,
+                              seed = -1, plot = False, verbose = True,
+                              figsize=(17, 17),labels=False,colorbar_off=True):
+    #from utils.eval import find_best_matching_biclusters
+    t0 = time()
+    N = exprs.shape[0]
+    
+    if seed == -1:
+        seed = random.randint(0,1000000)
+        print("Seed for sample clustering: %s"%(seed),file=sys.stderr)
+    
+    # list of biclusters from several runs
+    n_runs = len(biclusters_list)
+    for i in range(n_runs):
+        biclusters_list[i]["run"] = i
+    biclusters = pd.concat(biclusters_list)
+    biclusters.index = range(biclusters.shape[0])
+    bic_ids = biclusters.index.values
+    if not "detected_n_times" in biclusters.columns.values:
+        biclusters["detected_n_times"] = 1
+    
+    n_bics = biclusters.shape[0]
+    J_heatmap = pd.DataFrame(np.zeros((n_bics, n_bics)),index=bic_ids,columns=bic_ids)
+    
+    # add only best matches to Jaccard similarity matrix
+    avg_J_sim = {}
+    for i in range(n_runs):
+        bics1 = biclusters.loc[biclusters["run"]==i,:]
+        J_heatmap.loc[bics1.index.values,bics1.index.values] = np.identity(bics1.shape[0])
+        avg_J_sim[i]={i:1}
+        for j in range(n_runs):
+            if i!=j:
+                bics2 = biclusters.loc[biclusters["run"]==j,:]
+                # find best matches between bics1 and bics2
+                bm = find_best_matching_biclusters(bics1,bics2,exprs.shape,
+                                                   by = similarity,min_g=min_n_genes,adj_pval_thr=p)
+                bm = bm.dropna()
+                if bm.shape[0]>0:
+                    avg_J_sim[i][j] = np.mean(bm["J"])
+                    df = bm.loc[:,["bm_id","J"]]
+                    for row in df.iterrows():
+                        J_heatmap.loc[row[0],row[1]["bm_id"]] += row[1]["J"]/2
+                        J_heatmap.loc[row[1]["bm_id"],row[0]] += row[1]["J"]/2
+                        
+    
+    # plot similarity heatmaps
+    if plot: 
+        import seaborn as sns
+        
+        avg_J_sim = pd.DataFrame.from_dict(avg_J_sim)
+        g = sns.clustermap(avg_J_sim,linewidths=0,vmin=0,vmax=1,figsize=(3,3),
+                           center=0,annot=True)
+        g.ax_cbar.set_visible(False)
+        plt.show()
+        
+        labels = True
+        if len(bic_ids)>20:
+            labels = False
+        g = sns.clustermap(J_heatmap,
+                           yticklabels=labels, xticklabels=labels, 
+                           linewidths=0,vmin=0,vmax=1,
+                           figsize=figsize,center=0,annot=labels)
+        g.ax_row_dendrogram.set_visible(False)
+        g.ax_col_dendrogram.set_visible(False)
+        if colorbar_off:
+            g.cax.set_visible(False)
+        plt.show()
+        
+    # if all biclusters are exactly the same
+    if J_heatmap.min().min()==1:
+        # return the first bicluster
+        consensus_biclusters = biclusters.iloc[[0],:].copy()
+        consensus_biclusters.index = [0]
+        consensus_biclusters.loc[0,'detected_n_times'] = biclusters.shape[0]
+        print("all biclusters are exactly the same",file = sys.stderr)
+        return consensus_biclusters
+
+    
+    t1= time()
+    print("%s s for similarity matrix"%round(t1-t0))
+    
+    # cluster biclusters by similarity
+    matched, not_matched, cutoff = run_Louvain(J_heatmap,
+                                               similarity_cutoffs = np.arange(min_similarity,0.9,0.05),m=False,
+                                               verbose = True, plot=plot,
+                                               modularity_measure = modularity_measure)
+    t2 = time()
+    #print(round(t2-t1),"s for Louvain ")
+    
+    
+    # make consensus biclusters
+    # for each group of matched biclusters, keep genes occuring at least n times
+    # cluster samples again in a subspace of a new gene set
+    consensus_biclusters = []
+
+    # for each group of matched biclusters 
+    for i in range(len(matched)):
+        gsets = biclusters.loc[matched[i],"genes"].values
+        detected_n_times = biclusters.loc[matched[i],"detected_n_times"].sum()
+        # count gene occurencies
+        gene_occurencies = {}
+        for gene in set().union(*gsets):
+            gene_occurencies[gene] = 0
+            for gset in gsets:
+                if gene in gset:
+                    gene_occurencies[gene]+=1
+        
+        gene_occurencies = pd.Series(gene_occurencies).sort_values()
+        passed_genes = sorted(gene_occurencies[gene_occurencies>=min(n_runs,len(matched))*frac_runs].index.values)
+        not_passed_genes  = sorted(gene_occurencies[gene_occurencies<min(n_runs,len(matched))*frac_runs].index.values)
+
+        
+        if len(passed_genes)<min_n_genes:
+            # move all biclusters to not matched
+            not_matched += list(matched[i])
+        else:
+            # cluster samples in a new gene set
+            bicluster = cluster_samples(exprs.loc[passed_genes,:].T,min_n_samples=min_n_samples,seed=seed,method=method)
+            # if bicluster is not empty, add it to consenesus
+            if "sample_indexes" in bicluster.keys():
+                bicluster["genes"] = set(passed_genes)
+                bicluster["n_genes"] = len(bicluster["genes"])
+                bicluster = update_bicluster_data(bicluster,exprs)
+                bicluster["detected_n_times"] = detected_n_times
+                consensus_biclusters.append(bicluster)
+    consensus_biclusters = pd.DataFrame.from_records(consensus_biclusters)
+     
+    # add not matched
+    not_changed_biclusters = biclusters.loc[not_matched,:]
+    #not_changed_biclusters["detected_n_times"] = 1
+    consensus_biclusters = pd.concat([consensus_biclusters,not_changed_biclusters])
+
+    # add direction
+    consensus_biclusters["direction"] = "BOTH"
+    consensus_biclusters.loc[consensus_biclusters["n_genes"] == consensus_biclusters["genes_up"].apply(len),"direction"] = "UP"
+    consensus_biclusters.loc[consensus_biclusters["n_genes"] == consensus_biclusters["genes_down"].apply(len),"direction"] = "DOWN"
+
+    # sort
+    col_order = ['SNR','n_genes', 'n_samples', 'genes',  'samples',  'genes_up', 'genes_down',
+                 'gene_indexes','sample_indexes',"direction",'detected_n_times']
+    consensus_biclusters = consensus_biclusters.sort_values(by=["SNR","n_samples"],ascending=[False,True])
+    consensus_biclusters = consensus_biclusters.loc[:,col_order]
+    consensus_biclusters = consensus_biclusters.loc[consensus_biclusters["n_samples"]>=min_n_samples,:]
+    
+    consensus_biclusters.index = range(consensus_biclusters.shape[0])
+    
+    print(round(time()-t2),"s for making consensus biclusters from consensus gene sets")
+    
+    return consensus_biclusters
 #### reading and writing #####
 
 def read_bic_table(file_name, parse_metadata = False):

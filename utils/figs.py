@@ -96,25 +96,35 @@ def draw_heatmap(exprs,sample_set_dict,
     return g, sample_order
 
 def draw_heatmap2(exprs,biclusters,
-                 annot=pd.DataFrame(),
-                 color_dict={},
+                 annot=None,
+                 color_dict=None,
                  figsize = (20,10),dendrogram_ratio=(0.05,0.1),
                  colors_ratio=(0.005,0.02),
-                 no_legend=False,cluster_rows=True,
-                 col_labels = True,row_labels = False,col_range=(-3,3),
+                 no_legend=False,no_cbar=False,
+                 cluster_rows=True,
+                 xlabel = "samples",
+                 col_labels = True,row_labels = False,
+                 col_range=(-3,3),
                  bic_prefix = "bic_"):
     '''* exprs - expressions of genes to plot
        * biclusters in UnPaSt format
        * annot - annotation for samples, columns - subtypes, rows - samples 
        * color_dict - how to color each label'''
-    # show only variables in annotation
-    #cols = [x for x in color_dict.keys() if x in list(annot.columns.values)]
-    cols = list(annot.columns.values)
     s_names = []
     ordered_genes = []
-    row_colors = pd.DataFrame(data="white",
-                             index=exprs.index.values,
-                             columns=[bic_prefix+str(x) for x in biclusters.index.values])
+    if type(annot)!=type(None):
+        cols = list(annot.columns.values)
+        row_colors = pd.DataFrame(data="white",
+                                 index=exprs.index.values,
+                                 columns=[bic_prefix+str(x) for x in biclusters.index.values])
+    else:
+        annot = pd.DataFrame(index = exprs.columns)
+        row_colors = pd.DataFrame(index=exprs.index.values)
+        cols = []
+    if type(color_dict)!=type(None):
+        pass
+    
+    
     for row in biclusters.iterrows():
         bic_id = bic_prefix+str(row[0])
         s = row[1]["samples"]
@@ -128,7 +138,7 @@ def draw_heatmap2(exprs,biclusters,
     ordered_genes =  ordered_genes + sorted(set(exprs.index.values).difference(set(ordered_genes)))
         
     sample_order = annot.index.values
-    col_colors = annot.loc[:,cols+s_names]
+    col_colors = annot.loc[:,s_names+cols]
             
     for col in reversed(cols):
         col_color_map = color_dict[col]
@@ -150,12 +160,12 @@ def draw_heatmap2(exprs,biclusters,
                        dendrogram_ratio=dendrogram_ratio,colors_ratio=colors_ratio,
                        cmap=sns.color_palette("coolwarm", as_cmap=True),
                        vmin=vmin,vmax=vmax,
-                       xticklabels=col_labels, yticklabels=row_labels ,
+                       xticklabels=col_labels, yticklabels=row_labels,
                        col_colors=col_colors,
                       row_colors = row_colors)
     ax = g.ax_heatmap
     ax.set_ylabel("")
-    ax.set_xlabel("samples")
+    ax.set_xlabel(xlabel)
     
     g.ax_row_dendrogram.set_visible(False)
     #g.cax.set_position([.10, .2, .03, .45])
@@ -165,6 +175,9 @@ def draw_heatmap2(exprs,biclusters,
     g.cax.set_position(dendro_box)
     # Move the ticks to the left (https://stackoverflow.com/a/36939552/1878788)
     g.cax.yaxis.set_ticks_position("left")
+    
+    if no_cbar:
+        g.ax_cbar.set_visible(False)
     
     legends = []
     i = 0
@@ -196,7 +209,7 @@ def draw_heatmap2(exprs,biclusters,
                 if i>0:
                     plt.gca().add_artist(legends[i-1])
                 i+=1
-    return g, sample_order
+    return g, sample_order, (row_colors, col_colors)
 
 def order_one(exprs,s0,subt_dict,
              subt_order = ["Her2","Basal","LumA","LumB","Normal"]):
