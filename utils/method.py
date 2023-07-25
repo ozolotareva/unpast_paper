@@ -1523,11 +1523,13 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
 def make_consensus_biclusters2(biclusters_list,exprs, frac_runs=1/2,
                               similarity = "both", # can be 'both','genes','samples' 
                               min_similarity = 0.33,
-                              method="kmeans", modularity_measure = "potts",
+                              method="kmeans", modularity_measure = "newman",
                               min_n_genes =2, min_n_samples=5, p=0.05,
                               seed = -1, plot = False, verbose = True,
                               figsize=(17, 17),labels=False,colorbar_off=True):
-    #from utils.eval import find_best_matching_biclusters
+    
+    from utils.eval import find_best_matching_biclusters
+    
     t0 = time()
     N = exprs.shape[0]
     
@@ -1574,10 +1576,12 @@ def make_consensus_biclusters2(biclusters_list,exprs, frac_runs=1/2,
         import seaborn as sns
         
         avg_J_sim = pd.DataFrame.from_dict(avg_J_sim)
-        g = sns.clustermap(avg_J_sim,linewidths=0,vmin=0,vmax=1,figsize=(3,3),
-                           center=0,annot=True)
-        g.ax_cbar.set_visible(False)
-        plt.show()
+        avg_J_sim= avg_J_sim.fillna(0)
+        if avg_J_sim.shape[0]>0:
+            g = sns.clustermap(avg_J_sim,linewidths=0,vmin=0,vmax=1,figsize=(3,3),
+                               center=0,annot=True)
+            g.ax_cbar.set_visible(False)
+            plt.show()
         
         labels = True
         if len(bic_ids)>20:
