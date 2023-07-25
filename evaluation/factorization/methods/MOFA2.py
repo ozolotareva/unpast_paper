@@ -86,7 +86,8 @@ def run_real(args, is_terminated=False):
     if is_terminated:
         try:
             return resultsHandler.read_result(args["output_path"]), resultsHandler.read_runtime(args["output_path"])
-        except:
+        except Exception as e:
+            print('Exception reading result file:', e)
             return False, False
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
         print('Returning existing results:', args["output_path"])
