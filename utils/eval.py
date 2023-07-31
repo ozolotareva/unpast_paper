@@ -2,6 +2,7 @@ import sys
 import numpy as np
 import pandas as pd
 from fisher import pvalue
+from scipy.stats import chi2_contingency
 from statsmodels.stats.multitest import fdrcorrection
 
 from utils.method import zscore
@@ -462,7 +463,11 @@ def find_best_matching_biclusters(bics1, bics2, sizes, by="genes", adj_pval_thr=
                         if not by == "both":
                             # compute p-value again
                             pval_s = calc_overlap_pval(o_s, s1_, s2_, bg_s)
+                    #try:
                     J_s = o_s * 1.0 / u_s
+                    #except:
+                    #    print( "i1=%s; i2=%s: u_s=%s, o_s=%s, s1_=%s, s2_=%s, bg_s=%s"%(i1,i2,u_s,o_s,s1_,s2_,bg_s))
+                    #    J_s = 0
                
                 if by == "genes":
                     J = J_g

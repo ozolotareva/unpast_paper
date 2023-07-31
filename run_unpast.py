@@ -11,7 +11,7 @@ def run(exprs_file, basename='', out_dir="./",
                 show_fits = [],
                 pval = 0.01, # binarization p-value
                 modularity=1/3, similarity_cutoffs = -1, # for Louvain
-                ds = 0, dch = 0.995, max_power=10, precluster=False, rpath="", # for WGCNA
+                ds = 0, dch = 0.995, max_power=10, precluster=True, rpath="", # for WGCNA
                 alpha=1,beta_K = 1, max_n_steps= 100, n_steps_for_convergence = 5, # for DESMOND
                 cluster_binary=False, 
                 merge = 1,
@@ -241,7 +241,7 @@ if __name__ == "__main__":
                 min_n_samples = args.min_n_samples, 
                 show_fits = [],
                 modularity = args.modularity, similarity_cutoffs = args.similarity_cutoffs, # for Louvain
-                ds = args.ds, dch = args.dch, rpath=args.rpath, # for WGCNA
+                ds = args.ds, dch = args.dch, rpath=args.rpath, precluster=True, # for WGCNA
                 cluster_binary = False, 
                 merge = args.merge,
                 seed = args.seed,
