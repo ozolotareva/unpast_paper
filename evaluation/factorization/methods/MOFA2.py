@@ -68,7 +68,7 @@ def execute_algorithm(exprs_file, n_factors, n_cluster, output_path, likelihood,
     # this saves the result to a file
     # time is measured inside the R script
 
-    subprocess.Popen(fr'/home/bba1401/anaconda3/envs/unpast_mofa2/bin/Rscript ./methods/MOFA2.R {exprs_file} {n_factors} {n_cluster} {random_state} {output_path} {likelihood} {spikeslab_factors} {spikeslab_weights} {ard_factors} {ard_weights}', shell=True).wait()
+    subprocess.Popen(fr'/home/bba1401/anaconda3/envs/encore2/bin/Rscript ./methods/MOFA2.R {exprs_file} {n_factors} {n_cluster} {random_state} {output_path} {likelihood} {spikeslab_factors} {spikeslab_weights} {ard_factors} {ard_weights}', shell=True).wait()
     return format_output(output_path, n_cluster), read_runtime(output_path)
 
 def run_simulated(args):
