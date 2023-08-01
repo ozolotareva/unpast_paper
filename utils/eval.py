@@ -103,6 +103,47 @@ def generate_exprs(data_sizes, g_size=5, frac_samples=[0.05, 0.1, 0.25, 0.5], m=
 
     return exprs, biclusters_, coexpressed_modules
 
+def make_ref_groups(subtypes, annotation,exprs):
+    import copy
+    from collections import OrderedDict
+    # prepared a dict of subtype classifications {"class1":{"subt1":[],"subt2":[]},"class2":{"subtA":[],"subtB":[]}}
+    all_samples = set(exprs.columns.values).intersection(set(subtypes.index.values))
+    s = sorted(all_samples)
+    
+    pam50 = make_known_groups(subtypes.loc[s,:], exprs.loc[:,s],target_col = "PAM50",verbose=False)
+    lum = {}
+    lum["Luminal"] = pam50["LumA"].union(pam50["LumB"]).intersection(all_samples)
+    scmod2 = make_known_groups(subtypes.loc[s,:], exprs.loc[:,s], target_col = 'SCMOD2',verbose=False)
+    claudin = {} 
+    claudin["Claudin-low"] = set(subtypes.loc[subtypes['claudin_low']==1,:].index.values).intersection(all_samples)
+    
+    
+    ihc = {}
+    for x in ["IHC_HER2","IHC_ER","IHC_PR"]:
+        ihc[x] = set(annotation.loc[annotation[x]=="Positive",:].index.values)#.intersection(all_samples)
+    ihc["IHC_TNBC"] = set(annotation.loc[annotation["IHC_TNBC"]==1,:].index.values)#.intersection(all_samples)
+    
+    pam50_lum = copy.copy(pam50)
+    del pam50_lum["LumA"]
+    del pam50_lum["LumB"]
+    pam50_lum["Luminal"] = lum["Luminal"]
+    intrinsic = copy.copy(pam50_lum)
+    intrinsic["Claudin-low"] = claudin["Claudin-low"]
+    known_groups = OrderedDict({"PAM50":pam50_lum,"Intrinsic":intrinsic,"PAM50_AB":pam50,"SCMOD2":scmod2,"IHC":ihc})
+    known_groups["Luminal"] = {"Luminal":pam50_lum["Luminal"]}
+    known_groups["Basal"] = {"Basal":pam50["Basal"]}
+    known_groups["Her2"] = {"Her2":pam50["Her2"]}
+    known_groups["LumA"] = {"LumA":pam50["LumA"]}
+    known_groups["LumB"] = {"LumB":pam50["LumB"]}
+    known_groups["Normal"] = {"Normal":pam50["Normal"]}
+    known_groups["Claudin-low"] = {"Claudin-low":claudin["Claudin-low"]}
+    known_groups["IHC_HER2"] = {"IHC_HER2":ihc["IHC_HER2"]}
+    known_groups["IHC_ER"] = {"IHC_ER":ihc["IHC_ER"]}
+    known_groups["IHC_PR"] = {"IHC_PR":ihc["IHC_PR"]}
+    known_groups["IHC_TNBC"] = {"IHC_TNBC":ihc["IHC_TNBC"]}
+    known_groups["NET_kmeans"] = {"NET":set(subtypes.loc[subtypes["NET_km"]==1,:].index.values)}
+    known_groups["NET_ward"] = {"NET":set(subtypes.loc[subtypes["NET_w"]==1,:].index.values)}
+    return known_groups, all_samples
 
 def make_known_groups(annot, exprs, target_col="genefu_z", verbose=False):
     samples = set(exprs.columns.values).intersection(set(annot.index.values))
@@ -124,32 +165,6 @@ def make_known_groups(annot, exprs, target_col="genefu_z", verbose=False):
                 print(group, round(len(group_samples) / len(samples), 2),
                       len(group_samples), len(samples.difference(group_samples)))
     return known_groups
-
-def make_ref_groups(subtypes, annotation,exprs):
-    # prepared a dict of subtype classifications {"class1":{"subt1":[],"subt2":[]},"class2":{"subtA":[],"subtB":[]}}
-    all_samples = set(exprs.columns.values)
-    pam50 = make_known_groups(subtypes, exprs,target_col = "PAM50",verbose=False)
-    lum = {}
-    lum["Luminal"] = pam50["LumA"].union(pam50["LumB"])
-    scmod2 = make_known_groups(subtypes, exprs,target_col = 'SCMOD2',verbose=False)
-    claudin = {} 
-    claudin["Claudin-low"] = set(subtypes.loc[subtypes['claudin_low']==1,:].index.values).intersection(all_samples)
-    
-    ihc = {}
-    for x in ["IHC_HER2","IHC_ER","IHC_PR"]:
-        ihc[x] = set(annotation.loc[annotation[x]=="Positive",:].index.values)
-    ihc["IHC_TNBC"] = set(annotation.loc[annotation["IHC_TNBC"]==1,:].index.values)
-    
-    known_groups = {"PAM50":pam50,"Luminal":lum,"Claudin-low":claudin,"SCMOD2":scmod2,"IHC":ihc}
-    
-    freqs = {}
-    N =  exprs.shape[1]
-    for classification in known_groups.keys():
-        for group in known_groups[classification].keys():
-            n = len(known_groups[classification][group])
-            freqs[group] = n/N
-            
-    return known_groups, freqs
 
 def compare_gene_clusters(bics1,bics2, N):
     # N - total number of genes
@@ -192,33 +207,81 @@ def compare_gene_clusters(bics1,bics2, N):
     
     return clust_similarity, bm, bm2
 
-def calculate_perfromance(results, known_groups, freqs, all_samples,
-                          classifications={"Intrinsic":["Luminal","Basal","Her2","Normal","Claudin-low"]}):
-    # finds best matches for each subtype, calcuates J per subtype and overall performance
-    N = len(all_samples)
+def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
+                                   known_groups, # nested dict={"classification1":{"group1":{"s1","s2",...},"group2":{...}, ...}}
+                                   all_samples, # set of all samples in input; needed for overlap p-value computations
+                                   adjust_pvals = True, # whether to do BH for p-value overlap
+                                   pval_cutoff =0.05, # cutoff for p-values to select significant matches
+                                   min_SNR=0, min_n_genes=False,min_n_samples=1,
+                                   verbose=False):
+    
+    if sample_clusters_ is None or sample_clusters_.shape[0] == 0:
+        return pd.DataFrame(),pd.DataFrame()
+    
+    sample_clusters = sample_clusters_.loc[sample_clusters_["samples"].apply(lambda x: len(x)) >= min_n_samples, :]
+    if min_SNR:
+        sample_clusters = sample_clusters.loc[sample_clusters["SNR"] >= min_SNR, :]
+    if min_n_genes:
+        sample_clusters = sample_clusters.loc[sample_clusters["genes"].apply(lambda x: len(x)) >= min_n_genes, :]
+    
+    if sample_clusters.shape[0] == 0:
+        return pd.DataFrame(),pd.DataFrame()
+    
     best_matches = []
-    
-    for classification in known_groups.keys():
-        bm = find_best_matches(results,known_groups[classification],all_samples,FDR=0.05,verbose = False)
-        best_matches.append(bm)
-            
-    best_matches = pd.concat(best_matches, axis=0)
-    best_matches = best_matches["J"].to_dict()
-    
-    for cl_name in classifications.keys():
-        overall_performance = 0
-        norm_factor = 0
-        for group in classifications[cl_name]:
-            overall_performance += best_matches[group]*freqs[group]
-            norm_factor +=freqs[group]
-        overall_performance = overall_performance/norm_factor 
-        best_matches["overall_performance_"+cl_name] = overall_performance
-    return best_matches
+    performances = {}
+    for cl in known_groups.keys():
+        # denominator for weights 
+        N=0
+        for subt in known_groups[cl].keys():
+            N+= len(known_groups[cl][subt])
+
+        pvals, is_enriched, jaccards = evaluate_overlaps(sample_clusters, known_groups[cl], all_samples)
+        if adjust_pvals:
+            pvals  = pvals*pvals.shape[0]
+           
+        best_match_stats = {}
+        best_pval = pvals.min(axis=1)
+        for subt in known_groups[cl].keys():
+            w = len(known_groups[cl][subt])/N # weight
+            subt_pval = pvals[subt]
+            # select the sample set best matching the subtype based on p-value 
+            # adj. overlap p-value should be:
+            # below pval_cutoff, e.g. < 0.05
+            # the lowest among overlap p-values computed for this sample set vs all subtypes
+            # cluster with the highest J is chosen as the best match
+            passed_pvals = pvals[(subt_pval==best_pval) & (subt_pval<pval_cutoff)].index.values
+            d = jaccards.loc[passed_pvals,subt].sort_values(ascending=False)
+            if d.shape[0] == 0:
+                best_match_stats[subt]= {"bm_id":np.nan,
+                                         "J":0,"weight":w,
+                                         "adj_pval":np.nan,
+                                         "is_enriched":np.nan}
+            else:
+                bm_j = d.values[0]
+                d = d[d==bm_j]
+                bm_id = sorted(pvals.loc[d.index.values,:].sort_values(by = subt,ascending=True).index.values)[0]
+                bm_pval = pvals.loc[bm_id,subt]
+                bm_j = jaccards.loc[bm_id,subt]
+                bm_is_enrich = is_enriched.loc[bm_id,subt]
+                best_match_stats[subt]= {"bm_id":bm_id,
+                                         "J":bm_j,"weight":w,
+                                         "adj_pval":bm_pval,
+                                         "is_enriched":bm_is_enrich}
+                #print(subt, bm_id,"pval=",bm_pval,"J=",round(bm_j,2),"enriched=",bm_is_enrich)
+        best_match_stats = pd.DataFrame.from_dict(best_match_stats).T
+        best_match_stats["classification"] = cl
+        best_matches.append(best_match_stats)
+        performances[cl]= sum(best_match_stats["J"]*best_match_stats["weight"])
+        
+    performances = pd.Series(performances)
+    best_matches = pd.concat(best_matches,axis=0)
+    return performances, best_matches
+
 
 def apply_fdr(df_pval):
     df_fdr = {}
     for group in df_pval.columns.values:
-        bh_res, adj_pval = fdrcorrection(df_pval[group].values, alpha=0.05)
+        bh_res, adj_pval = fdrcorrection(df_pval[group].values, alpha = 1)
         df_fdr[group] = adj_pval
     df_fdr = pd.DataFrame.from_dict(df_fdr)
     df_fdr.index = df_pval.index
@@ -272,21 +335,16 @@ def evaluate_overlaps(biclusters, known_groups, all_elements, dimension="samples
             if pval.right_tail < pval.left_tail:
                 pvals[group][i] = pval.right_tail
                 is_enriched[group][i] = True
-                jaccards[group][i] = shared / union
             else:
                 # save left-tail p-value and record that this is not enrichment
                 pvals[group][i] = pval.left_tail
                 is_enriched[group][i] = False
-                # take complement for the biggest group
-                #if len(bic_members) > len(group_members):
-                    # compute J for bicluster and group complement, (e.g. not_LumA instead of LumA)
-               #     shared_complement = len(group_members) - shared
-               #     union_complement = N - union + group_only
-                #else:
+                # if one of two sets is large enough
+                # flip query set
                 bic_members = all_elements.difference(bic_members)
-                shared_complement = len(bic_members.intersection(group_members))
-                union_complement = len(bic_members.union(group_members))
-                jaccards[group][i] = 0 if union_complement == 0 else shared_complement / union_complement
+                shared = len(bic_members.intersection(group_members))
+                union = len(bic_members.union(group_members))
+            jaccards[group][i] = shared / union
 
         # print(group,jaccards[group])
 
@@ -294,89 +352,6 @@ def evaluate_overlaps(biclusters, known_groups, all_elements, dimension="samples
     is_enriched = pd.DataFrame.from_dict(is_enriched).loc[:, sorted_group_names]
     jaccards = pd.DataFrame.from_dict(jaccards).loc[:, sorted_group_names]
     return pvals, is_enriched, jaccards
-
-
-def find_best_matches(biclusters, known_groups, all_elements, FDR=0.05,
-                      min_SNR=False, min_n_genes=False,
-                      dimension="samples", verbose=False,
-                      match_unique=True):
-    # for each known group starting from the largest one,
-    # identifies the best matching bicluster - a significant match with max.Jaccard
-    # matched biclusters are removed from comparizon
-    # if a bicluster is significantly under-represented in a known group, 
-    # compares bicluster to group complement (e.g. not LumA instead of LumA) and sets is_enriched = False
-    # returns all 
-    results = {}
-    if min_SNR:
-        biclusters = biclusters.loc[biclusters["avgSNR"] >= min_SNR, :]
-    if min_n_genes:
-        biclusters = biclusters.loc[biclusters["n_genes"] >= min_n_genes, :]
-    if biclusters is None or biclusters.shape[0] == 0:
-        for group in sorted(list(known_groups.keys())):
-            results[group] = {"J": 0, "J_weighted": 0}
-        return results
-
-    # calculate overlap p-vals
-    try:
-        df_pval, is_enriched, df_jaccard = evaluate_overlaps(biclusters, known_groups, all_elements, dimension=dimension)
-    except:
-        print("failed to calculate overlap p-values",file=sys.stderr)
-        out = evaluate_overlaps(biclusters, known_groups, all_elements, dimension=dimension)
-
-    # BH-adjust for multiple testing
-    df_fdr = apply_fdr(df_pval)
-
-    not_matched_biclusters = list(df_fdr.index.values)
-    groups = list(df_fdr.columns.values)
-    while len(groups) > 0:
-        best_group = None
-        best_j = -1
-        best_bm = None
-        best_bm_id = -1
-        best_results = None
-        for group in groups:
-            # choose biclusters with significant overlaps and not overlapping a bigger set
-            passed_biclusters = set(df_fdr.loc[df_fdr[group] <= FDR, :].index.values).intersection(
-                not_matched_biclusters)
-            significant_matches_j = df_jaccard.loc[list(passed_biclusters), group]
-
-            group_size = len(known_groups[group])
-            if verbose:
-                print("\t", group, "significant matches:", significant_matches_j.shape[0], file=sys.stdout)
-            if significant_matches_j.shape[0] > 0:
-                significant_matches_j = significant_matches_j.sort_values().tail(1)
-
-                bm_id = significant_matches_j.index[0]
-
-                bm = biclusters.loc[bm_id, :]
-                j = df_jaccard.loc[bm_id, group]
-                if best_j < j:
-                    best_j = j
-                    best_group = group
-                    best_bm = bm
-                    best_bm_id = bm_id
-                    best_results = {"group_size": group_size, "J": j,  # "J_weighted": j*len(known_groups[group])/N,
-                                    "is_enriched": is_enriched.loc[bm_id, group],
-                                    "best_match_id": bm_id}
-        if best_group is not None:
-            results[best_group] = best_results
-            results[best_group].update(best_bm.to_dict())
-            # exclude best group
-            groups.remove(best_group)
-            # exclude best match
-            if match_unique:
-                not_matched_biclusters = [x for x in not_matched_biclusters if x != best_bm_id]
-        else:
-            for group in groups:
-                # fill group_size clumns for unmatched groups
-                group_size = len(known_groups[group])
-                results[group] = {"group_size": group_size, "J": 0}
-            break
-    results = pd.DataFrame.from_dict(results).T
-    results.index.name = "known_group"
-    total_bicluster_members = results["group_size"].sum()
-    results["J_weighted"] = results["J"] * results["group_size"] / total_bicluster_members
-    return results
 
 
 def calc_overlap_pval(overlap, group1_only,group2_only,background, max_N=5000):
