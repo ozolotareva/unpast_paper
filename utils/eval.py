@@ -208,16 +208,22 @@ def compare_gene_clusters(bics1,bics2, N):
     return clust_similarity, bm, bm2
 
 def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
-                                   known_groups, # nested dict={"classification1":{"group1":{"s1","s2",...},"group2":{...}, ...}}
+                                   known_groups, # dict={"classification1":{"group1":{"s1","s2",...},"group2":{...}, ...}}
                                    all_samples, # set of all samples in input; needed for overlap p-value computations
-                                   adjust_pvals = True, # whether to do BH for p-value overlap
-                                   pval_cutoff =0.05, # cutoff for p-values to select significant matches
+                                   adjust_pvals = "B", # ["B", "BH", False] # correction for multiple testing
+                                   pval_cutoff = 0.05, # cutoff for p-values to select significant matches
                                    min_SNR=0, min_n_genes=False,min_n_samples=1,
                                    verbose=False):
-    
+    # select the sample set best matching the subtype based on p-value 
+    # adj. overlap p-value should be:
+    # below pval_cutoff, e.g. < 0.05
+    # the lowest among overlap p-values computed for this sample set vs all subtypes
+    # cluster with the highest J is chosen as the best match
     if sample_clusters_ is None or sample_clusters_.shape[0] == 0:
         return pd.DataFrame(),pd.DataFrame()
     
+    if adjust_pvals not in ["B","BH", False]:
+        print(adjust_pvals, "is not recognized, Bonferroni method will be used,",file = sys.stderr)
     sample_clusters = sample_clusters_.loc[sample_clusters_["samples"].apply(lambda x: len(x)) >= min_n_samples, :]
     if min_SNR:
         sample_clusters = sample_clusters.loc[sample_clusters["SNR"] >= min_SNR, :]
@@ -237,25 +243,24 @@ def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
 
         pvals, is_enriched, jaccards = evaluate_overlaps(sample_clusters, known_groups[cl], all_samples)
         if adjust_pvals:
-            pvals  = pvals*pvals.shape[0]
-           
+            if adjust_pvals == "B":
+                pvals  = pvals*pvals.shape[0]
+                pvals = pvals.applymap(lambda x: min(x,1))
+            elif adjust_pvals == "BH":
+                pvals  = apply_bh(pvals, a = pval_cutoff)
         best_match_stats = {}
         best_pval = pvals.min(axis=1)
         for subt in known_groups[cl].keys():
             w = len(known_groups[cl][subt])/N # weight
             subt_pval = pvals[subt]
-            # select the sample set best matching the subtype based on p-value 
-            # adj. overlap p-value should be:
-            # below pval_cutoff, e.g. < 0.05
-            # the lowest among overlap p-values computed for this sample set vs all subtypes
-            # cluster with the highest J is chosen as the best match
             passed_pvals = pvals[(subt_pval==best_pval) & (subt_pval<pval_cutoff)].index.values
             d = jaccards.loc[passed_pvals,subt].sort_values(ascending=False)
             if d.shape[0] == 0:
                 best_match_stats[subt]= {"bm_id":np.nan,
                                          "J":0,"weight":w,
                                          "adj_pval":np.nan,
-                                         "is_enriched":np.nan}
+                                         "is_enriched":np.nan,
+                                         "samples":set([]),"n_samples":0}
             else:
                 bm_j = d.values[0]
                 d = d[d==bm_j]
@@ -263,11 +268,14 @@ def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
                 bm_pval = pvals.loc[bm_id,subt]
                 bm_j = jaccards.loc[bm_id,subt]
                 bm_is_enrich = is_enriched.loc[bm_id,subt]
+                bm_samples = sample_clusters_.loc[bm_id,"samples"]
                 best_match_stats[subt]= {"bm_id":bm_id,
                                          "J":bm_j,"weight":w,
                                          "adj_pval":bm_pval,
-                                         "is_enriched":bm_is_enrich}
-                #print(subt, bm_id,"pval=",bm_pval,"J=",round(bm_j,2),"enriched=",bm_is_enrich)
+                                         "is_enriched":bm_is_enrich,
+                                        "samples":bm_samples,
+                                        "n_samples":len(bm_samples)}
+                
         best_match_stats = pd.DataFrame.from_dict(best_match_stats).T
         best_match_stats["classification"] = cl
         best_matches.append(best_match_stats)
@@ -278,15 +286,15 @@ def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
     return performances, best_matches
 
 
-def apply_fdr(df_pval):
-    df_fdr = {}
+def apply_bh(df_pval, a = 0.05):
+    # applies BH procedure to each column of p-value table
+    df_adj = {}
     for group in df_pval.columns.values:
-        bh_res, adj_pval = fdrcorrection(df_pval[group].values, alpha = 1)
-        df_fdr[group] = adj_pval
-    df_fdr = pd.DataFrame.from_dict(df_fdr)
-    df_fdr.index = df_pval.index
-    # df_fdr["associated"] = df_fdr.apply(lambda row: row[row<0.05].index.values,axis=1)
-    return df_fdr
+        bh_res, adj_pval = fdrcorrection(df_pval[group].fillna(1).values, alpha=a)
+        df_adj[group] = adj_pval
+    df_adj = pd.DataFrame.from_dict(df_adj)
+    df_adj.index = df_pval.index
+    return df_adj
 
 
 def evaluate_overlaps(biclusters, known_groups, all_elements, dimension="samples"):
@@ -332,15 +340,14 @@ def evaluate_overlaps(biclusters, known_groups, all_elements, dimension="samples
             group_only = len(group_members.difference(bic_members))
             union = shared + bic_only + group_only
             pval = pvalue(shared, bic_only, group_only, N - union)
+            pvals[group][i] = 1 
             if pval.right_tail < pval.left_tail:
                 pvals[group][i] = pval.right_tail
                 is_enriched[group][i] = True
+            # if under-representation, flip query set
             else:
-                # save left-tail p-value and record that this is not enrichment
-                pvals[group][i] = pval.left_tail
+                pvals[group][i] = pval.left_tail # save left-tail p-value and record that this is not enrichment
                 is_enriched[group][i] = False
-                # if one of two sets is large enough
-                # flip query set
                 bic_members = all_elements.difference(bic_members)
                 shared = len(bic_members.intersection(group_members))
                 union = len(bic_members.union(group_members))
