@@ -224,11 +224,12 @@ def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
     
     if adjust_pvals not in ["B","BH", False]:
         print(adjust_pvals, "is not recognized, Bonferroni method will be used,",file = sys.stderr)
-    sample_clusters = sample_clusters_.loc[sample_clusters_["samples"].apply(lambda x: len(x)) >= min_n_samples, :]
+    sample_clusters = sample_clusters_[sample_clusters_["samples"].apply(lambda x: len(x)) >= min_n_samples]
+    sample_clusters["n_samples"] = sample_clusters["samples"].apply(lambda x: len(x))
     if min_SNR:
-        sample_clusters = sample_clusters.loc[sample_clusters["SNR"] >= min_SNR, :]
+        sample_clusters = sample_clusters[sample_clusters["SNR"] >= min_SNR]
     if min_n_genes:
-        sample_clusters = sample_clusters.loc[sample_clusters["genes"].apply(lambda x: len(x)) >= min_n_genes, :]
+        sample_clusters = sample_clusters[sample_clusters["genes"].apply(lambda x: len(x)) >= min_n_genes]
     
     if sample_clusters.shape[0] == 0:
         return pd.DataFrame(),pd.DataFrame()
@@ -253,7 +254,8 @@ def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
         for subt in known_groups[cl].keys():
             w = len(known_groups[cl][subt])/N # weight
             subt_pval = pvals[subt]
-            passed_pvals = pvals[(subt_pval==best_pval) & (subt_pval<pval_cutoff)].index.values
+            passed_pvals = subt_pval[subt_pval==best_pval]
+            passed_pvals = subt_pval[subt_pval<pval_cutoff].index.values
             d = jaccards.loc[passed_pvals,subt].sort_values(ascending=False)
             if d.shape[0] == 0:
                 best_match_stats[subt]= {"bm_id":np.nan,
@@ -268,7 +270,7 @@ def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
                 bm_pval = pvals.loc[bm_id,subt]
                 bm_j = jaccards.loc[bm_id,subt]
                 bm_is_enrich = is_enriched.loc[bm_id,subt]
-                bm_samples = sample_clusters_.loc[bm_id,"samples"]
+                bm_samples = sample_clusters.loc[bm_id,"samples"]
                 best_match_stats[subt]= {"bm_id":bm_id,
                                          "J":bm_j,"weight":w,
                                          "adj_pval":bm_pval,
@@ -320,11 +322,11 @@ def evaluate_overlaps(biclusters, known_groups, all_elements, dimension="samples
             return
 
         if group != group_names[0]:
-            for i in range(len(sorted_group_names)):
-                if len(group_members) < len(known_groups[sorted_group_names[i]]):
-                    sorted_group_names = sorted_group_names[:i] + [group] + sorted_group_names[i:]
+            for gn in range(len(sorted_group_names)):
+                if len(group_members) < len(known_groups[sorted_group_names[gn]]):
+                    sorted_group_names = sorted_group_names[:gn] + [group] + sorted_group_names[gn:]
                     break
-                elif i == len(sorted_group_names) - 1:
+                elif gn == len(sorted_group_names) - 1:
                     sorted_group_names = [group] + sorted_group_names
     # print(sorted_group_names)
     for group in sorted_group_names:

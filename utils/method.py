@@ -1520,13 +1520,15 @@ def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
     return consensus_biclusters
 
 
-def make_consensus_biclusters2(biclusters_list,exprs, frac_runs=1/2,
-                              similarity = "both", # can be 'both','genes','samples' 
+def make_consensus_biclusters2(biclusters_list,exprs,
+                              similarity = "samples", # can be 'both','genes','samples' 
+                              frac_runs=1/3,min_n_genes =2, min_n_samples=5,
+                              p=0.05,
                               min_similarity = 0.33,
-                              method="kmeans", modularity_measure = "newman",
-                              min_n_genes =2, min_n_samples=5, p=0.05,
+                              method="kmeans",
+                              modularity_measure = "potts",
                               seed = -1, plot = False, verbose = True,
-                              figsize=(17, 17),labels=False,colorbar_off=True):
+                              figsize=(10, 10),labels=False,colorbar_off=True):
     
     from utils.eval import find_best_matching_biclusters
     
@@ -1615,8 +1617,6 @@ def make_consensus_biclusters2(biclusters_list,exprs, frac_runs=1/2,
                                                verbose = True, plot=plot,
                                                modularity_measure = modularity_measure)
     t2 = time()
-    #print(round(t2-t1),"s for Louvain ")
-    
     
     # make consensus biclusters
     # for each group of matched biclusters, keep genes occuring at least n times
