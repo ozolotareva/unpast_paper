@@ -53,18 +53,17 @@ iclusterplus = {
 }
 
 class AvgRank:
-    NMF = {'k': 2, #3
-    'init': 'random',
+    NMF = {'k': 2, #8
+    'init': 'nndsvda',
     'tol': 0.0001,
-    'random_state': 2,
-    'alpha_W': 0.0,
+    'alpha_W': -0.1,
     'alpha_H': 0.0,
-    'shuffle': True,
+    'shuffle': False,
     'solver': 'cd',
     'beta_loss': 'frobenius',
     'max_iter': 1000}
 
-    iClusterPlus = {'random_state': 2,
+    iClusterPlus = {
     'n_cluster': 2, #5
     'type': 'gaussian',
     'burnin_n': 200,
@@ -85,7 +84,7 @@ class AvgRank:
     'scale': False,
     'k': 0.1}
 
-    MOFA2 = {'n_factors': 15,
+    MOFA2 = {'n_factors': 18,
     'n_cluster': 2, #5
     'random_state': 3,
     'ard_weights': True,

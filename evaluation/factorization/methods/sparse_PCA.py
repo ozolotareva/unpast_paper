@@ -71,7 +71,7 @@ def execute_algorithm(exprs, n_components, alpha, ridge_alpha, max_iter, method,
 def run_simulated(args):
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
         print('Skipping because result exists:', args["output_path"])
-        return
+        return resultsHandler.read_result(args["output_path"])
     args['exprs'] = pd.read_csv(args['exprs_file'], sep='\t', index_col=0).T
     result, runtime = run_method(execute_algorithm, args)
     resultsHandler.write_samples(args["output_path"], args['exprs'].index)
@@ -79,6 +79,7 @@ def run_simulated(args):
 
     # save results
     resultsHandler.save(result, runtime, args["output_path"])
+    return resultsHandler.read_result(args["output_path"])
 
 
 def run_real(args, is_terminated=False):
