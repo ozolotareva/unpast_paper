@@ -74,13 +74,14 @@ def execute_algorithm(exprs_file, n_factors, n_cluster, output_path, likelihood,
 def run_simulated(args):
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
         print('Skipping because result exists:', args["output_path"])
-        return
+        return resultsHandler.read_result(args["output_path"])
     df_exprs = pd.read_csv(args['exprs_file'], sep='\t', index_col=0).T
     result, runtime = run_method(execute_algorithm, args)
 
     # save results
     resultsHandler.save(result, runtime, args["output_path"])
     resultsHandler.write_samples(args["output_path"], df_exprs.index)
+    return resultsHandler.read_result(args["output_path"])
 
 def run_real(args, is_terminated=False):
     if is_terminated:
