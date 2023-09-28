@@ -1724,11 +1724,11 @@ def write_bic_table(bics_dict_or_df, results_file_name,to_str=True,
             metadata = metadata + "simiarity_cutoff="+str(similarity_cutoff)+"; modularity="+str(m)
         elif "WGCNA" in clust_method:
             metadata = metadata + "ds="+str(ds)+"; dch="+str(dch)+"; max_power="+str(max_power)+"; precluster="+str(precluster)
-        elif clust_method == "DESMOND":
-            metadata = metadata + "alpha="+str(alpha)+"; " + "beta_K="+str(beta_K)
+        #elif clust_method == "DESMOND":
+        #    metadata = metadata + "alpha="+str(alpha)+"; " + "beta_K="+str(beta_K)
         else:
             print("Unknown 'clust_method'",clust_method,file= sys.stderr)
-        metadata = metadata + "merge="+str(merge)
+        metadata = metadata + "; merge="+str(merge)
         with open(results_file_name, 'w') as f:
             f.write(metadata+"\n")
         write_mode = 'a'
