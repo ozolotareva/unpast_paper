@@ -207,13 +207,16 @@ def compare_gene_clusters(bics1,bics2, N):
     
     return clust_similarity, bm, bm2
 
+from sklearn.metrics import adjusted_rand_score
+
 def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
-                                   known_groups, # dict={"classification1":{"group1":{"s1","s2",...},"group2":{...}, ...}}
-                                   all_samples, # set of all samples in input; needed for overlap p-value computations
-                                   adjust_pvals = "B", # ["B", "BH", False] # correction for multiple testing
-                                   pval_cutoff = 0.05, # cutoff for p-values to select significant matches
-                                   min_SNR=0, min_n_genes=False,min_n_samples=1,
-                                   verbose=False):
+                              known_groups, # dict={"classification1":{"group1":{"s1","s2",...},"group2":{...}, ...}}
+                              all_samples, # set of all samples in input; needed for overlap p-value computations
+                              performance_measure = "Jaccard",# must be "ARI" or "Jaccard"     
+                              adjust_pvals = "B", # ["B", "BH", False] # correction for multiple testing
+                              pval_cutoff = 0.05, # cutoff for p-values to select significant matches
+                              min_SNR=0, min_n_genes=False,min_n_samples=1,
+                              verbose=False):
     # select the sample set best matching the subtype based on p-value 
     # adj. overlap p-value should be:
     # below pval_cutoff, e.g. < 0.05
@@ -241,8 +244,10 @@ def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
         N=0
         for subt in known_groups[cl].keys():
             N+= len(known_groups[cl][subt])
-
-        pvals, is_enriched, jaccards = evaluate_overlaps(sample_clusters, known_groups[cl], all_samples)
+        if performance_measure == "ARI":
+            pvals, is_enriched, performance = evaluate_overlaps_ARI(sample_clusters, known_groups[cl], all_samples)
+        if performance_measure == "Jaccard":
+            pvals, is_enriched, performance = evaluate_overlaps(sample_clusters, known_groups[cl], all_samples)
         if adjust_pvals:
             if adjust_pvals == "B":
                 pvals  = pvals*pvals.shape[0]
@@ -256,10 +261,10 @@ def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
             subt_pval = pvals[subt]
             passed_pvals = subt_pval[subt_pval==best_pval]
             passed_pvals = subt_pval[subt_pval<pval_cutoff].index.values
-            d = jaccards.loc[passed_pvals,subt].sort_values(ascending=False)
+            d = performance.loc[passed_pvals,subt].sort_values(ascending=False)
             if d.shape[0] == 0:
                 best_match_stats[subt]= {"bm_id":np.nan,
-                                         "J":0,"weight":w,
+                                         performance_measure:0,"weight":w,
                                          "adj_pval":np.nan,
                                          "is_enriched":np.nan,
                                          "samples":set([]),"n_samples":0}
@@ -268,11 +273,11 @@ def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
                 d = d[d==bm_j]
                 bm_id = sorted(pvals.loc[d.index.values,:].sort_values(by = subt,ascending=True).index.values)[0]
                 bm_pval = pvals.loc[bm_id,subt]
-                bm_j = jaccards.loc[bm_id,subt]
+                bm_j = performance.loc[bm_id,subt]
                 bm_is_enrich = is_enriched.loc[bm_id,subt]
                 bm_samples = sample_clusters.loc[bm_id,"samples"]
                 best_match_stats[subt]= {"bm_id":bm_id,
-                                         "J":bm_j,"weight":w,
+                                         performance_measure:bm_j,"weight":w,
                                          "adj_pval":bm_pval,
                                          "is_enriched":bm_is_enrich,
                                         "samples":bm_samples,
@@ -281,12 +286,78 @@ def calculate_perfromance(sample_clusters_, # data.Frame with "samples" column
         best_match_stats = pd.DataFrame.from_dict(best_match_stats).T
         best_match_stats["classification"] = cl
         best_matches.append(best_match_stats)
-        performances[cl]= sum(best_match_stats["J"]*best_match_stats["weight"])
+        performances[cl]= sum(best_match_stats[performance_measure]*best_match_stats["weight"])
         
     performances = pd.Series(performances)
     best_matches = pd.concat(best_matches,axis=0)
     return performances, best_matches
 
+def evaluate_overlaps_ARI(biclusters, known_groups, all_elements):
+    # compute exact Fisher's p-values and Jaccard overlaps for samples
+    pvals = {}
+    is_enriched = {}
+    ARI = {}
+    N = len(all_elements)
+    all_elements_list = sorted(all_elements)
+    # sanity check - biclusters
+    for i in biclusters.index.values:
+        bic_members = biclusters.loc[i, "samples"]
+        if not bic_members.intersection(all_elements) == bic_members:
+            print("bicluster {} elements {} are not in 'all_elements'".format(i, " ".join(
+                bic_members.difference(all_elements))), file=sys.stderr)
+            bic_members = bic_members.intersection(all_elements)
+    # sanity check and sorting
+    group_names = list(known_groups.keys())
+    sorted_group_names = [group_names[0]]  # group names ordered by group size
+    for group in group_names:
+        group_members = known_groups[group]
+        if not group_members.intersection(all_elements) == group_members:
+            print(group, "elements are not in 'all_elements'", file=sys.stderr)
+            return
+
+        if group != group_names[0]:
+            for gn in range(len(sorted_group_names)):
+                if len(group_members) < len(known_groups[sorted_group_names[gn]]):
+                    sorted_group_names = sorted_group_names[:gn] + [group] + sorted_group_names[gn:]
+                    break
+                elif gn == len(sorted_group_names) - 1:
+                    sorted_group_names = [group] + sorted_group_names
+    # print(sorted_group_names)
+    for group in sorted_group_names:
+        group_members = known_groups[group]
+        pvals[group] = {}
+        is_enriched[group] = {}
+        ARI[group] = {}
+        # binary vector for target cluster
+        group_binary = np.zeros(len(all_elements_list))
+        for j in range(len(all_elements_list)):
+            if all_elements_list[j] in group_members:
+                group_binary[j] =1
+        for i in biclusters.index.values:
+            bic = biclusters.loc[i, :]
+            bic_members = bic["samples"]
+            bic_binary = np.zeros(len(all_elements_list))
+            for j in range(len(all_elements_list)):
+                if all_elements_list[j] in bic_members:
+                    bic_binary[j] =1
+            # calculate ARI for 2 binary vectors:
+            ARI[group][i] = adjusted_rand_score(group_binary, bic_binary)
+                  
+            # Fisher's exact test        
+            shared = len(bic_members.intersection(group_members))
+            bic_only = len(bic_members.difference(group_members))
+            group_only = len(group_members.difference(bic_members))
+            union = shared + bic_only + group_only
+            pval = pvalue(shared, bic_only, group_only, N - union)
+            pvals[group][i] = pval.two_tail 
+            is_enriched[group][i] = False
+            if pval.right_tail < pval.left_tail:
+                is_enriched[group][i] = True   
+
+    pvals = pd.DataFrame.from_dict(pvals).loc[:, sorted_group_names]
+    is_enriched = pd.DataFrame.from_dict(is_enriched).loc[:, sorted_group_names]
+    ARI = pd.DataFrame.from_dict(ARI).loc[:, sorted_group_names]
+    return pvals, is_enriched, ARI
 
 def apply_bh(df_pval, a = 0.05):
     # applies BH procedure to each column of p-value table
