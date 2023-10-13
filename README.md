@@ -8,23 +8,73 @@ UnPaSt is a novel method for identification of differentially expressed bicluste
 ## Requirements:
 <pre>
 Python:
-    fisher==0.1.9
+    fisher==0.1.10
     jenkspy==0.2.0
-    pandas==1.3.5
-    python-louvain==0.15
-    matplotlib==3.7.1
-    seaborn==0.11.1
-    numba==0.51.2
+    matplotlib-venn==0.11.6
+    numba==0.55.2
     numpy==1.22.3
-    scikit-learn==1.2.2
-    scikit-network==0.24.0
-    scipy==1.7.1
+    scikit-learn==1.1.0
+    scikit-network==0.25.0
+    scipy==1.7.3
+    statsmodels==0.13.2
+    pandas==1.4.2
+    python-louvain==0.15
     statsmodels==0.13.2
 
 R:
-    WGCNA==1.70-3
-    limma==3.42.2
+    WGCNA>=1.70-3
+    limma>=3.42.2
 </pre>
+
+
+## Installation
+* UnPaSt can be installed using `pip`, `poetry`, or run using `Docker`, or as a script (see examples section). Follow the appropriate instructions below for your preferred method. You need to have R and **Python 3.8-3.10** installed.
+
+1. Using **pip**: \
+    To install the project using `pip`, first make sure you have `pip` installed on your system. If you haven't installed it already, you can find the installation instructions [here](https://pip.pypa.io/en/stable/installation/). \
+    Once `pip` is installed, you can install UnPaSt by running the following command:
+
+    ```bash
+    pip install unpast
+    ```
+    Run it:
+    ```bash
+    run_unpast -h
+    ```
+    **Dependencies**. To use this package, you will need to have R and the [WGCNA library](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/) and [limma](https://bioconductor.org/packages/release/bioc/html/limma.html) installed. You can easily install these dependencies by running the following command after installing unpast:
+    ```bash
+    python -m unpast.install_r_dependencies
+
+    # or you can install it directly
+    R -e "install.packages('BiocManager'); BiocManager::install(c('WGCNA', 'limma'))"
+    ```
+
+2. Installation using **Poetry**: \
+    To install the package using Poetry, first make sure you have Poetry installed, clone the repo and run:
+    ```bash
+    poetry add unpast
+    ```
+    Run it:
+    ```bash
+    poetry run run_unpast -h
+    ```
+    **Dependencies**. To use this package, you will need to have R and the [WGCNA library](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/) and [limma](https://bioconductor.org/packages/release/bioc/html/limma.html) installed. You can easily install these dependencies by running the following command after installing unpast:
+    ```bash
+    poetry run python -m unpast.install_r_dependencies
+
+    # or you can install it directly
+    R -e "install.packages('BiocManager'); BiocManager::install(c('WGCNA', 'limma'))"
+    ```
+3. Running with **Docker**: \
+    You can also run the package using Docker. First, pull the Docker image:
+    ```bash
+    docker pull freddsle/unpast:latest
+    ```
+    Next, run the UnPaSt:
+    ```bash
+    docker run -v /your/data/path/:/user_data/ freddsle/unpast:latest --exprs /user_data/exprs.tsv --out_dir /user_data/out_dir/
+    ```
+
 
 ## Examples
 * UnPaSt requires a tab-separated file with features (e.g. genes) in rows, and samples in columns. Feature and sample names must be unique. 

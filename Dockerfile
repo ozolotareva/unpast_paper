@@ -1,49 +1,30 @@
-# Use the latest version of the Ubuntu base image
-FROM ubuntu:latest
+# Use an official Python runtime as a base image
+FROM python:3.8
 
-# Set the working directory
-WORKDIR /data
+# Set the working directory in the container to /app
+WORKDIR /app
 
-# Set the environment variables
-ENV DEBIAN_FRONTEND=noninteractive
+# Copy the current directory contents into the container at /app
+COPY ./dist/ /app
 
-# Add the deadsnakes PPA and install Python 3.8 and pip
-RUN apt-get update -y && \
+# Install R and necessary libraries
+RUN apt-get update && \
     apt-get install -y software-properties-common && \
     apt-get install -y libcurl4-openssl-dev libssl-dev && \
-    add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update -y && \
-    apt-get install -y python3.8 python3.8-venv python3.8-distutils python3.8-dev python3-pip && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Update the default Python and pip symlinks
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
-    update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
-    
-# Add the R repository
-RUN echo "deb https://cloud.r-project.org/bin/linux/ubuntu jammy-cran40/" >> /etc/apt/sources.list
-
-# Import the public key for the R repository
-RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 51716619E084DAB9
-
-# Install the latest version of R
-RUN apt-get update -y && \
     apt-get install -y r-base && \
+    apt-get update -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip
 RUN pip install --upgrade pip
 
-# Install WGCNA
-RUN R -e "install.packages('BiocManager'); BiocManager::install('WGCNA')"
+# Install the package using pip
+RUN pip install numpy==1.22.3
+RUN pip install /app/unpast-0.1.7.tar.gz
 
-# Install unpast
-RUN pip install unpast==0.1.5
-
-# Create a directory for user data
-RUN mkdir /user_data
+# Run the script to install R dependencies
+RUN python -m unpast.install_r_dependencies > /app/install.log 2>&1
 
 # Create a new user 'myuser' and set it as the default user
 RUN useradd -m myuser

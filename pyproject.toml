@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "unpast"
+version = "0.1.7"
+description = "A novel method for unsupervised patient stratification."
+readme = "README.md"
+license = "GPL-3.0"
+authors = [
+    "Olga Zolotareva (ozolotareva)", 
+    "Andreas Maier (AndiMajore)",
+    "Fernando M. Delgado-Chaves (fmdelgado)", 
+    "Fábio Patroni (fpatroni)",
+    "Michael Hartung (Maiykol)",
+    "Yuliya Burankova (freddsle)",
+]
+maintainers = [
+    "Olga Zolotareva (ozolotareva)",
+    "Andreas Maier (AndiMajore)",
+    "Yuliya Burankova (freddsle)",
+    "Fernando M. Delgado-Chaves (fmdelgado)", 
+    "Fábio Patroni (fpatroni)",
+]
+repository = "https://github.com/ozolotareva/DESMOND2"
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.11"
+fisher = "0.1.10"
+jenkspy = "0.2.0"
+pandas = "1.4.2"
+python-louvain = "0.15"
+matplotlib-venn = "0.11.6"
+numba = "0.55.2"
+numpy = "1.22.3"
+scikit-learn = "1.1.0"
+scikit-network = "0.25.0"
+scipy = "1.7.3"
+statsmodels = "0.13.2"
+kneed = "^0.8.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+run_unpast = "unpast.run_unpast:main"
+

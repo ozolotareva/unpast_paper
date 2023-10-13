@@ -50,7 +50,7 @@ def run(exprs_file, basename='', out_dir="./",
 
     if not no_z:
         #check if expressions are standardized (mean=0, std =1)
-        from utils.method import validate_input_matrix
+        from .utils.method import validate_input_matrix
         exprs = validate_input_matrix(exprs,verbose = verbose)
     
         #set extreme z-scores to -x and x, e.g. -3,3
@@ -67,7 +67,7 @@ def run(exprs_file, basename='', out_dir="./",
         print("min_n_samples is recommended to be >= 5", file= sys.stderr)
 
     ######### binarization #########
-    from utils.method import binarize
+    from .utils.method import binarize
     
     binarized_expressions, stats, null_distribution  = binarize(out_dir+basename, exprs=exprs,
                                  method=bin_method, save = save, load=load,
@@ -96,8 +96,8 @@ def run(exprs_file, basename='', out_dir="./",
         print("Clustering features ...\n",file=sys.stdout)
     feature_clusters, not_clustered, used_similarity_cutoffs = [], [], []
     if clust_method == "Louvain":
-        from utils.method import run_Louvain
-        from utils.method import get_similarity_jaccard
+        from .utils.method import run_Louvain
+        from .utils.method import get_similarity_jaccard
         
         for d in directions:
             df = bin_data_dict[d]
@@ -130,10 +130,10 @@ def run(exprs_file, basename='', out_dir="./",
         
     elif "WGCNA" in clust_method:
         if clust_method == "iWGCNA":
-            from utils.method import run_WGCNA_iterative
+            from .utils.method import run_WGCNA_iterative
             WGCNA_func = run_WGCNA_iterative
         else:
-            from utils.method import run_WGCNA
+            from .utils.method import run_WGCNA
             WGCNA_func = run_WGCNA
 
         for d in directions:
@@ -157,14 +157,14 @@ def run(exprs_file, basename='', out_dir="./",
             print("No biclusters found",file = sys.stderr)
         return pd.DataFrame()
         
-    from utils.method import make_biclusters
+    from .utils.method import make_biclusters
     biclusters = make_biclusters(feature_clusters,binarized_expressions,exprs,null_distribution,
                              method = bin_method, merge = merge,
                              min_n_samples=min_n_samples, min_n_genes=2,
                              seed = seed,cluster_binary=False,verbose = verbose)
 
     
-    from utils.method import write_bic_table
+    from .utils.method import write_bic_table
     suffix  = ".seed="+str(seed)+".bin="+bin_method+",pval="+str(pval)+",clust="+clust_method+",direction="+"-".join(directions)
     if "WGCNA" in clust_method:
         suffix2 = ",ds="+str(ds)+",dch="+str(dch)+",max_power="+str(max_power)+",precluster="+str(precluster)
@@ -219,8 +219,7 @@ def parse_args():
     
     return parser.parse_args()
     
-
-if __name__ == "__main__":
+def main():
     args = parse_args()
     
     directions = ["DOWN","UP"]
@@ -243,3 +242,8 @@ if __name__ == "__main__":
                 seed = args.seed,
                 #plot_all = args.plot,
                 verbose = args.verbose)
+
+
+if __name__ == "__main__":
+    main()
+
