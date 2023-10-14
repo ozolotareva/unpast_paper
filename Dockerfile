@@ -21,7 +21,7 @@ RUN pip install --upgrade pip
 
 # Install the package using pip
 RUN pip install numpy==1.22.3
-RUN pip install /app/unpast-0.1.7.tar.gz
+RUN pip install /app/unpast-0.1.8.tar.gz
 
 # Run the script to install R dependencies
 RUN python -m unpast.install_r_dependencies > /app/install.log 2>&1
