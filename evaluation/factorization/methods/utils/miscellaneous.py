@@ -11,7 +11,8 @@ def run_method(method, args):
 def combination_to_string(d):
     del d['exprs_file']
     del d['output_path']
-    del d['ground_truth_file']
+    if 'ground_truth_file' in d:
+        del d['ground_truth_file']
                 
     s = ''
     for key, value in d.items():

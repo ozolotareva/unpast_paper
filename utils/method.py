@@ -1409,120 +1409,11 @@ def calc_bicluster_similarities(biclusters,exprs,
         plt.show()
         
     return J_heatmap
-    
-def make_consensus_biclusters(biclusters_list,exprs, frac_runs=0.5,
-                              similarity = "both", # can be 'both','genes','samples' 
-                              min_similarity = 0.33,
-                              method="kmeans", modularity_measure = "potts",
-                              min_n_genes =2, min_n_samples=5,
-                              seed = -1, plot = False,
-                              figsize=(17, 17),labels=False,colorbar_off=True):
-    t0 = time()
-    
-    if seed == -1:
-        seed = random.randint(0,1000000)
-        print("Seed for sample clustering: %s"%(seed),file=sys.stderr)
-    
-    # list of biclusters from several runs
-    n_runs = len(biclusters_list)
-    biclusters = pd.concat(biclusters_list)
-    if not "detected_n_times" in biclusters.columns.values:
-        biclusters["detected_n_times"] = 1
-    biclusters.index = range(biclusters.shape[0])
-    
-    # calculate pairwise bicluster similarity
-    J_heatmap = calc_bicluster_similarities(biclusters,exprs,
-                                            similarity = similarity,
-                                            plot=plot,
-                                            figsize=figsize,labels=labels,
-                                            colorbar_off=colorbar_off)
-    
-    # if all biclusters are exactly the same
-    if J_heatmap.min().min()==1:
-        # return the first bicluster
-        consensus_biclusters = biclusters.iloc[[0],:].copy()
-        consensus_biclusters.index = [0]
-        consensus_biclusters.loc[0,'detected_n_times'] = biclusters.shape[0]
-        print("all biclusters are exactly the same",file = sys.stderr)
-        return consensus_biclusters
-
-    
-    t1= time()
-    print("%s s for similarity matrix"%round(t1-t0))
-    
-    # cluster biclusters by similarity
-    matched, not_matched, cutoff = run_Louvain(J_heatmap,
-                                               similarity_cutoffs = np.arange(min_similarity,0.9,0.05),m=False,
-                                               verbose = True, plot=plot,
-                                               modularity_measure = modularity_measure)
-    t2 = time()
-    #print(round(t2-t1),"s for Louvain ")
-    
-    
-    # make consensus biclusters
-    # for each group of matched biclusters, keep genes occuring at least n times
-    # cluster samples again in a subspace of a new gene set
-    consensus_biclusters = []
-
-    # for each group of matched biclusters 
-    for i in range(len(matched)):
-        gsets = biclusters.loc[matched[i],"genes"].values
-        detected_n_times = biclusters.loc[matched[i],"detected_n_times"].sum()
-        # count gene occurencies
-        gene_occurencies = {}
-        for gene in set().union(*gsets):
-            gene_occurencies[gene] = 0
-            for gset in gsets:
-                if gene in gset:
-                    gene_occurencies[gene]+=1
-        
-        gene_occurencies = pd.Series(gene_occurencies).sort_values()
-        passed_genes = sorted(gene_occurencies[gene_occurencies>=min(n_runs,len(matched))*frac_runs].index.values)
-        not_passed_genes  = sorted(gene_occurencies[gene_occurencies<min(n_runs,len(matched))*frac_runs].index.values)
-
-        
-        if len(passed_genes)<min_n_genes:
-            # move all biclusters to not matched
-            not_matched += list(matched[i])
-        else:
-            # cluster samples in a new gene set
-            bicluster = cluster_samples(exprs.loc[passed_genes,:].T,min_n_samples=min_n_samples,seed=seed,method=method)
-            # if bicluster is not empty, add it to consenesus
-            if "sample_indexes" in bicluster.keys():
-                bicluster["genes"] = set(passed_genes)
-                bicluster["n_genes"] = len(bicluster["genes"])
-                bicluster = update_bicluster_data(bicluster,exprs)
-                bicluster["detected_n_times"] = detected_n_times
-                consensus_biclusters.append(bicluster)
-    consensus_biclusters = pd.DataFrame.from_records(consensus_biclusters)
-     
-    # add not matched
-    not_changed_biclusters = biclusters.loc[not_matched,:]
-    #not_changed_biclusters["detected_n_times"] = 1
-    consensus_biclusters = pd.concat([consensus_biclusters,not_changed_biclusters])
-
-    # add direction
-    consensus_biclusters["direction"] = "BOTH"
-    consensus_biclusters.loc[consensus_biclusters["n_genes"] == consensus_biclusters["genes_up"].apply(len),"direction"] = "UP"
-    consensus_biclusters.loc[consensus_biclusters["n_genes"] == consensus_biclusters["genes_down"].apply(len),"direction"] = "DOWN"
-
-    # sort
-    col_order = ['SNR','n_genes', 'n_samples', 'genes',  'samples',  'genes_up', 'genes_down',
-                 'gene_indexes','sample_indexes',"direction",'detected_n_times']
-    consensus_biclusters = consensus_biclusters.sort_values(by=["SNR","n_samples"],ascending=[False,True])
-    consensus_biclusters = consensus_biclusters.loc[:,col_order]
-    consensus_biclusters = consensus_biclusters.loc[consensus_biclusters["n_samples"]>=min_n_samples,:]
-    
-    consensus_biclusters.index = range(consensus_biclusters.shape[0])
-    
-    print(round(time()-t2),"s for making consensus biclusters from consensus gene sets")
-    
-    return consensus_biclusters
-
-
+   
 def make_consensus_biclusters2(biclusters_list,exprs,
                               similarity = "samples", # can be 'both','genes','samples' 
                               frac_runs=1/3,min_n_genes =2, min_n_samples=5,
+                              min_n_times_detected = 2,
                               p=0.05,
                               min_similarity = 0.33,
                               method="kmeans",
@@ -1671,6 +1562,12 @@ def make_consensus_biclusters2(biclusters_list,exprs,
     consensus_biclusters = consensus_biclusters.sort_values(by=["SNR","n_samples"],ascending=[False,True])
     consensus_biclusters = consensus_biclusters.loc[:,col_order]
     consensus_biclusters = consensus_biclusters.loc[consensus_biclusters["n_samples"]>=min_n_samples,:]
+    if verbose:
+        print("all consensus biclusters:",consensus_biclusters.shape[0])
+    
+    consensus_biclusters = consensus_biclusters.loc[consensus_biclusters["detected_n_times"]>=min_n_times_detected,:]
+    if verbose:
+        print("detected %s+ times:%s"%(min_n_times_detected,consensus_biclusters.shape[0]))
     
     consensus_biclusters.index = range(consensus_biclusters.shape[0])
     
@@ -1724,11 +1621,11 @@ def write_bic_table(bics_dict_or_df, results_file_name,to_str=True,
             metadata = metadata + "simiarity_cutoff="+str(similarity_cutoff)+"; modularity="+str(m)
         elif "WGCNA" in clust_method:
             metadata = metadata + "ds="+str(ds)+"; dch="+str(dch)+"; max_power="+str(max_power)+"; precluster="+str(precluster)
-        elif clust_method == "DESMOND":
-            metadata = metadata + "alpha="+str(alpha)+"; " + "beta_K="+str(beta_K)
+        #elif clust_method == "DESMOND":
+        #    metadata = metadata + "alpha="+str(alpha)+"; " + "beta_K="+str(beta_K)
         else:
             print("Unknown 'clust_method'",clust_method,file= sys.stderr)
-        metadata = metadata + "merge="+str(merge)
+        metadata = metadata + "; merge="+str(merge)
         with open(results_file_name, 'w') as f:
             f.write(metadata+"\n")
         write_mode = 'a'
