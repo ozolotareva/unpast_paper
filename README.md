@@ -7,7 +7,7 @@ UnPaSt is a novel method for identification of differentially expressed bicluste
 
 ## Requirements:
 <pre>
-Python:
+Python (version 3.8.16):
     fisher==0.1.9
     jenkspy==0.2.0
     pandas==1.3.5
@@ -21,9 +21,18 @@ Python:
     scipy==1.7.1
     statsmodels==0.13.2
 
-R:
+R (version 4.3.1):
     WGCNA==1.70-3
     limma==3.42.2
+</pre>
+
+## Installation tips
+
+It is recommended to use "BiocManager" for the installation of WGCNA:
+<pre>
+install.packages("BiocManager")
+library(BiocManager)
+BiocManager::install("WGCNA")
 </pre>
 
 ## Examples
