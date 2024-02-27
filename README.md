@@ -56,7 +56,7 @@ R:
     ```
     Run it:
     ```bash
-    poetry run run_unpast -h
+    poetry run ./run_unpast -h
     ```
     **Dependencies**. To use this package, you will need to have R and the [WGCNA library](https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/) and [limma](https://bioconductor.org/packages/release/bioc/html/limma.html) installed. You can easily install these dependencies by running the following command after installing unpast:
     ```bash
