@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "unpast"
-version = "0.1.8"
+version = "0.1.9.5"
 description = "A novel method for unsupervised patient stratification."
 readme = "README.md"
 license = "GPL-3.0"
@@ -35,6 +35,8 @@ scikit-network = "0.25.0"
 scipy = "1.7.3"
 statsmodels = "0.13.2"
 kneed = "^0.8.3"
+lifelines = "0.27.8"
+seaborn = "^0.13.2"
 
 [build-system]
 requires = ["poetry-core"]

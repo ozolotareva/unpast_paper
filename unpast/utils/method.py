@@ -1421,7 +1421,7 @@ def make_consensus_biclusters2(biclusters_list,exprs,
                               seed = -1, plot = False, verbose = True,
                               figsize=(10, 10),labels=False,colorbar_off=True):
     
-    from utils.eval import find_best_matching_biclusters
+    from unpast.utils.eval import find_best_matching_biclusters
     
     t0 = time()
     N = exprs.shape[0]

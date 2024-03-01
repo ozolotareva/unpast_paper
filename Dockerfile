@@ -1,5 +1,5 @@
 # Use an official Python runtime as a base image
-FROM python:3.8
+FROM python:3.8.16
 
 # Set the working directory in the container to /app
 WORKDIR /app
@@ -27,8 +27,8 @@ RUN pip install /app/unpast-0.1.8.tar.gz
 RUN python -m unpast.install_r_dependencies > /app/install.log 2>&1
 
 # Create a new user 'myuser' and set it as the default user
-RUN useradd -m myuser
-USER myuser
+RUN useradd -m user
+USER user
 
 # Set the default command to "run_unpast"
 ENTRYPOINT ["run_unpast"]
