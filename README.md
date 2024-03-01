@@ -20,6 +20,7 @@ Python (version 3.8.16):
     scikit-network==0.24.0
     scipy==1.7.1
     statsmodels==0.13.2
+    lifelines==0.27.4
 
 R (version 4.3.1):
     WGCNA==1.70-3
