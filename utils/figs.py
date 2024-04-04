@@ -98,44 +98,71 @@ def draw_heatmap(exprs,sample_set_dict,
 def draw_heatmap2(exprs,biclusters,
                  annot=None,
                  color_dict=None,
-                 figsize = (20,10),dendrogram_ratio=(0.05,0.1),
+                 figsize = (20,10),
+                  dendrogram_ratio=(0.01,0.), # space for dendro
                  colors_ratio=(0.005,0.02),
+                  bicluster_colors = "black", # 
                  no_legend=False,no_cbar=False,
                  cluster_rows=True,
                  xlabel = "samples",
                  col_labels = True,row_labels = False,
                  col_range=(-3,3),
-                 bic_prefix = "bic_"):
+                 bic_prefix = "bic_",
+                 plot_bg_genes = False,
+                 no_row_colors = True,
+                 highlight_row_labels=[]):
     '''* exprs - expressions of genes to plot
        * biclusters in UnPaSt format
        * annot - annotation for samples, columns - subtypes, rows - samples 
-       * color_dict - how to color each label'''
+       * color_dict - how to color each label
+       * bicluster_colors - color for bicluster annotation "black","auto" or list 
+       '''
     s_names = []
     ordered_genes = []
+    row_colors = None
     if type(annot)!=type(None):
         cols = list(annot.columns.values)
-        row_colors = pd.DataFrame(data="white",
-                                 index=exprs.index.values,
-                                 columns=[bic_prefix+str(x) for x in biclusters.index.values])
+        if not no_row_colors:
+            row_colors = pd.DataFrame(data="white",
+                                     index=exprs.index.values,
+                                     columns=[bic_prefix+str(x) for x in biclusters.index.values])
+            
     else:
         annot = pd.DataFrame(index = exprs.columns)
-        row_colors = pd.DataFrame(index=exprs.index.values)
+        if not no_row_colors:
+            row_colors = pd.DataFrame(index=exprs.index.values)
         cols = []
     if type(color_dict)!=type(None):
         pass
     
+    #list of bicluster colors
+    bic_colors = [] 
+    if bicluster_colors=="black":
+        bic_colors = ["black"]*biclusters.shape[0]
+    elif bicluster_colors=="auto":
+        palette = sns.color_palette("colorblind")
+        # Get the first n colors from the palette
+        bic_colors = sns.color_palette("colorblind").as_hex()[:biclusters.shape[0]]
+        
+
+    
+    bic_colors = dict(zip(biclusters.index.values,bic_colors))
+    print(bic_colors)
     
     for row in biclusters.iterrows():
         bic_id = bic_prefix+str(row[0])
         s = row[1]["samples"]
         g = sorted(row[1]["genes_up"])+sorted(row[1]["genes_down"])
         annot[bic_id] = "white"
-        annot.loc[list(s),bic_id] = "black"
-        row_colors.loc[g,bic_id] = "black"
+        annot.loc[list(s),bic_id] = bic_colors[row[0]]
+        if not no_row_colors:
+            row_colors.loc[g,bic_id] = bic_colors[row[0]]
+        g = [x for x in g if not x in ordered_genes]
         ordered_genes+= g
         s_names.append(bic_id)
     
-    ordered_genes =  ordered_genes + sorted(set(exprs.index.values).difference(set(ordered_genes)))
+    if plot_bg_genes:
+        ordered_genes = ordered_genes + sorted(set(exprs.index.values).difference(set(ordered_genes)))
         
     sample_order = annot.index.values
     col_colors = annot.loc[:,s_names+cols]
@@ -149,7 +176,8 @@ def draw_heatmap2(exprs,biclusters,
             sample_order = new_sample_order
     
     for col in reversed(s_names):
-        for subt in ["black","white"]:
+        ordered_colors = [x for x in set(annot[col]) if not x=="white"]+["white"]
+        for subt in ordered_colors:
             subt_samples = annot.loc[annot[col]==subt,:].index
             new_sample_order = [x for x in sample_order if x not in subt_samples] + [x for x in sample_order if x in subt_samples] 
             sample_order = new_sample_order
@@ -179,6 +207,17 @@ def draw_heatmap2(exprs,biclusters,
     if no_cbar:
         g.ax_cbar.set_visible(False)
     
+    
+    # If there are row labels to highlight, format them in bold
+    if highlight_row_labels:
+        for row_tick in g.ax_heatmap.get_yticklabels():
+            if row_tick.get_text() in highlight_row_labels:
+                row_tick.set_weight('bold')
+                for bic_id in biclusters.index.values:
+                    if row_tick.get_text() in biclusters.loc[bic_id,"genes"]:
+                        row_tick.set_color(bic_colors[bic_id])
+                
+        
     legends = []
     i = 0
     n_patches =0

@@ -29,7 +29,7 @@ MOFA2_ARD_FACTORS = [False] # True,
 MOFA2_ARD_WEIGHTS = [True] # , False
 
 # MOCLUSTER
-MOCLUSTER_RANGE = range(1, 21)
+MOCLUSTER_RANGE = range(1, 21) # n_dimensions
 MOCLUSTER_RANDOM_STATES = [1]
 MOCLUSTER_K = [0.1, 1, "all"]
 MOCLUSTER_OPTION = ["lambda1", 'inertia', 'uniform'] # , "inertia", "uniform"

@@ -6,19 +6,19 @@ import numpy as np
 def run(exprs_file, basename='', out_dir="./",
                 save=True, load = False,
                 ceiling = 3,
-                bin_method = "kmeans", clust_method = "WGCNA", 
+                bin_method = "kmeans", 
+                clust_method = "WGCNA", 
                 min_n_samples = 5, 
                 show_fits = [],
                 pval = 0.01, # binarization p-value
+                directions = ["DOWN","UP"], # can be ["DOWN","UP"] or ["BOTH"]
                 modularity=1/3, similarity_cutoffs = -1, # for Louvain
-                ds = 0, dch = 0.995, max_power=10, precluster=True, rpath="", # for WGCNA
-                alpha=1,beta_K = 1, max_n_steps= 100, n_steps_for_convergence = 5, # for DESMOND
+                ds = 3, dch = 0.995, max_power=10, precluster=True, rpath="", # for WGCNA
                 cluster_binary=False, 
                 merge = 1,
-                directions = ["DOWN","UP"], # could be ["DOWN","UP"] or ["BOTH"]
                 seed = 42,
                 verbose = True, plot_all = False,
-                large_input=False,no_z = False):
+                large_input=False, no_z = False):
     
     import sys
     from time import time
@@ -29,10 +29,6 @@ def run(exprs_file, basename='', out_dir="./",
     # make sure that out_dir has '/' suffix
     if out_dir[-1] != '/':
         out_dir += '/'
-    
-    #if seed == -1:
-    #    seed = random.randint(0,1000000)
-    #    print("seed=",seed,file = sys.stdout)
         
     if not basename: 
         from datetime import datetime
@@ -101,7 +97,6 @@ def run(exprs_file, basename='', out_dir="./",
     feature_clusters, not_clustered, used_similarity_cutoffs = [], [], []
     if clust_method == "Louvain":
         from utils.method import run_Louvain
-        #from utils.method import get_similarity_corr 
         from utils.method import get_similarity_jaccard
         
         for d in directions:
@@ -180,7 +175,8 @@ def run(exprs_file, basename='', out_dir="./",
     write_bic_table(biclusters, out_dir+basename+suffix+suffix2+".biclusters.tsv",to_str=True,
                     add_metadata=True, seed = seed, min_n_samples = min_n_samples, pval = pval,
                     bin_method = bin_method, clust_method = clust_method, directions = directions,
-                    alpha=alpha, beta_K = beta_K, similarity_cutoff = used_similarity_cutoffs,
+                    #alpha=alpha, beta_K = beta_K, 
+                    similarity_cutoff = used_similarity_cutoffs,
                     m=modularity, ds = ds, dch = dch, 
                     max_power=max_power, precluster=precluster,
                     merge = merge)
@@ -210,7 +206,7 @@ def parse_args():
     parser.add_argument('-m','--modularity', default=1/3, metavar="1/3", type=float, help='Modularity corresponding to a cutoff for similarity matrix (Louvain clustering)')
     parser.add_argument('-r','--similarity_cutoffs', default=-1, metavar="-1", type=float, help='A cutoff or a list of cuttofs for similarity matrix (Louvain clustering). If set to -1, will be chosen authomatically from [1/5,4/5] using elbow method')
     # WGCNA parameters 
-    parser.add_argument('--ds', default=0, metavar="0", type=int,choices=[0,1,2,3,4], help='deepSplit parameter, see WGCNA documentation')
+    parser.add_argument('--ds', default=3, metavar="3", type=int,choices=[0,1,2,3,4], help='deepSplit parameter, see WGCNA documentation')
     parser.add_argument('--dch', default=0.995, metavar="0.995", type=float, help='dynamicTreeCut parameter, see WGCNA documentation')
     parser.add_argument('--bidirectional', action='store_true', help='Whether to cluster up- and down-regulated features together.')
     parser.add_argument('--rpath', default="", metavar="", type=str, help='Full path to Rscript.')

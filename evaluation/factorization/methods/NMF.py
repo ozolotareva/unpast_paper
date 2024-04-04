@@ -92,7 +92,7 @@ def execute_algorithm(exprs, k, output_path, init='random', tol=1e-4, random_sta
 def run_simulated(args):
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
         print('Skipping because result exists:', args["output_path"])
-        return
+        return resultsHandler.read_result(args["output_path"])
     df_exprs = pd.read_csv(args['exprs_file'], sep='\t', index_col=0)
     args['exprs'] = preprocess_exprs(df_exprs)
     result, runtime = run_method(execute_algorithm, args)
@@ -102,22 +102,27 @@ def run_simulated(args):
     result_genes.to_csv(os.path.join(args["output_path"], 'result_genes.csv'))
     # save results
     resultsHandler.save(result, runtime, args["output_path"])
-    return
+    return resultsHandler.read_result(args["output_path"])
 
 def run_real(args, is_terminated=False ):
+    print('The scikit-learn version is {}.'.format(sklearn.__version__))
     if is_terminated:
         try:
             return resultsHandler.read_result(args["output_path"]), resultsHandler.read_runtime(args["output_path"])
         except:
             return False, False
+    print('here1')
     if resultsHandler.create_or_get_result_folder(args["output_path"]):
         # print('Returning existing results:', args["output_path"])
+        print('here2')
         pass
     else:
+        print('here3')
         df_exprs = pd.read_csv(args['exprs_file'], sep='\t', index_col=0)
         args['exprs'] = preprocess_exprs(df_exprs)
         result, runtime = run_method(execute_algorithm, args)
         result, result_genes = result
+        print('result', result)
         resultsHandler.save(result, runtime, args["output_path"])
         del args['exprs']
         result_genes.to_csv(os.path.join(args["output_path"], 'result_genes.csv'))
