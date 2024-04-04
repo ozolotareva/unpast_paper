@@ -31,7 +31,7 @@ MOFA2_ARD_WEIGHTS = [True] # , False
 # MOCLUSTER
 MOCLUSTER_RANGE = range(1, 21)
 MOCLUSTER_RANDOM_STATES = [1]
-MOCLUSTER_K = [0.1, 1]
+MOCLUSTER_K = [0.1, 1, "all"]
 MOCLUSTER_OPTION = ["lambda1", 'inertia', 'uniform'] # , "inertia", "uniform"
 MOCLUSTER_SOLVER = ["fast", 'svd'] # "svd", 
 MOCLUSTER_CENTER = [True] # , False
