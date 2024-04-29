@@ -413,7 +413,7 @@ def evaluate_overlaps(biclusters, known_groups, all_elements, dimension="samples
             group_only = len(group_members.difference(bic_members))
             union = shared + bic_only + group_only
             pval = pvalue(shared, bic_only, group_only, N - union)
-            pvals[group][i] = 1 
+            """pvals[group][i] = 1 
             if pval.right_tail < pval.left_tail:
                 pvals[group][i] = pval.right_tail
                 is_enriched[group][i] = True
@@ -423,7 +423,12 @@ def evaluate_overlaps(biclusters, known_groups, all_elements, dimension="samples
                 is_enriched[group][i] = False
                 bic_members = all_elements.difference(bic_members)
                 shared = len(bic_members.intersection(group_members))
-                union = len(bic_members.union(group_members))
+                union = len(bic_members.union(group_members))"""
+            pvals[group][i] = pval.two_tail 
+            is_enriched[group][i] = False
+            if pval.right_tail < pval.left_tail:
+                is_enriched[group][i] = True
+                
             jaccards[group][i] = shared / union
 
         # print(group,jaccards[group])
@@ -518,11 +523,7 @@ def find_best_matching_biclusters(bics1, bics2, sizes, by="genes", adj_pval_thr=
                         if not by == "both":
                             # compute p-value again
                             pval_s = calc_overlap_pval(o_s, s1_, s2_, bg_s)
-                    #try:
                     J_s = o_s * 1.0 / u_s
-                    #except:
-                    #    print( "i1=%s; i2=%s: u_s=%s, o_s=%s, s1_=%s, s2_=%s, bg_s=%s"%(i1,i2,u_s,o_s,s1_,s2_,bg_s))
-                    #    J_s = 0
                
                 if by == "genes":
                     J = J_g

@@ -25,17 +25,20 @@ datExpr[] <- lapply(datExpr, as.numeric)
 
 #### finding power threshold #### 
 powers = c(1:max_power) #c(c(1:10), seq(from = 12, to=20, by=2))
-rsqcuts <- seq(from = 0.9, to=0.05, by=-0.05)
+rsqcuts <- seq(from = 0.90, to=0.05, by=-0.05)
 i = 0
 power <- NA
-while (is.na(power)){
+while ((is.na(power)) && (i<length(rsqcuts))){
 # Call the network topology analysis function
  i<-i+1
  sft <- pickSoftThreshold(datExpr, powerVector = powers,verbose = 0,
-                          networkType = nt,RsquaredCut =rsqcuts[[i]])  
+                          networkType = nt,RsquaredCut =rsqcuts[[i]],)  
  power <- sft$powerEstimate
 }
-
+if (is.na(power)){
+ print(cat("\nno power selected with any R^2 threshold between 0.9 and 0.05; was set to 1","\n"))
+ power <- 1
+}
 
 print(cat("\nR^2 threshold:",rsqcuts[[i]],"power:",power,"\n"))
 print(cat("networkType:",nt,"\n"))

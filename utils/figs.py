@@ -95,7 +95,7 @@ def draw_heatmap(exprs,sample_set_dict,
                 i+=1
     return g, sample_order
 
-def draw_heatmap2(exprs,biclusters,
+def draw_heatmap2(exprs,biclusters=pd.DataFrame(),
                  annot=None,
                  color_dict=None,
                  figsize = (20,10),
@@ -104,6 +104,7 @@ def draw_heatmap2(exprs,biclusters,
                   bicluster_colors = "black", # 
                  no_legend=False,no_cbar=False,
                  cluster_rows=True,
+                  cluster_columns=True,
                  xlabel = "samples",
                  col_labels = True,row_labels = False,
                  col_range=(-3,3),
@@ -120,6 +121,7 @@ def draw_heatmap2(exprs,biclusters,
     s_names = []
     ordered_genes = []
     row_colors = None
+    sample_order = exprs.columns.values
     if type(annot)!=type(None):
         cols = list(annot.columns.values)
         if not no_row_colors:
@@ -136,35 +138,36 @@ def draw_heatmap2(exprs,biclusters,
         pass
     
     #list of bicluster colors
-    bic_colors = [] 
-    if bicluster_colors=="black":
-        bic_colors = ["black"]*biclusters.shape[0]
-    elif bicluster_colors=="auto":
-        palette = sns.color_palette("colorblind")
-        # Get the first n colors from the palette
-        bic_colors = sns.color_palette("colorblind").as_hex()[:biclusters.shape[0]]
-        
+    if biclusters.shape[0]>0:
+        bic_colors = [] 
+        if bicluster_colors=="black":
+            bic_colors = ["black"]*biclusters.shape[0]
+        elif bicluster_colors=="auto":
+            palette = sns.color_palette("colorblind")
+            # Get the first n colors from the palette
+            bic_colors = sns.color_palette("colorblind").as_hex()[:biclusters.shape[0]]
+        else:
+            bic_colors = bicluster_colors
+        bic_colors = dict(zip(biclusters.index.values,bic_colors))
 
-    
-    bic_colors = dict(zip(biclusters.index.values,bic_colors))
-    print(bic_colors)
-    
-    for row in biclusters.iterrows():
-        bic_id = bic_prefix+str(row[0])
-        s = row[1]["samples"]
-        g = sorted(row[1]["genes_up"])+sorted(row[1]["genes_down"])
-        annot[bic_id] = "white"
-        annot.loc[list(s),bic_id] = bic_colors[row[0]]
-        if not no_row_colors:
-            row_colors.loc[g,bic_id] = bic_colors[row[0]]
-        g = [x for x in g if not x in ordered_genes]
-        ordered_genes+= g
-        s_names.append(bic_id)
+        for row in biclusters.iterrows():
+            bic_id = bic_prefix+str(row[0])
+            s = row[1]["samples"]
+            g = sorted(row[1]["genes_up"])+sorted(row[1]["genes_down"])
+            annot[bic_id] = "white"
+            annot.loc[list(s),bic_id] = bic_colors[row[0]]
+            if not no_row_colors:
+                row_colors.loc[g,bic_id] = bic_colors[row[0]]
+            g = [x for x in g if not x in ordered_genes]
+            ordered_genes+= g
+            s_names.append(bic_id)
+    else:
+        plot_bg_genes = True
+        
     
     if plot_bg_genes:
         ordered_genes = ordered_genes + sorted(set(exprs.index.values).difference(set(ordered_genes)))
         
-    sample_order = annot.index.values
     col_colors = annot.loc[:,s_names+cols]
             
     for col in reversed(cols):
@@ -172,17 +175,20 @@ def draw_heatmap2(exprs,biclusters,
         col_colors[col]= col_colors[col].apply( lambda x: col_color_map[x])
         for subt in list(col_color_map.keys()):
             subt_samples = annot.loc[annot[col]==subt,:].index
-            new_sample_order = [x for x in sample_order if x not in subt_samples] + [x for x in sample_order if x in subt_samples] 
-            sample_order = new_sample_order
+            if cluster_columns:
+                new_sample_order = [x for x in sample_order if x not in subt_samples] + [x for x in sample_order if x in subt_samples] 
+                sample_order = new_sample_order
     
     for col in reversed(s_names):
         ordered_colors = [x for x in set(annot[col]) if not x=="white"]+["white"]
         for subt in ordered_colors:
             subt_samples = annot.loc[annot[col]==subt,:].index
-            new_sample_order = [x for x in sample_order if x not in subt_samples] + [x for x in sample_order if x in subt_samples] 
-            sample_order = new_sample_order
+            if cluster_columns:
+                new_sample_order = [x for x in sample_order if x not in subt_samples] + [x for x in sample_order if x in subt_samples] 
+                sample_order = new_sample_order
     
     vmin, vmax = col_range
+    
     g = sns.clustermap(exprs.loc[ordered_genes,sample_order],figsize=figsize,
                        col_cluster=False,row_cluster=cluster_rows,
                        dendrogram_ratio=dendrogram_ratio,colors_ratio=colors_ratio,
@@ -249,6 +255,7 @@ def draw_heatmap2(exprs,biclusters,
                     plt.gca().add_artist(legends[i-1])
                 i+=1
     return g, sample_order, (row_colors, col_colors)
+
 
 def order_one(exprs,s0,subt_dict,
              subt_order = ["Her2","Basal","LumA","LumB","Normal"]):

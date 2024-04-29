@@ -73,5 +73,3 @@ Major modifications:
  * uses 2-means, hierarchicla clustering or GMM for binarization of individual gene expressions
  * SNR threshold for featuer selection is authomatically determined; it depends on bicluster size in samples and user-defined p-value cutoff
  
-## License
-Free for non-for-profit use. For commercial use please contact the developers. 
