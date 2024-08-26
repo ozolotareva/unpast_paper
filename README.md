@@ -9,7 +9,6 @@ UnPaSt is a novel method for identification of differentially expressed bicluste
 <pre>
 Python (version 3.8.16):
     fisher==0.1.9
-    jenkspy==0.2.0
     pandas==1.3.5
     python-louvain==0.15
     matplotlib==3.7.1
@@ -54,6 +53,8 @@ python ../run_unpast.py --exprs scenario_B500.exprs.tsv.gz --basename results/sc
 python run_unpast.py -h
 </pre>
 
+* Consensus biclusters obtained in five runs of UnPaSt on 200 samples randomly chosen from TCGA-BRCA dataset: https://github.com/ozolotareva/DESMOND2/blob/main/consensus.ipynb
+
 ## Outputs
 * \<basename\>.[parameters].biclusters.tsv - a .tsv table with found biclsuters, where 
     - the first line starts from '#' and stores parameters
@@ -64,9 +65,13 @@ python run_unpast.py -h
     - "gene_indexes" and  "sample_indexes" - 0-based gene and sample indexes in the input matrix.
 * binarized expressions, background distributions of SNR for each bicluster size and binarization statistics [if clustering is WGCNA,  or  '--save_binary' flag is added]
 
-## About 
-UnPaSt is an unconstrained version of DESMOND method ([repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true))
+## Versions
+UnPaSt version used in PathoPlex paper: https://github.com/ozolotareva/DESMOND2/blob/main/UnPaSt_PathoPlex.zip 
 
+## Cite 
+UnPaSt ([preprint](https://arxiv.org/abs/2408.00200))
+
+UnPaSt is an unconstrained version of DESMOND method ([repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true))
 Major modifications:
  * it does not require the network of feature interactions 
  * UnPaSt clusters individual features instead of pairs of features
