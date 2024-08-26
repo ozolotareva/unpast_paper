@@ -69,9 +69,10 @@ python run_unpast.py -h
 UnPaSt version used in PathoPlex paper: https://github.com/ozolotareva/DESMOND2/blob/main/UnPaSt_PathoPlex.zip 
 
 ## Cite 
-UnPaSt ([preprint](https://arxiv.org/abs/2408.00200))
+UnPaSt preprint [https://arxiv.org/abs/2408.00200](https://arxiv.org/abs/2408.00200)
 
 UnPaSt is an unconstrained version of DESMOND method ([repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true))
+
 Major modifications:
  * it does not require the network of feature interactions 
  * UnPaSt clusters individual features instead of pairs of features
