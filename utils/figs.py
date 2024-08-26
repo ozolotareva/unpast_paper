@@ -4,123 +4,35 @@ import seaborn as sns
 from matplotlib.pyplot import gcf
 import matplotlib.pyplot as plt
 
-def draw_heatmap(exprs,sample_set_dict,
-                 annot=pd.DataFrame(),
-                 color_dict={},
-                 figsize = (20,10),dendrogram_ratio=(0.05,0.1),
-                 no_legend=False,cluster_rows=True,
-                 col_labels = True,row_labels = False,col_range=(-3,3)):
-    '''* exprs - expressions of genes to plot
-       * sample_set_dict = {"bic1":set(s1),"bic2":set(s2)}
-       * annot - annotation for samples, columns - subtypes, rows - samples 
-       * color_dict - how to color each label'''
-    # show only variables in annotation
-    #cols = [x for x in color_dict.keys() if x in list(annot.columns.values)]
-    cols = list(annot.columns.values)
-    s_names = []
-
-    for s_name in sample_set_dict.keys():
-        s = sample_set_dict[s_name]
-        annot[s_name] = "white"
-        annot.loc[list(s),s_name] = "black"
-        s_names.append(s_name)
-        
-    sample_order = annot.index.values
-    col_colors = annot.loc[:,cols+s_names]
-            
-    for col in reversed(cols):
-        col_color_map = color_dict[col]
-        col_colors[col]= col_colors[col].apply( lambda x: col_color_map[x])
-        for subt in list(col_color_map.keys()):
-            subt_samples = annot.loc[annot[col]==subt,:].index
-            new_sample_order = [x for x in sample_order if x not in subt_samples] + [x for x in sample_order if x in subt_samples] 
-            sample_order = new_sample_order
-    
-    for col in reversed(s_names):
-        for subt in ["black","white"]:
-            subt_samples = annot.loc[annot[col]==subt,:].index
-            new_sample_order = [x for x in sample_order if x not in subt_samples] + [x for x in sample_order if x in subt_samples] 
-            sample_order = new_sample_order
-    
-    vmin, vmax = col_range
-    g = sns.clustermap(exprs.loc[:,sample_order],figsize=figsize,
-                       col_cluster=False,row_cluster=cluster_rows,
-                       dendrogram_ratio=dendrogram_ratio,colors_ratio=0.03,
-                       cmap=sns.color_palette("coolwarm", as_cmap=True),
-                       vmin=vmin,vmax=vmax,
-                       xticklabels=col_labels, yticklabels=row_labels ,
-                       col_colors=col_colors)
-    ax = g.ax_heatmap
-    ax.set_ylabel("")
-    ax.set_xlabel("samples")
-    
-    g.ax_row_dendrogram.set_visible(False)
-    #g.cax.set_position([.10, .2, .03, .45])
-    # from https://stackoverflow.com/questions/47350879/seaborn-clustermap-subplots-adjust-cancels-colour-bar-relocation
-    dendro_box = g.ax_row_dendrogram.get_position()
-    dendro_box.x0 = (dendro_box.x0 + 2 * dendro_box.x1) / 3
-    g.cax.set_position(dendro_box)
-    # Move the ticks to the left (https://stackoverflow.com/a/36939552/1878788)
-    g.cax.yaxis.set_ticks_position("left")
-    
-    legends = []
-    i = 0
-    n_patches =0
-    for col in cols:
-        patches = []
-        col_color_map = color_dict[col]
-        # add patches only for groups found in annotation
-        plot_groups  = [x for x in col_color_map.keys() if x in set(annot[col].values)]
-        for group in plot_groups:
-            p = g.ax_row_dendrogram.bar(0, 0, color=col_color_map[group], 
-                                            label=group, linewidth=0)
-            patches.append(p)
-        if not no_legend:
-            if len( set(annot[col].values))<=10:
-                # add the legend
-                legends.append(plt.legend(patches, plot_groups, loc="upper left", title=col,
-                                      ncol = 10, bbox_to_anchor=(0.05*i+0.06*(n_patches), 0.95), 
-                                      bbox_transform=gcf().transFigure))
-                n_patches+=len(patches)
-                if i>0:
-                    plt.gca().add_artist(legends[i-1])
-                i+=1
-            else:
-                # add the legend to the side
-                legends.append(plt.legend(patches, plot_groups, loc='upper right', title=col,
-                                      ncol = 2, #bbox_to_anchor=(0.05*i+0.06*(n_patches), 0.95), 
-                                      bbox_transform=gcf().transFigure))
-                if i>0:
-                    plt.gca().add_artist(legends[i-1])
-                i+=1
-    return g, sample_order
-
 def draw_heatmap2(exprs,biclusters=pd.DataFrame(),
                  annot=None,
                  color_dict=None,
                  figsize = (20,10),
-                  dendrogram_ratio=(0.01,0.), # space for dendro
+                  dendrogram_ratio=(0.01,0.), # space for dendrogram
                  colors_ratio=(0.005,0.02),
                   bicluster_colors = "black", # 
+                  no_bic_columns = False, # do not show bicluster annotation in columns
                  no_legend=False,no_cbar=False,
                  cluster_rows=True,
-                  cluster_columns=True,
+                 cluster_cols= False, # enable hierarchical clustering of columns
+                 cluster_columns=True,
                  xlabel = "samples",
                  col_labels = True,row_labels = False,
-                 col_range=(-3,3),
+                 color_range=(-3,3),
                  bic_prefix = "bic_",
                  plot_bg_genes = False,
                  no_row_colors = True,
-                 highlight_row_labels=[]):
+                 highlight_row_labels=[],row_labels_black=False):
     '''* exprs - expressions of genes to plot
        * biclusters in UnPaSt format
        * annot - annotation for samples, columns - subtypes, rows - samples 
        * color_dict - how to color each label
        * bicluster_colors - color for bicluster annotation "black","auto" or list 
        '''
-    s_names = []
+    bic_names = []
     ordered_genes = []
     row_colors = None
+    col_colors = None
     sample_order = exprs.columns.values
     if type(annot)!=type(None):
         cols = list(annot.columns.values)
@@ -137,15 +49,17 @@ def draw_heatmap2(exprs,biclusters=pd.DataFrame(),
     if type(color_dict)!=type(None):
         pass
     
+    
     #list of bicluster colors
     if biclusters.shape[0]>0:
         bic_colors = [] 
-        if bicluster_colors=="black":
+        if bicluster_colors=="black" or bicluster_colors=="redblue":
             bic_colors = ["black"]*biclusters.shape[0]
         elif bicluster_colors=="auto":
             palette = sns.color_palette("colorblind")
             # Get the first n colors from the palette
             bic_colors = sns.color_palette("colorblind").as_hex()[:biclusters.shape[0]]
+                    
         else:
             bic_colors = bicluster_colors
         bic_colors = dict(zip(biclusters.index.values,bic_colors))
@@ -154,21 +68,23 @@ def draw_heatmap2(exprs,biclusters=pd.DataFrame(),
             bic_id = bic_prefix+str(row[0])
             s = row[1]["samples"]
             g = sorted(row[1]["genes_up"])+sorted(row[1]["genes_down"])
+            
             annot[bic_id] = "white"
             annot.loc[list(s),bic_id] = bic_colors[row[0]]
+                
             if not no_row_colors:
                 row_colors.loc[g,bic_id] = bic_colors[row[0]]
+                    
             g = [x for x in g if not x in ordered_genes]
             ordered_genes+= g
-            s_names.append(bic_id)
+            bic_names.append(bic_id)
     else:
         plot_bg_genes = True
         
-    
     if plot_bg_genes:
         ordered_genes = ordered_genes + sorted(set(exprs.index.values).difference(set(ordered_genes)))
         
-    col_colors = annot.loc[:,s_names+cols]
+    col_colors = annot.loc[:,bic_names+cols]
             
     for col in reversed(cols):
         col_color_map = color_dict[col]
@@ -179,7 +95,7 @@ def draw_heatmap2(exprs,biclusters=pd.DataFrame(),
                 new_sample_order = [x for x in sample_order if x not in subt_samples] + [x for x in sample_order if x in subt_samples] 
                 sample_order = new_sample_order
     
-    for col in reversed(s_names):
+    for col in reversed(bic_names):
         ordered_colors = [x for x in set(annot[col]) if not x=="white"]+["white"]
         for subt in ordered_colors:
             subt_samples = annot.loc[annot[col]==subt,:].index
@@ -187,10 +103,25 @@ def draw_heatmap2(exprs,biclusters=pd.DataFrame(),
                 new_sample_order = [x for x in sample_order if x not in subt_samples] + [x for x in sample_order if x in subt_samples] 
                 sample_order = new_sample_order
     
-    vmin, vmax = col_range
+    # change column colors if redblue is chosen
+    if bicluster_colors=="redblue":
+        bic_ids = biclusters.loc[biclusters["direction"] == "UP",:].index.values
+        bic_ids = [bic_prefix+str(bic_id) for bic_id in bic_ids]
+        d = {"black":"red","white":"blue"}
+        col_colors.loc[:,bic_ids] = col_colors.loc[:,bic_ids].applymap(lambda x: d[x])
+        bic_ids = biclusters.loc[biclusters["direction"] == "DOWN",:].index.values
+        bic_ids = [bic_prefix+str(bic_id) for bic_id in bic_ids]
+        d = {"black":"blue","white":"red"}
+        col_colors.loc[:,bic_ids] = col_colors.loc[:,bic_ids].applymap(lambda x: d[x])
+    
+    if no_bic_columns:
+        col_colors = col_colors.loc[:,cols]
+    
+    vmin, vmax = color_range
     
     g = sns.clustermap(exprs.loc[ordered_genes,sample_order],figsize=figsize,
-                       col_cluster=False,row_cluster=cluster_rows,
+                       col_cluster=cluster_cols,
+                       row_cluster=cluster_rows,
                        dendrogram_ratio=dendrogram_ratio,colors_ratio=colors_ratio,
                        cmap=sns.color_palette("coolwarm", as_cmap=True),
                        vmin=vmin,vmax=vmax,
@@ -221,7 +152,8 @@ def draw_heatmap2(exprs,biclusters=pd.DataFrame(),
                 row_tick.set_weight('bold')
                 for bic_id in biclusters.index.values:
                     if row_tick.get_text() in biclusters.loc[bic_id,"genes"]:
-                        row_tick.set_color(bic_colors[bic_id])
+                        if not row_labels_black:
+                            row_tick.set_color(bic_colors[bic_id])
                 
         
     legends = []
@@ -255,7 +187,6 @@ def draw_heatmap2(exprs,biclusters=pd.DataFrame(),
                     plt.gca().add_artist(legends[i-1])
                 i+=1
     return g, sample_order, (row_colors, col_colors)
-
 
 def order_one(exprs,s0,subt_dict,
              subt_order = ["Her2","Basal","LumA","LumB","Normal"]):
