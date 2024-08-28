@@ -50,8 +50,8 @@ def run(exprs_file, basename='', out_dir="./",
 
     if not no_z:
         #check if expressions are standardized (mean=0, std =1)
-        from utils.method import validate_input_matrix
-        exprs = validate_input_matrix(exprs,verbose = verbose)
+        from utils.method import prepare_input_matrix
+        exprs = prepare_input_matrix(exprs,verbose = verbose)
     
         #set extreme z-scores to -x and x, e.g. -3,3
         if ceiling:    
