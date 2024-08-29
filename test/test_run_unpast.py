@@ -4,6 +4,9 @@ import pandas as pd
 
 TEST_DIR = os.path.dirname(__file__)
 RESULTS_DIR = os.path.join(TEST_DIR, "results")
+if not os.access(RESULTS_DIR, os.W_OK):
+    # repo dir is currently read-only during github-actions testing
+    RESULTS_DIR = '/tmp/unpast/results'
 REFERENCE_OUTPUT_DIR = os.path.join(TEST_DIR, "test_reference_output")
 
 sys.path.append(os.path.join(TEST_DIR, ".."))
