@@ -1,0 +1,30 @@
+# action.yml
+name: 'Run tests'
+
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  # Allows to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: run tests
+        uses: docker://freddsle/unpast:latest
+        with:
+          entrypoint: bash
+          args: >
+            -c "
+            cd /github/workspace &&
+            python test/test_run_unpast.py
+            "
