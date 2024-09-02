@@ -26,5 +26,7 @@ jobs:
           args: >
             -c "
             cd /github/workspace &&
-            python test/test_run_unpast.py
+            pip install pytest --target /tmp &&
+            PYTHONPATH=/tmp python -m pytest test -m "not slow"
+            PYTHONPATH=/tmp python -m pytest test --durations=0
             "
