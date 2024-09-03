@@ -219,7 +219,24 @@ def generate_null_dist(
 
 
 def get_trend(sizes, thresholds, plot=True, verbose=True):
-    # smoothens the trend and retunrs a function min_SNR(size; p-val. cutoff)
+    """
+    Smoothens the trend and retunrs a function min_SNR(size; p-val. cutoff)
+        Given a set of points (x_i, y_i), 
+        returns a function f(x) that interpolates the data with LOWESS+linear interpolation
+
+    Args:
+        sizes: values of x_i
+        thresholds: values of y_i
+        plot: if True, plots the trend
+        verbose: if True, prints the LOWESS frac
+    
+    Returns:
+        get_min_snr: a function that returns the minimal SNR for a given size
+    """
+    assert len(sizes) >= 0
+    if len(sizes) == 1: 
+        return lambda x: thresholds[0]
+    
     lowess = sm.nonparametric.lowess
     frac = max(1, min(math.floor(int(0.1 * len(sizes))), 15) / len(sizes))
     # if verbose:
