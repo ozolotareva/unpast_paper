@@ -61,13 +61,14 @@ def zscore(df):
 
 
 def prepare_input_matrix(
-    exprs,
+    input_matrix,
     min_n_samples=5,
     tol=0.01,
     standradize=True,
     ceiling=False,  # if int>0, limit z-scores to [-x,x]
     verbose=True,
 ):
+    exprs = input_matrix.copy()
     exprs.index = [str(x) for x in exprs.index.values]
     exprs.columns = [str(x) for x in exprs.columns.values]
     m = exprs.mean(axis=1)
@@ -98,9 +99,6 @@ def prepare_input_matrix(
             if not std_passed:
                 if verbose:
                     print("Scaling std to 1", file=sys.stderr)
-    else:
-        if verbose:
-            print("Input is standardized.", file=sys.stderr)
     if len(set(exprs.index.values)) < exprs.shape[0]:
         print("Row names are not unique.", file=sys.stderr)
     missing_values = exprs.isna().sum(axis=1)
@@ -1824,6 +1822,7 @@ def make_consensus_biclusters(
     similarity="samples",  # can be 'both','genes','samples'
     p=0.05,  # bicluster overlap significance threshold
     min_similarity=1 / 3,  # minimal Jaccard similarity
+    max_similarity=0.9,  # maximal Jaccard similarity
     frac_runs=1 / 3,
     min_n_genes=2,
     min_n_samples=5,
@@ -1840,7 +1839,10 @@ def make_consensus_biclusters(
     # considers only best matching bicluster pairs
     from utils.eval import find_best_matching_biclusters
 
-    if len(biclusters_list) < min_n_times_detected:
+    
+    # list of biclusters from several runs
+    n_runs = len(biclusters_list)
+    if n_runs < min_n_times_detected:
         print(
             "The number of biclusterins results should be not less than min_n_times_detected=%s"
             % (min_n_times_detected),
@@ -1850,18 +1852,14 @@ def make_consensus_biclusters(
 
     t0 = time()
     N = exprs.shape[0]
-
+    
     if seed == -1:
         seed = random.randint(0, 1000000)
         print("Seed for sample clustering: %s" % (seed), file=sys.stderr)
 
-    # list of biclusters from several runs
-    n_runs = len(biclusters_list)
     for i in range(n_runs):
         biclusters_list[i]["run"] = i
-        # biclusters_list[i].index = [str(x)+"_"+str(i) for x in biclusters_list[i].index.values]
     biclusters = pd.concat(biclusters_list)
-    # biclusters.index = range(biclusters.shape[0])
     bic_ids = biclusters.index.values
     biclusters["detected_n_times"] = 1
 
@@ -1898,7 +1896,17 @@ def make_consensus_biclusters(
                         J_heatmap.loc[row[0], row[1]["bm_id"]] += row[1]["J"] / 2
                         J_heatmap.loc[row[1]["bm_id"], row[0]] += row[1]["J"] / 2
 
-    # plot similarity heatmaps
+    
+    # if all biclusters are exactly the same
+    if J_heatmap.min().min() == 1:
+        # return the first bicluster
+        consensus_biclusters = biclusters.iloc[[0], :].copy()
+        consensus_biclusters.index = [0]
+        consensus_biclusters.loc[0, "detected_n_times"] = biclusters.shape[0]
+        print("all biclusters are exactly the same", file=sys.stderr)
+        return consensus_biclusters
+    
+    # plot bicluster similarity heatmaps
     if plot:
         import seaborn as sns
 
@@ -1937,15 +1945,6 @@ def make_consensus_biclusters(
             g.cax.set_visible(False)
         plt.show()
 
-    # if all biclusters are exactly the same
-    if J_heatmap.min().min() == 1:
-        # return the first bicluster
-        consensus_biclusters = biclusters.iloc[[0], :].copy()
-        consensus_biclusters.index = [0]
-        consensus_biclusters.loc[0, "detected_n_times"] = biclusters.shape[0]
-        print("all biclusters are exactly the same", file=sys.stderr)
-        return consensus_biclusters
-
     t1 = time()
     if verbose:
         print("%s s for similarity matrix" % round(t1 - t0))
@@ -1953,7 +1952,7 @@ def make_consensus_biclusters(
     # cluster biclusters by similarity
     matched, not_matched, cutoff = run_Louvain(
         J_heatmap,
-        similarity_cutoffs=np.arange(min_similarity, 0.9, 0.05),
+        similarity_cutoffs=np.arange(min_similarity, max_similarity, 0.05),
         m=False,
         verbose=verbose,
         plot=plot,
@@ -1962,10 +1961,13 @@ def make_consensus_biclusters(
     t2 = time()
 
     # make consensus biclusters
-    # for each group of matched biclusters, keep genes occuring at least n times
-    # cluster samples again in a subspace of a new gene set
+    # for each group of matched biclusters, select consensus gene set
+    # keep genes occuring at least 'min_n_times_detected' times
+    min_n_times_detected= max(min_n_times_detected,int(frac_runs*n_runs))
+    if verbose:
+        print("keep genes included in at least %s merged biclusters" % round(min_n_times_detected))
+        
     consensus_biclusters = []
-
     # for each group of matched biclusters
     for i in range(len(matched)):
         gsets = biclusters.loc[matched[i], "genes"].values
@@ -1995,7 +1997,7 @@ def make_consensus_biclusters(
             # move all biclusters to not matched
             not_matched += list(matched[i])
         else:
-            # cluster samples in a new gene set
+            # cluster samples again in a subspace of a new gene set
             bicluster = cluster_samples(
                 exprs.loc[passed_genes, :].T,
                 min_n_samples=min_n_samples,
@@ -2008,7 +2010,7 @@ def make_consensus_biclusters(
                 bicluster["n_genes"] = len(bicluster["genes"])
                 bicluster = update_bicluster_data(bicluster, exprs)
                 bicluster["detected_n_times"] = detected_n_times
-                bicluster["ids"] = set(bic_ids)
+                bicluster["ids"] = set(bic_ids) # ids of biclusters merged to the consensus biclusters
                 consensus_biclusters.append(bicluster)
     consensus_biclusters = pd.DataFrame.from_records(consensus_biclusters)
 
