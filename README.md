@@ -19,7 +19,7 @@ mkdir -p results
 
 # running UnPaSt with default parameters and example data
 command="python run_unpast.py --exprs test/scenario_B500.exprs.tsv.gz --basename results/scenario_B500"
-docker run -u $(id -u):$(id -g) -v $(pwd):/data --entrypoint bash freddsle/unpast -c "cd /data && $command"
+docker run -u $(id -u):$(id -g) -v "$(pwd)":/data --entrypoint bash freddsle/unpast -c "cd /data && $command"
 ```
 
 
