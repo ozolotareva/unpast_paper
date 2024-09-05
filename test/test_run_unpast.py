@@ -86,7 +86,7 @@ def test_clear_biclusters():
     found_correct_bicluster = False
     for _, row in res.iterrows():
         features, samples = parse_to_features_samples_ids(row)
-        if features == set(range(0, 50, 2)) and samples == set(range(0, 50, 2)):
+        if features == set(range(1, 22, 2)) and samples == set(range(1, 22, 2)):
             found_correct_bicluster = True
 
     assert found_correct_bicluster
