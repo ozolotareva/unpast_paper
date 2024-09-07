@@ -1,5 +1,5 @@
 # Usage: from utils.unpast_DE import run_de_for_unpast
-# run_de_for_unpast(unpast_output_path, expression_matrix_path, counts = False, [adj_p_value_cut_off = 0.05, logFC_cut_off = 1, r_script_path = None, r_executable_path = None])
+# run_de_for_unpast(unpast_output_path, expression_matrix_path, counts = False, [keep_all=False,adj_p_value_cut_off = 0.05, logFC_cut_off = 1, r_script_path = None, r_executable_path = None])
 
 import pandas as pd
 import os
@@ -113,7 +113,10 @@ def filter_de_genes(new_unpast_df: pd.DataFrame, columns_to_process: list) -> pd
     return new_unpast_df
 
 
-def add_columns_to_unpast_df(unpast_df: pd.DataFrame, de_genes_df: pd.DataFrame) -> pd.DataFrame:
+def add_columns_to_unpast_df(unpast_df: pd.DataFrame, 
+                             de_genes_df: pd.DataFrame,
+                             keep_all: bool = False
+) -> pd.DataFrame:
     """
     Filter de_genes_df to keep only the genes that are in the unpast_df.
     Add four new columns to the original unpast table.
@@ -125,8 +128,11 @@ def add_columns_to_unpast_df(unpast_df: pd.DataFrame, de_genes_df: pd.DataFrame)
         genes_up_DE=de_genes_df["genes_up"],
         genes_down_DE=de_genes_df["genes_down"],
     )
-
-    new_unpast_df = filter_de_genes(new_unpast_df, columns_to_process=["genes", "genes_down", "genes_up"])
+    
+    # filter de_genes_df to keep only the genes that are in the unpast_df
+    if not keep_all:
+        logging.info("Filtering DE genes not in the original UnPaSt output")
+        new_unpast_df = filter_de_genes(new_unpast_df, columns_to_process=["genes", "genes_down", "genes_up"])
 
     # update n_genes_DE column with the number of genes in the genes_DE column
     new_unpast_df["n_genes_DE"] = new_unpast_df["genes_DE"].apply(lambda x: len(x.split()) if pd.notna(x) else 0)
@@ -143,7 +149,7 @@ def read_dataframe_from_file(file_path: str) -> pd.DataFrame:
         logging.error("File is empty: %s", file_path)
         raise ValueError(f"File is empty: {file_path}")
 
-    df = pd.read_csv(file_path, delimiter=DELIMITER, header=0, skiprows=1, index_col=0)
+    df = pd.read_csv(file_path, delimiter=DELIMITER, comment='#', index_col=0)
 
     if df.empty:
         logging.error("UnPaSt output is empty: %s", file_path)
@@ -152,7 +158,7 @@ def read_dataframe_from_file(file_path: str) -> pd.DataFrame:
     return df
 
 
-def write_result(df: pd.DataFrame, input_file_path: str, output_file_path: str) -> None:
+def write_result(df: pd.DataFrame, input_file_path: str, output_file_path: str) -> pd.DataFrame:
     # Checking if input file exists and if it's not empty
     if not os.path.isfile(input_file_path):
         logging.error("Input file does not exist: %s", input_file_path)
@@ -185,6 +191,7 @@ def run_de_for_unpast(
     unpast_output_path: str,
     expression_matrix_path: str,
     counts: bool = False,
+    keep_all: bool = False,
     adj_p_value_cut_off: float = 0.05,
     logFC_cut_off: float = 1,
     num_genes_cut_off: float = float('inf'),
@@ -192,7 +199,7 @@ def run_de_for_unpast(
     r_executable_path: str = None,
 ) -> None:
     """
-    A function that runs differential expression analysis using the limma package in R for unpast biclasters.
+    A function that runs differential expression analysis using the limma package in R for unpast biclusters.
     """
     # Read unpast output
     # Read file with rownames in the first columns, first line is the comment line, colnames in the second line
@@ -208,7 +215,7 @@ def run_de_for_unpast(
     extract_samples_to_file(unpast_df, samples_to_compare)
 
     # run add_genes.R script
-    logging.info("Running DE analysis for unpast biclasters, takes a while...")
+    logging.info("Running DE analysis for unpast biclusters, takes a while...")
     samples_with_genes_path = run_add_genes_script(
         samples_to_compare,
         expression_matrix_path,
@@ -219,22 +226,29 @@ def run_de_for_unpast(
         r_script_path,
         r_executable_path,
     )
-
+    
+    logging.info("Adding DE genes to UnPaSt output table")
     # Read the unpast output file into a pandas dataframe.
     # Read file with rownames in the first columns, first line is the comment line, colnames in the second line
-    logging.info("Filtering DE genes and adding them to the original UnPaSt output")
     de_genes_df = pd.read_csv(samples_with_genes_path.strip(), delimiter=DELIMITER, header=0, index_col=0)
-
-    # filter de_genes_df to keep only the genes that are in the unpast_df
-    new_unpast_df = add_columns_to_unpast_df(unpast_df, de_genes_df)
+     
+    # add columns to unpast_df and filter de_genes_df to keep only the genes that are in the unpast_df
+    new_unpast_df = add_columns_to_unpast_df(unpast_df, de_genes_df, keep_all=keep_all)
 
     # write new_unpast_df to file
     # use the original unpast_df file name and add _DE to the end
     # also add the comment line from the original unpast_df to the top of the new file
     output_path_de = unpast_output_path.replace(".tsv", f'_DE.pval{adj_p_value_cut_off}.logFC{logFC_cut_off}.tsv')
-    write_result(new_unpast_df, unpast_output_path, output_path_de)
+    #write_result(new_unpast_df, unpast_output_path, output_path_de)
 
     # remove the temporary files
     logging.info("Removing temporary files")
     safe_remove(samples_to_compare)
     safe_remove(samples_with_genes_path.strip())
+    
+    # keep only columns with genes
+    cols = ["n_genes","genes","n_genes_DE","genes_DE","genes_up_DE","genes_down_DE"]
+    de_df = new_unpast_df.loc[:,cols]
+    cols = ["genes","genes_DE","genes_up_DE","genes_down_DE"]
+    de_df.loc[:,cols] = de.loc[:,cols].fillna("").applymap(lambda row: set(row.split(" ")))
+    return de_df

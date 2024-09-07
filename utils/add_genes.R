@@ -1,8 +1,9 @@
 # usage: Rscript add_genes.R clusters.tsv expressions.tsv is_rna_seq [pval logFC  num_genes]
+# exprs: a .tsv table genes in rows, samples in columns; between-sample normalized
+# is_rna_seq: if expression data are from RNA-seq, set 1 and provide log2(x+1) of counts 
 # output: clusters.with_genes.tsv 
 suppressPackageStartupMessages(library("limma"))
 suppressPackageStartupMessages(library("edgeR"))
-#library("matrixStats")
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -42,7 +43,7 @@ find_DE_genes <- function(exprs, dm, rna_seq, pval_cutoff, logFC_cutoff, num_gen
     #keep_exprs <- filterByExpr(exprs, group=group)
     #cat(paste0("Genes passed filterByExprs: ", length(keep_exprs[keep_exprs])))
     #exprs <- exprs[keep_exprs,, keep.lib.sizes=FALSE]
-    #exprs <- calcNormFactors(exprs, method = "upperquartile") # TMM
+    #exprs <- calcNormFactors(exprs, method = "upperquartile") # 
     #}
     
     # making simple contrast matrix
