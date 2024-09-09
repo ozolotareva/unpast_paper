@@ -5,7 +5,7 @@ from fisher import pvalue
 from scipy.stats import chi2_contingency
 from statsmodels.stats.multitest import fdrcorrection
 
-from utils.method import zscore
+from unpast.utils.method import zscore
 from lifelines import CoxPHFitter
 from lifelines.statistics import logrank_test
 

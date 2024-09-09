@@ -25,8 +25,8 @@ jobs:
           entrypoint: bash
           args: >
             -c "
-            cd /github/workspace
+            cd /github/workspace/unpast
             && pip install pytest --target /tmp
-            && PYTHONPATH=/tmp python -m pytest test -m 'not slow'
-            && PYTHONPATH=/tmp python -m pytest test --durations=0
+            && PYTHONPATH=/tmp python -m pytest tests -m 'not slow'
+            && PYTHONPATH=/tmp python -m pytest tests --durations=0
             "

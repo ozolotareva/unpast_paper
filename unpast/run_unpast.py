@@ -33,7 +33,7 @@ def run(exprs_file: pd.DataFrame,
     
     import sys
     from time import time
-    from utils.method import prepare_input_matrix
+    from unpast.utils.method import prepare_input_matrix
     
     start_time = time()
     
@@ -91,7 +91,7 @@ def run(exprs_file: pd.DataFrame,
                                 )
         
     ######### binarization #########
-    from utils.method import binarize
+    from unpast.utils.method import binarize
     
     binarized_features, stats, null_distribution  = binarize(out_dir+basename, exprs=exprs,
                                  method=bin_method, save = save, load=load,
@@ -120,8 +120,8 @@ def run(exprs_file: pd.DataFrame,
         print("Clustering features ...\n",file=sys.stdout)
     feature_clusters, not_clustered, used_similarity_cutoffs = [], [], []
     if clust_method == "Louvain":
-        from utils.method import run_Louvain
-        from utils.method import get_similarity_jaccard
+        from unpast.utils.method import run_Louvain
+        from unpast.utils.method import get_similarity_jaccard
         
         for d in directions:
             df = bin_data_dict[d]
@@ -154,10 +154,10 @@ def run(exprs_file: pd.DataFrame,
         
     elif "WGCNA" in clust_method:
         if clust_method == "iWGCNA":
-            from utils.method import run_WGCNA_iterative
+            from unpast.utils.method import run_WGCNA_iterative
             WGCNA_func = run_WGCNA_iterative
         else:
-            from utils.method import run_WGCNA
+            from unpast.utils.method import run_WGCNA
             WGCNA_func = run_WGCNA
 
         for d in directions:
@@ -181,7 +181,7 @@ def run(exprs_file: pd.DataFrame,
             print("No biclusters found",file = sys.stderr)
         return pd.DataFrame()
         
-    from utils.method import make_biclusters
+    from unpast.utils.method import make_biclusters
     biclusters = make_biclusters(feature_clusters,
                                  binarized_features,
                                  exprs,
@@ -195,7 +195,7 @@ def run(exprs_file: pd.DataFrame,
                                  verbose = verbose)
 
     
-    from utils.method import write_bic_table
+    from unpast.utils.method import write_bic_table
     suffix  = ".seed="+str(seed)+".bin="+bin_method+",pval="+str(pval)+",clust="+clust_method+",direction="+"-".join(directions)
     if "WGCNA" in clust_method:
         suffix2 = ",ds="+str(ds)+",dch="+str(dch)+",max_power="+str(max_power)+",precluster="+str(precluster)
