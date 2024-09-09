@@ -2,7 +2,7 @@
 
 UnPaSt is a novel method for identification of differentially expressed biclusters.
 
-![alt text](./poster/DESMOND2_steps2.png)
+<img src="https://github.com/ozolotareva/unpast/blob/main/poster/DESMOND2_steps2.png"  height="350">
 
 
 ## Install
@@ -21,7 +21,6 @@ mkdir -p results
 command="python run_unpast.py --exprs test/scenario_B500.exprs.tsv.gz --basename results/scenario_B500"
 docker run -u $(id -u):$(id -g) -v "$(pwd)":/data --entrypoint bash freddsle/unpast -c "cd /data && $command"
 ```
-
 
 ### Requirements:
 ```
@@ -53,9 +52,20 @@ library(BiocManager)
 BiocManager::install("WGCNA")
 ```
 
-## Examples
-* UnPaSt requires a tab-separated file with features (e.g. genes) in rows, and samples in columns. Feature and sample names must be unique.
+## Input
+UnPaSt requires a tab-separated file with features (e.g. genes) in rows, and samples in columns.
+* Feature and sample names must be unique.
+* At least 2 features and 4 samples are required.
+* Data must be between-sample normalized.
 
+### Recommendations: 
+* It is recommended that UnPaSt be applied to datasets with 20+ samples.
+* If the cohort is not large (<20 samples), reducing the minimal number of samples in a bicluster (`min_n_samples`) up to 2 is recommended. 
+* If the number of features is small, disabling feature selection by setting the binarization p-value (`p-val`) to 1 and using Louvain method for feature clustering instead of WGCNA might be helpful.
+
+## Examples
+* Simulated data example. Biclustering of a matrix with 10000 rows (features) and 200 columns (samples) with four implanted biclusters consisting of 500 features and 10-100 samples each. For more details, see figure 3 and Methods [here](https://arxiv.org/abs/2408.00200).
+  
 ```bash
 cd test;
 mkdir -p results;
@@ -69,29 +79,33 @@ python ../run_unpast.py --exprs scenario_B500.exprs.tsv.gz --basename results/sc
 # help
 python run_unpast.py -h
 ```
-
-* Consensus biclusters obtained in five runs of UnPaSt on 200 samples randomly chosen from TCGA-BRCA dataset: https://github.com/ozolotareva/DESMOND2/blob/main/consensus.ipynb
-
+* Real data example. Analysis of a subset of 200 samples randomly chosen from TCGA-BRCA dataset, including consensus biclustering and visualization:
+  [jupyter-notebook](https://github.com/ozolotareva/unpast/blob/main/UnPaSt_examples.ipynb).
+  
 ## Outputs
-* \<basename\>.[parameters].biclusters.tsv - a .tsv table with found biclsuters, where
-    - the first line starts from '#' and stores parameters
-    - each following line represents a bicluster
-    - SNR column contains SNR of a bicluster
-    - columns "n_genes" and "n_samples" provide the numbers of genes and samples, respectively
-    - "gene","sample" contain gene and sample names respectively
-    - "gene_indexes" and  "sample_indexes" - 0-based gene and sample indexes in the input matrix.
-* binarized expressions, background distributions of SNR for each bicluster size and binarization statistics [if clustering is WGCNA,  or  '--save_binary' flag is added]
+`<basename>.[parameters].biclusters.tsv` - A `.tsv` file containing the identified biclusters with the following structure:
 
-## Versions
-UnPaSt version used in PathoPlex paper: https://github.com/ozolotareva/DESMOND2/blob/main/UnPaSt_PathoPlex.zip
+- * the first line starts with `#`, storing the parameters of UnPaSt
+- * the second line contains the column headers.
+- * each subsequent line represents a bicluster with the following columns:
+  - **SNR**: Signal-to-noise ratio of the bicluster, calculated as the average SNR of its features.
+  - **n_genes**: Number of genes in the bicluster.
+  - **n_samples**: Number of samples in the bicluster.
+  - **genes**: Space-separated list of gene names.
+  - **samples**: Space-separated list of sample names.
+  - **direction**: Indicates whether the bicluster consists of up-regulated ("UP"), down-regulated ("DOWN"), or both types of genes ("BOTH").
+  - **genes_up**, **genes_down**: Space-separated lists of up- and down-resulated genes respectively.
+  - **gene_indexes**: 0-based index of the genes in the input matrix.
+  - **sample_indexes**: 0-based index of the samples in the input matrix.
+
+Along with the biclustering resutl, UnPaSt creates three files with intermediate results in the output folder `out_dir`:
+  - `<basename>.[parameters].binarized.tsv` with binarized input data.
+  - `<basename>.[parameters].binarization_stats.tsv` provides binarization statistics for each processed feature.
+  - `<basename>.[parameters].background.tsv` stores background distributions of SNR values for each evaluated bicluster size.
+These files can be used to restart UnPaSt with the same input and seed from feature clustering step and skip time-consuming feature binarization. 
 
 ## Cite
-UnPaSt preprint [https://arxiv.org/abs/2408.00200](https://arxiv.org/abs/2408.00200)
+UnPaSt preprint [https://arxiv.org/abs/2408.00200](https://arxiv.org/abs/2408.00200).
 
-UnPaSt is an unconstrained version of DESMOND method ([repository](https://github.com/ozolotareva/DESMOND), [publication](https://academic.oup.com/bioinformatics/article/37/12/1691/6039116?login=true))
-
-Major modifications:
- * it does not require the network of feature interactions
- * UnPaSt clusters individual features instead of pairs of features
- * uses 2-means, hierarchicla clustering or GMM for binarization of individual gene expressions
- * SNR threshold for featuer selection is authomatically determined; it depends on bicluster size in samples and user-defined p-value cutoff
+## Versions
+UnPaSt version used in PathoPlex paper: [UnPaSt_PathoPlex.zip](https://github.com/ozolotareva/unpast/blob/main/UnPaSt_PathoPlex.zip)
