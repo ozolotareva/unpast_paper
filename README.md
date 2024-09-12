@@ -55,12 +55,12 @@ BiocManager::install("WGCNA")
 ## Input
 UnPaSt requires a tab-separated file with features (e.g. genes) in rows, and samples in columns.
 * Feature and sample names must be unique.
-* At least 2 features and 4 samples are required.
+* At least 3 features and 5 samples are required.
 * Data must be between-sample normalized.
 
 ### Recommendations: 
 * It is recommended that UnPaSt be applied to datasets with 20+ samples.
-* If the cohort is not large (<20 samples), reducing the minimal number of samples in a bicluster (`min_n_samples`) up to 2 is recommended. 
+* If the cohort is not large (<20 samples), reducing the minimal number of samples in a bicluster (`min_n_samples`) to 2 is recommended. 
 * If the number of features is small, disabling feature selection by setting the binarization p-value (`p-val`) to 1 and using Louvain method for feature clustering instead of WGCNA might be helpful.
 
 ## Examples
@@ -98,11 +98,11 @@ python run_unpast.py -h
   - **gene_indexes**: 0-based index of the genes in the input matrix.
   - **sample_indexes**: 0-based index of the samples in the input matrix.
 
-Along with the biclustering resutl, UnPaSt creates three files with intermediate results in the output folder `out_dir`:
+Along with the biclustering result, UnPaSt creates three files with intermediate results in the output folder `out_dir`:
   - `<basename>.[parameters].binarized.tsv` with binarized input data.
   - `<basename>.[parameters].binarization_stats.tsv` provides binarization statistics for each processed feature.
   - `<basename>.[parameters].background.tsv` stores background distributions of SNR values for each evaluated bicluster size.
-These files can be used to restart UnPaSt with the same input and seed from feature clustering step and skip time-consuming feature binarization. 
+These files can be used to restart UnPaSt with the same input and seed from the feature clustering step and skip time-consuming feature binarization. 
 
 ## Cite
 UnPaSt preprint [https://arxiv.org/abs/2408.00200](https://arxiv.org/abs/2408.00200).

@@ -65,7 +65,7 @@ def prepare_input_matrix(
     min_n_samples=5,
     tol=0.01,
     standradize=True,
-    ceiling=False,  # if int>0, limit z-scores to [-x,x]
+    ceiling=0,  # if float>0, limit z-scores to [-x,x]
     verbose=True,
 ):
     exprs = input_matrix.copy()
@@ -76,15 +76,15 @@ def prepare_input_matrix(
     # find zero variance rows
     zero_var = list(std[std == 0].index.values)
     if len(zero_var) > 0:
-        print(
-            len(zero_var),
-            " zero variance rows will be dropped:",
+        print("%s zero variance rows will be dropped:"%len(zero_var),
             zero_var,
             file=sys.stderr,
         )
         exprs = exprs.loc[std > 0]
         m = m[std > 0]
         std = std[std > 0]
+        if exprs.shape[0]<=2:
+            print("After excluding constant features (rows) , less than 3 features (rows) remain in the input matrix."% exprs.shape[0], file=sys.stderr)
 
     mean_passed = np.all(np.abs(m) < tol)
     std_passed = np.all(np.abs(std - 1) < tol)
@@ -120,7 +120,7 @@ def prepare_input_matrix(
         exprs = exprs.loc[keep_features, :]
 
     if standradize:
-        if ceiling:
+        if ceiling>0:
             exprs[exprs > ceiling] = ceiling
             exprs[exprs < -ceiling] = -ceiling
 

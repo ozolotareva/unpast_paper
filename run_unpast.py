@@ -2,27 +2,38 @@
 import argparse
 import random
 import numpy as np
+import pandas as pd
 
-def run(exprs_file, basename='', out_dir="./",
-                save=True, load = False,
-                ceiling = 3,
-                bin_method = "kmeans", 
-                clust_method = "WGCNA", 
-                min_n_samples = 5, 
-                show_fits = [],
-                pval = 0.01, # binarization p-value
-                directions = ["DOWN","UP"], # can be ["DOWN","UP"] or ["BOTH"]
-                modularity=1/3, similarity_cutoffs = -1, # for Louvain
-                ds = 3, dch = 0.995, max_power=10, precluster=True, rpath="", # for WGCNA
-                cluster_binary=False, 
-                merge = 1,
-                seed = 42,
-                verbose = True, plot_all = False,
-                large_input=False, no_z = False):
+def run(exprs_file: pd.DataFrame,
+        basename: str ='',
+        out_dir: str ="./",
+        save: bool =True,
+        load: bool = False,
+        ceiling: float= 3,
+        bin_method: str = "kmeans", 
+        clust_method: str  = "WGCNA", 
+        min_n_samples: int = 5, 
+        show_fits: list = [],
+        pval: float = 0.01,
+        directions: list = ["DOWN","UP"], 
+        modularity: float =1/3,
+        similarity_cutoffs = -1, # for Louvain
+        ds: int = 3,
+        dch: float = 0.995,
+        max_power: int = 10, 
+        precluster: bool = True,
+        rpath: str ="", # for WGCNA
+        cluster_binary: bool = False, 
+        merge: float = 1,
+        seed: int = 42,
+        verbose: bool = True,
+        plot_all: bool = False,
+        e_dist_size: int = 10000,
+        standradize: bool = True):
     
     import sys
     from time import time
-    import pandas as pd
+    from utils.method import prepare_input_matrix
     
     start_time = time()
     
@@ -33,58 +44,71 @@ def run(exprs_file, basename='', out_dir="./",
     if not basename: 
         from datetime import datetime
         now = datetime.now()
-        basename = "results_" + now.strftime("%y.%m.%d_%H:%M:%S")
+        basename = "unpast_" + now.strftime("%y.%m.%d_%H:%M:%S")
         print("set output basename to", basename, file = sys.stdout)
         
     # read inputs
-    if large_input:
-        exprs = pd.read_csv(exprs_file, sep="\t",index_col=0) # ,dtype=np.float16
-        n_permutations=100
-    else:
-        exprs = pd.read_csv(exprs_file, sep="\t",index_col=0)
-        n_permutations = max(10000,int(1.0/pval*10))
-    
+    exprs = pd.read_csv(exprs_file, sep="\t",index_col=0)
     if verbose:
-        print("Read input from:",exprs_file ,file=sys.stdout)
-        print("\t{} features x {} samples".format(exprs.shape[0],exprs.shape[1]) ,file=sys.stdout)
-
-    if not no_z:
-        #check if expressions are standardized (mean=0, std =1)
-        from utils.method import prepare_input_matrix
-        exprs = prepare_input_matrix(exprs,verbose = verbose)
+        print("Read input from ",exprs_file, file=sys.stdout)
+        print("\t{} features x {} samples".format(exprs.shape[0],exprs.shape[1]), file=sys.stdout)
+    if exprs.shape[1]<=4:
+        print("Input matrix must contain at least 5 samples (columns), but only %s columns are found."%
+              exprs.shape[1], file=sys.stderr)
+        
+    if exprs.shape[0]<=2:
+        print("Input matrix must contain at least 3 features (rows), but only %s rows are found."%
+              exprs.shape[0], file=sys.stderr)
     
-        #set extreme z-scores to -x and x, e.g. -3,3
-        if ceiling:    
-            exprs[exprs>ceiling] = ceiling
-            exprs[exprs<-ceiling] = -ceiling
-            exprs.fillna(-ceiling, inplace = True)
-            if verbose:
-                print("Standardized expressions will be limited to [-%s,%s]:"%(ceiling,ceiling),file=sys.stdout)
+    if exprs.shape[1]<=4 or exprs.shape[0]<=2:
+        sys.exit(1)
     
+    if min_n_samples < 2:
+        print("Minimal number of samples in a bicluster `min_n_samples` must be >= 2.",
+              file = sys.stderr)
+        sys.exit(1)
+    
+    if min_n_samples > int((exprs.shape[1]/2) // 1):
+        print("Minimal number of samples in a bicluster `min_n_samples` must be less than a half of the cohort size.", file = sys.stderr)
+        sys.exit(1)
+        
     if verbose:
         print("Mininal number of samples in a bicluster:",min_n_samples ,file=sys.stdout)
     if min_n_samples < 5:
-        print("min_n_samples is recommended to be >= 5", file= sys.stderr)
+        print("\tmin_n_samples is recommended to be >= 5", file= sys.stderr)
+    
+    e_dist_size = max(e_dist_size,int(1.0/pval*10))
+    if verbose:
+        print("The size of empirical SNR distribution: %s"%e_dist_size, file=sys.stdout)
 
+    # check if input is standardized (between-sample)
+    # if necessary, standardize and limit values to [-ceiling,ceiling]
+    exprs = prepare_input_matrix(exprs,
+                                 min_n_samples=min_n_samples,
+                                 standradize=standradize,
+                                 ceiling=ceiling,
+                                 verbose = verbose
+                                )
+        
     ######### binarization #########
     from utils.method import binarize
     
-    binarized_expressions, stats, null_distribution  = binarize(out_dir+basename, exprs=exprs,
+    binarized_features, stats, null_distribution  = binarize(out_dir+basename, exprs=exprs,
                                  method=bin_method, save = save, load=load,
                                  min_n_samples = min_n_samples,pval=pval,
                                  plot_all = plot_all,show_fits = show_fits,
                                  verbose= verbose,seed=seed,
-                                 prob_cutoff=0.5, n_permutations=n_permutations)
+                                 prob_cutoff=0.5, n_permutations=e_dist_size)
     
     bin_data_dict = {}
     stats = stats.loc[stats["pval"]<=pval,:]
     features_up = set(stats.loc[stats["direction"]=="UP",:].index.values)
-    features_up = sorted(set(binarized_expressions.columns.values).intersection(set(features_up)))
+    features_up = sorted(set(binarized_features.columns.values).intersection(set(features_up)))
     features_down = stats.loc[stats["direction"]=="DOWN",:].index.values
-    features_down = sorted(set(binarized_expressions.columns.values).intersection(set(features_down)))
+    features_down = sorted(set(binarized_features.columns.values).intersection(set(features_down)))
 
-    df_up = binarized_expressions.loc[:,features_up]
-    df_down = binarized_expressions.loc[:,features_down]
+    df_up = binarized_features.loc[:,features_up]
+    df_down = binarized_features.loc[:,features_down]
     if directions[0] == "BOTH":
         bin_data_dict["BOTH"] = pd.concat([df_up,df_down],axis=1)
     else:
@@ -158,10 +182,17 @@ def run(exprs_file, basename='', out_dir="./",
         return pd.DataFrame()
         
     from utils.method import make_biclusters
-    biclusters = make_biclusters(feature_clusters,binarized_expressions,exprs,null_distribution,
-                             method = bin_method, merge = merge,
-                             min_n_samples=min_n_samples, min_n_genes=2,
-                             seed = seed,cluster_binary=False,verbose = verbose)
+    biclusters = make_biclusters(feature_clusters,
+                                 binarized_features,
+                                 exprs,
+                                 null_distribution,
+                                 method = bin_method,
+                                 merge = merge,
+                                 min_n_samples=min_n_samples,
+                                 min_n_genes=2,
+                                 seed = seed,
+                                 cluster_binary=False,
+                                 verbose = verbose)
 
     
     from utils.method import write_bic_table
@@ -188,15 +219,15 @@ def run(exprs_file, basename='', out_dir="./",
     return biclusters    
 
 def parse_args():
-    parser = argparse.ArgumentParser("UnPaSt identifies differentially expressed biclusters in gene expression data.")
+    parser = argparse.ArgumentParser("UnPaSt identifies differentially expressed biclusters in a 2-dimensional matrix.")
     parser.add_argument('--seed',metavar=42, default=42, type=int, help="random seed")
     parser.add_argument('--exprs', metavar="exprs.z.tsv", required=True, 
-                        help=".tsv file with standardized gene expressions. The first column and row must contain unique gene and sample ids, respectively.")
+                        help=".tsv file with between-sample normalized input data matrix. The first column and row must contain unique feature and sample ids, respectively. At least 5 samples (columns) and at least three features (rows) are required.")
     parser.add_argument('--out_dir', metavar="./", default="./", help  = 'output folder')
     parser.add_argument('--basename', metavar="biclusters.tsv", default = False, type=str, help  = 'output files prefix. If not specified, will be set to "results_"yy.mm.dd_HH:MM:SS""')
     parser.add_argument('--ceiling', default=3, metavar="3",  type=float, required=False, 
                         help="Absolute threshold for z-scores. For example, when set to 3, z-scores greater than 3 are set to 3 and z-scores less than -3 are set to -3. No ceiling if set to 0.")
-    parser.add_argument('-s','--min_n_samples', metavar=5, default=5, type=int, help  = 'minimal number of samples in a bicluster.')
+    parser.add_argument('-s','--min_n_samples', metavar=5, default=5, type=int, help  = 'Minimal number of samples in a bicluster `min_n_samples` must be >= 2 and less than a half of the cohort size.')
     parser.add_argument('-b','--binarization', metavar="kmeans", default="kmeans", type=str,
                         choices=["kmeans","ward",'GMM', 'Jenks'], help='binarization method')
     parser.add_argument('-p','--pval', metavar=0.01, default=0.01, type=float, help  = 'binarization p-value')
@@ -204,15 +235,15 @@ def parse_args():
                         choices=['Louvain', 'WGCNA','iWGCNA'], help='feature clustering method')
     # Louvain parameters
     parser.add_argument('-m','--modularity', default=1/3, metavar="1/3", type=float, help='Modularity corresponding to a cutoff for similarity matrix (Louvain clustering)')
-    parser.add_argument('-r','--similarity_cutoffs', default=-1, metavar="-1", type=float, help='A cutoff or a list of cuttofs for similarity matrix (Louvain clustering). If set to -1, will be chosen authomatically from [1/5,4/5] using elbow method')
+    parser.add_argument('-r','--similarity_cutoffs', default=-1, metavar="-1", type=float, help='A cutoff or a list of cuttofs for similarity matrix (Louvain clustering). If set to -1, will be chosen authomatically from [1/5,4/5] using elbow method.')
     # WGCNA parameters 
     parser.add_argument('--ds', default=3, metavar="3", type=int,choices=[0,1,2,3,4], help='deepSplit parameter, see WGCNA documentation')
     parser.add_argument('--dch', default=0.995, metavar="0.995", type=float, help='dynamicTreeCut parameter, see WGCNA documentation')
     parser.add_argument('--bidirectional', action='store_true', help='Whether to cluster up- and down-regulated features together.')
     parser.add_argument('--rpath', default="", metavar="", type=str, help='Full path to Rscript.')
     parser.add_argument('--merge', default=1, metavar="1", type=float,help = "Whether to merge biclustres similar in samples with Jaccard index not less then the specified.")
-    parser.add_argument('--load_binary', action='store_true', help = "loads binarized features from <basename>.<bin_method>.seed=42.binarized.tsv, statistics from *.binarization_stats.tsv and the background SNR distribution from <basename>.<bin_method>.n=<n_permutations>.seed=42.background.tsv")
-    parser.add_argument('--save_binary', action='store_true', help = "saves binarized features to a file named as <basename>.<bin_method>.seed=42.binarized.tsv. If WGCNA is clustering method, binarized expressions are always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and background SNR distributions respectively will be created")
+    parser.add_argument('--load_binary', action='store_true', help = "loads binarized features from <basename>.<bin_method>.seed=42.binarized.tsv, statistics from *.binarization_stats.tsv and the background SNR distribution from <basename>.<bin_method>.n=<e_dist_size>.seed=42.background.tsv")
+    parser.add_argument('--save_binary', action='store_true', help = "saves binarized features to a file named as <basename>.<bin_method>.seed=42.binarized.tsv. When feature clustering method is WGCNA, binarized features will be always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and background SNR distributions respectively will be created")
     parser.add_argument('-v','--verbose', action='store_true')
     #parser.add_argument('--plot', action='store_true', help = "show plots")
     
