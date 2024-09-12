@@ -588,10 +588,11 @@ def binarize(
     # sizes of binarized features
     sizes1 = set([x for x in stats["size"].values if not np.isnan(x)])
     # no more than 100 of bicluster sizes are computed
-    step = max(int((N - min_n_samples) / 100), 1)
-    sizes2 = set(map(int, np.arange(min_n_samples, int(N / 2), step)))
+    # step = max(int((N - min_n_samples) / 100), 1) 
+    step = max(int((int(N / 2) - min_n_samples) / 100), 1) 
+    #sizes2 = set(map(int, np.arange(min_n_samples, int(N / 2), step)))
+    sizes2 = set(map(int, np.arange(min_n_samples, int(N / 2)+1, step)))
     sizes = np.array(sorted(sizes1 | sizes2))
-    # sizes = np.arange(min_n_samples,int(exprs.shape[1]/2)+1)
 
     load_failed = False
     if load:
