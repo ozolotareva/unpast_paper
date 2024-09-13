@@ -167,7 +167,11 @@ def calc_mean_std_by_powers(powers):
 
 
 def calc_SNR(ar1, ar2):
-    return (np.mean(ar1) - np.mean(ar2)) / (np.std(ar1) + np.std(ar2))
+    std_sum = np.std(ar1) + np.std(ar2)
+    mean_diff = np.mean(ar1) - np.mean(ar2)
+    if std_sum == 0:
+        return np.inf*mean_diff
+    return mean_diff / std_sum
 
 
 ######### Binarization #########
@@ -1348,7 +1352,10 @@ def update_bicluster_data(bicluster, data):
     # compute SNR for average z-score for this bicluster
     m = avg_zscore[bic_samples].mean() - avg_zscore[bg_samples].mean()
     s = avg_zscore[bic_samples].std() + avg_zscore[bg_samples].std()
-    snr = np.abs(m) / s
+    if s>0:
+        snr = np.abs(m) / s
+    else:
+        snr = np.abs(m) *np.inf
     bicluster["SNR"] = snr
     return bicluster
 
