@@ -64,12 +64,12 @@ def run(exprs_file: pd.DataFrame,
         sys.exit(1)
     
     if min_n_samples < 2:
-        print("Minimal number of samples in a bicluster `min_n_samples` must be >= 2.",
+        print("The minimal number of samples in a bicluster `min_n_samples` must be >= 2.",
               file = sys.stderr)
         sys.exit(1)
     
     if min_n_samples > int((exprs.shape[1]/2) // 1):
-        print("Minimal number of samples in a bicluster `min_n_samples` must be less than a half of the cohort size.", file = sys.stderr)
+        print("The minimal number of samples in a bicluster `min_n_samples` must be not greater than half of the cohort size.", file = sys.stderr)
         sys.exit(1)
         
     if verbose:
@@ -227,7 +227,7 @@ def parse_args():
     parser.add_argument('--basename', metavar="biclusters.tsv", default = False, type=str, help  = 'output files prefix. If not specified, will be set to "results_"yy.mm.dd_HH:MM:SS""')
     parser.add_argument('--ceiling', default=3, metavar="3",  type=float, required=False, 
                         help="Absolute threshold for z-scores. For example, when set to 3, z-scores greater than 3 are set to 3 and z-scores less than -3 are set to -3. No ceiling if set to 0.")
-    parser.add_argument('-s','--min_n_samples', metavar=5, default=5, type=int, help  = 'Minimal number of samples in a bicluster `min_n_samples` must be >= 2 and less than a half of the cohort size.')
+    parser.add_argument('-s','--min_n_samples', metavar=5, default=5, type=int, help  = 'The minimal number of samples in a bicluster `min_n_samples` must be >= 2 and not greater than half of the cohort size.')
     parser.add_argument('-b','--binarization', metavar="kmeans", default="kmeans", type=str,
                         choices=["kmeans","ward",'GMM', 'Jenks'], help='binarization method')
     parser.add_argument('-p','--pval', metavar=0.01, default=0.01, type=float, help  = 'binarization p-value')
