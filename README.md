@@ -55,13 +55,13 @@ BiocManager::install("WGCNA")
 ## Input
 UnPaSt requires a tab-separated file with features (e.g. genes) in rows, and samples in columns.
 * Feature and sample names must be unique.
-* At least 3 features and 5 samples are required.
+* At least 2 features and 5 samples are required.
 * Data must be between-sample normalized.
 
 ### Recommendations: 
 * It is recommended that UnPaSt be applied to datasets with 20+ samples.
 * If the cohort is not large (<20 samples), reducing the minimal number of samples in a bicluster (`min_n_samples`) to 2 is recommended. 
-* If the number of features is small, disabling feature selection by setting the binarization p-value (`p-val`) to 1 and using Louvain method for feature clustering instead of WGCNA might be helpful.
+* If the number of features is small, using Louvain method for feature clustering instead of WGCNA and/or disabling feature selection by setting the binarization p-value (`p-val`) to 1 might be helpful.
 
 ## Examples
 * Simulated data example. Biclustering of a matrix with 10000 rows (features) and 200 columns (samples) with four implanted biclusters consisting of 500 features and 10-100 samples each. For more details, see figure 3 and Methods [here](https://arxiv.org/abs/2408.00200).

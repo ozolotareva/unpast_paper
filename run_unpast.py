@@ -52,15 +52,15 @@ def run(exprs_file: pd.DataFrame,
     if verbose:
         print("Read input from ",exprs_file, file=sys.stdout)
         print("\t{} features x {} samples".format(exprs.shape[0],exprs.shape[1]), file=sys.stdout)
-    if exprs.shape[1]<=4:
+    if exprs.shape[1]<5:
         print("Input matrix must contain at least 5 samples (columns), but only %s columns are found."%
               exprs.shape[1], file=sys.stderr)
         
-    if exprs.shape[0]<=2:
-        print("Input matrix must contain at least 3 features (rows), but only %s rows are found."%
+    if exprs.shape[0]<2:
+        print("Input matrix must contain at least 2 features (rows), but only %s rows are found."%
               exprs.shape[0], file=sys.stderr)
     
-    if exprs.shape[1]<=4 or exprs.shape[0]<=2:
+    if exprs.shape[1]<5 or exprs.shape[0]<2:
         sys.exit(1)
     
     if min_n_samples < 2:
@@ -222,7 +222,7 @@ def parse_args():
     parser = argparse.ArgumentParser("UnPaSt identifies differentially expressed biclusters in a 2-dimensional matrix.")
     parser.add_argument('--seed',metavar=42, default=42, type=int, help="random seed")
     parser.add_argument('--exprs', metavar="exprs.z.tsv", required=True, 
-                        help=".tsv file with between-sample normalized input data matrix. The first column and row must contain unique feature and sample ids, respectively. At least 5 samples (columns) and at least three features (rows) are required.")
+                        help=".tsv file with between-sample normalized input data matrix. The first column and row must contain unique feature and sample ids, respectively. At least 5 samples (columns) and at least 2 features (rows) are required.")
     parser.add_argument('--out_dir', metavar="./", default="./", help  = 'output folder')
     parser.add_argument('--basename', metavar="biclusters.tsv", default = False, type=str, help  = 'output files prefix. If not specified, will be set to "results_"yy.mm.dd_HH:MM:SS""')
     parser.add_argument('--ceiling', default=3, metavar="3",  type=float, required=False, 
