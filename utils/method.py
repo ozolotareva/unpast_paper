@@ -61,12 +61,12 @@ def zscore(df):
 
 
 def prepare_input_matrix(
-    input_matrix,
-    min_n_samples=5,
-    tol=0.01,
-    standradize=True,
-    ceiling=0,  # if float>0, limit z-scores to [-x,x]
-    verbose=True,
+    input_matrix: pd.DataFrame,
+    min_n_samples: int =5,
+    tol: float =0.01,
+    standradize: bool = True,
+    ceiling: float =0,  # if float>0, limit z-scores to [-x,x]
+    verbose: bool =False,
 ):
     exprs = input_matrix.copy()
     exprs.index = [str(x) for x in exprs.index.values]
@@ -76,10 +76,10 @@ def prepare_input_matrix(
     # find zero variance rows
     zero_var = list(std[std == 0].index.values)
     if len(zero_var) > 0:
-        print("%s zero variance rows will be dropped:"%len(zero_var),
-            zero_var,
-            file=sys.stderr,
-        )
+        if verbose:
+            print("\tZero variance rows will be dropped: %s"%len(zero_var),
+                file=sys.stdout,
+            )
         exprs = exprs.loc[std > 0]
         m = m[std > 0]
         std = std[std > 0]
@@ -90,52 +90,54 @@ def prepare_input_matrix(
     std_passed = np.all(np.abs(std - 1) < tol)
     if not (mean_passed and std_passed):
         if verbose:
-            print("Input is not standardized.", file=sys.stderr)
+            print("\tInput is not standardized.", file=sys.stdout)
         if standradize:
             exprs = zscore(exprs)
             if not mean_passed:
                 if verbose:
-                    print("Centering mean to 0", file=sys.stderr)
+                    print("\tCentering mean to 0", file=sys.stdout)
             if not std_passed:
                 if verbose:
-                    print("Scaling std to 1", file=sys.stderr)
+                    print("\tScaling std to 1", file=sys.stdout)
     if len(set(exprs.index.values)) < exprs.shape[0]:
-        print("Row names are not unique.", file=sys.stderr)
+        print("\tRow names are not unique.", file=sys.stderr)
     missing_values = exprs.isna().sum(axis=1)
     n_na = missing_values[missing_values > 0].shape[0]
     if n_na > 0:
-        print(
-            "Missing values detected in ",
-            missing_values[missing_values > 0].index.values,
-            file=sys.stderr,
-        )
+        if verbose:
+            print(
+                "\tMissing values detected in %s rows"%missing_values[missing_values > 0].shape[0],
+                file=sys.stdout,
+            )
         keep_features = missing_values[
             missing_values <= exprs.shape[1] - min_n_samples
         ].index.values
-        print(
-            "Features with too few values (<%s) dropped:%s"
-            % (min_n_samples, exprs.shape[0] - len(keep_features)),
-            file=sys.stderr,
-        )
+        if verbose:
+            print(
+                "\tFeatures with too few values (<%s) dropped: %s"
+                % (min_n_samples, exprs.shape[0] - len(keep_features)),
+                file=sys.stdout,
+            )
         exprs = exprs.loc[keep_features, :]
 
     if standradize:
         if ceiling>0:
-            exprs[exprs > ceiling] = ceiling
-            exprs[exprs < -ceiling] = -ceiling
-
-            exprs.fillna(-ceiling, inplace=True)
             if verbose:
                 print(
-                    "Standardized expressions will be limited to [-%s,%s]:"
+                    "\tStandardized expressions will be limited to [-%s,%s]:"
                     % (ceiling, ceiling),
                     file=sys.stdout,
                 )
-    else:
-        min_value = exprs.min().min()
-        if min_value > 0:
-            min_value = 1 / 10 * min_value
-        exprs.fillna(min_value, inplace=True)
+            exprs[exprs > ceiling] = ceiling
+            exprs[exprs < -ceiling] = -ceiling
+            if n_na > 0:
+                exprs.fillna(-ceiling, inplace=True)
+                if verbose:
+                    print(
+                        "\tMissing values will be replaced with -%s."
+                        % ceiling,
+                        file=sys.stdout,
+                    )
     return exprs
 
 
@@ -888,11 +890,12 @@ def run_WGCNA(
     feature_names = binarized_expressions.columns.values
     feature_names_with_space = [x for x in feature_names if " " in x]
     if len(feature_names_with_space) > 0:
-        print(
-            "\t\t%s feature names containing spaces will be replaced."
-            % len(feature_names_with_space),
-            file=sys.stdout,
-        )
+        if verbose:
+            print(
+                "\t\tfeature names containing spaces (will be replaced):%s"
+                % len(feature_names_with_space),
+                file=sys.stdout,
+            )
         fn_mapping = {}
         fn_mapping_back = {}
         for fn in feature_names:
