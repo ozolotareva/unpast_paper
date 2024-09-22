@@ -11,8 +11,7 @@ if not os.access(RESULTS_DIR, os.W_OK):
     RESULTS_DIR = "/tmp/unpast/results"
 REFERENCE_OUTPUT_DIR = os.path.join(TEST_DIR, "test_reference_output")
 
-# sys.path.append(os.path.join(TEST_DIR, ".."))
-from run_unpast import run
+from unpast.run_unpast import run
 
 
 ### Helper functions ###
