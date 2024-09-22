@@ -1371,8 +1371,8 @@ def update_bicluster_data(bicluster, data):
         avg_zscore = data.loc[list(bicluster["genes"]), :].mean()
 
     # compute SNR for average z-score for this bicluster
-    bicluster["SNR"] = calc_SNR(
-        avg_zscore[bic_samples], avg_zscore[bg_samples], pd_mode=True
+    bicluster["SNR"] = np.abs(
+        calc_SNR(avg_zscore[bic_samples], avg_zscore[bg_samples], pd_mode=True)
     )
     return bicluster
 
