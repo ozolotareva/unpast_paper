@@ -1628,7 +1628,7 @@ def make_consensus_biclusters(
     verbose=True,
 ):
     # considers only best matching bicluster pairs
-    from utils.eval import find_best_matching_biclusters
+    from unpast.utils.eval import find_best_matching_biclusters
 
     
     # list of biclusters from several runs

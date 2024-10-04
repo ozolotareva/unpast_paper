@@ -27,6 +27,6 @@ jobs:
             -c "
             cd /github/workspace
             && pip install pytest --target /tmp
-            && PYTHONPATH=/tmp python -m pytest test -m 'not slow'
-            && PYTHONPATH=/tmp python -m pytest test --durations=0
+            && PYTHONPATH=/tmp python -m pytest unpast/tests -m 'not slow'
+            && PYTHONPATH=/tmp python -m pytest unpast/tests --durations=0
             "

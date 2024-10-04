@@ -18,8 +18,8 @@ cd unpast
 mkdir -p results
 
 # running UnPaSt with default parameters and example data
-command="python run_unpast.py --exprs test/scenario_B500.exprs.tsv.gz --basename results/scenario_B500"
-docker run -u $(id -u):$(id -g) -v "$(pwd)":/data --entrypoint bash freddsle/unpast -c "cd /data && $command"
+command="python unpast/run_unpast.py --exprs unpast/tests/scenario_B500.exprs.tsv.gz --basename results/scenario_B500"
+docker run --rm -u $(id -u):$(id -g) -v "$(pwd)":/data --entrypoint bash freddsle/unpast -c "cd /data && PYTHONPATH=/data $command"
 ```
 
 ### Requirements:
@@ -67,20 +67,19 @@ UnPaSt requires a tab-separated file with features (e.g. genes) in rows, and sam
 * Simulated data example. Biclustering of a matrix with 10000 rows (features) and 200 columns (samples) with four implanted biclusters consisting of 500 features and 10-100 samples each. For more details, see figure 3 and Methods [here](https://arxiv.org/abs/2408.00200).
   
 ```bash
-cd test;
 mkdir -p results;
 
 # running UnPaSt with default parameters and example data
-python ../run_unpast.py --exprs scenario_B500.exprs.tsv.gz --basename results/scenario_B500
+python -m unpast.run_unpast --exprs unpast/tests/scenario_B500.exprs.tsv.gz --basename results/scenario_B500
 
 # with different binarization and clustering methods
-python ../run_unpast.py --exprs scenario_B500.exprs.tsv.gz --basename results/scenario_B500 --binarization ward --clustering Louvain
+python -m unpast.run_unpast --exprs unpast/tests/scenario_B500.exprs.tsv.gz --basename results/scenario_B500 --binarization ward --clustering Louvain
 
 # help
 python run_unpast.py -h
 ```
 * Real data example. Analysis of a subset of 200 samples randomly chosen from TCGA-BRCA dataset, including consensus biclustering and visualization:
-  [jupyter-notebook](https://github.com/ozolotareva/unpast/blob/main/UnPaSt_examples.ipynb).
+  [jupyter-notebook](https://github.com/ozolotareva/unpast/blob/main/notebooks/UnPaSt_examples.ipynb).
   
 ## Outputs
 `<basename>.[parameters].biclusters.tsv` - A `.tsv` file containing the identified biclusters with the following structure:
