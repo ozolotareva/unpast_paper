@@ -1,6 +1,5 @@
 """Tests for run_unpast, and hence all the core code. Usage: python -m pytest test/test_run_unpast.py"""
 import os
-import sys
 import pandas as pd
 import pytest
 
@@ -11,14 +10,14 @@ if not os.access(RESULTS_DIR, os.W_OK):
     RESULTS_DIR = "/tmp/unpast/results"
 REFERENCE_OUTPUT_DIR = os.path.join(TEST_DIR, "test_reference_output")
 
-from unpast.run_unpast import run
+from unpast.run_unpast import unpast
 
 
 ### Helper functions ###
 
 
 def run_unpast_on_file(filename, basename, *args, **kwargs):
-    run(
+    unpast(
         os.path.join(TEST_DIR, filename),
         out_dir=RESULTS_DIR,
         basename=basename,
