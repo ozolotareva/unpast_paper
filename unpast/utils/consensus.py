@@ -280,9 +280,12 @@ def make_consensus_biclusters(
         )
     return pval
 
+#### experimental #### 
+
 def calc_signif_bicluster_similarities(
     biclusters_dict,
     exprs,
+    similarity_measure = "ARI", #"Jaccard"  or "ARI"
     similarity="both",
     adj_pval_thr=0.05,
     plot=True,
@@ -290,7 +293,6 @@ def calc_signif_bicluster_similarities(
     labels=False,
     colorbar_off=True,
 ):
-    
     """ WILL REPLACE find_best_matching_biclusters(), currently is not used.
     Calculates Jaccard similarities of significanly overlapping bicluster paires based on gene and/or sample overlaps, and optionally visualize the results.
 
@@ -308,6 +310,9 @@ def calc_signif_bicluster_similarities(
             - "genes": only compute similarities based on gene overlaps.
             - "samples": only compute similarities based on sample overlaps.
             - "both": compute similarities based on both gene and sample overlaps.
+
+        similarity_measure : str, optional, default="ARI"
+            Adjusted Rand index or Jaccard similarity. If genes are accounted in similarity computations, Jaccard similarity will be used.
 
         adj_pval_thr : float, optional, default=0.05
             Adjusted p-value threshold for significance testing. Similarity values will be stored only for bicluster pairs which significantly overlap. Statistical significance of the overlaps is tested using the chi-squared test.
@@ -330,6 +335,15 @@ def calc_signif_bicluster_similarities(
             A DataFrame containing pairwise Jaccard similarity values between biclusters, adjusted for statistical significance.
     """ 
 
+    if similarity_measure == "ARI":
+        from sklearn.metrics import adjusted_rand_score
+        all_samples = sorted(exprs.columns.values)
+        if not similarity=="samples":
+            print("Jaccard similarity is used instead of ARI when 'similarity=%s'"%similarity,file=sys.stderr)
+            similarity_measure = "Jaccard"
+        
+
+
     if similarity not in ["genes", "samples", "both"]:
         print(
             "Similarity must be 'genes','samples','both'. Set to 'both'.",
@@ -337,27 +351,36 @@ def calc_signif_bicluster_similarities(
         )
         similarity = "both"
 
-    J_heatmap = {}
+    sim_heatmap = {}
     s = set(exprs.columns.values)
     g = set(exprs.index.values)
     N_bics = len(biclusters_dict.keys())
-    ### plot pairwise comparisons:
+    ### do pairwise comparisons:
     for bic_n1 in biclusters_dict.keys():
         b1 = biclusters_dict[bic_n1]
         g1 = b1["genes"]
         s1 = b1["samples"]
-        J_heatmap[bic_n1] = {}
+        if similarity_measure == "ARI":
+            sb1 = pd.Series(np.zeros(exprs.shape[1]),index = all_samples)
+            sb1[s1] = 1
+        sim_heatmap[bic_n1] = {}
         for bic_n2 in biclusters_dict.keys():
             b2 = biclusters_dict[bic_n2]
             g2 = b2["genes"]
             s2 = b2["samples"]
+            if similarity_measure == "ARI":
+                sb2 = pd.Series(np.zeros(exprs.shape[1]),index = all_samples)
+                sb2[s2] = 1
             g_overlap = g1.intersection(g2)
             g_union = g1.union(g2)
             s_overlap = s1.intersection(s2)
             s_union = s1.union(s2)
             J_g = len(g_overlap) / len(g_union)
-            J_s = len(s_overlap) / len(s_union)
-            J_heatmap[bic_n1][bic_n2] = 0
+            if similarity_measure == "ARI":
+                J_s = max(0,adjusted_rand_score(sb1,sb2))
+            else:
+                J_s = len(s_overlap) / len(s_union)
+            sim_heatmap[bic_n1][bic_n2] = 0
 
             # significance of gene overlap
             if similarity != "samples":
@@ -386,10 +409,10 @@ def calc_signif_bicluster_similarities(
 
             if similarity == "genes":
                 if p_g * (N_bics - 1) * N_bics / 2 < adj_pval_thr:
-                    J_heatmap[bic_n1][bic_n2] = J_g
+                    sim_heatmap[bic_n1][bic_n2] = J_g
             elif similarity == "samples":
                 if p_s * (N_bics - 1) * N_bics / 2 < adj_pval_thr:
-                    J_heatmap[bic_n1][bic_n2] = J_s
+                    sim_heatmap[bic_n1][bic_n2] = J_s
             elif similarity == "both":  # both genes and samples considered
                 # consider significant overlaps in g and s and save max. J
                 if (
@@ -399,15 +422,15 @@ def calc_signif_bicluster_similarities(
                     p_s * (N_bics - 1) * N_bics / 2 < adj_pval_thr
                     and len(g_overlap) > 0
                 ):
-                    J_heatmap[bic_n1][bic_n2] = max(J_s, J_g)
+                    sim_heatmap[bic_n1][bic_n2] = max(J_s, J_g)
 
-    J_heatmap = pd.DataFrame.from_dict(J_heatmap)
+    sim_heatmap = pd.DataFrame.from_dict(sim_heatmap)
 
     if plot:
         import seaborn as sns
 
         g = sns.clustermap(
-            J_heatmap,
+            sim_heatmap,
             yticklabels=labels,
             xticklabels=labels,
             linewidths=0,
@@ -423,5 +446,69 @@ def calc_signif_bicluster_similarities(
             g.cax.set_visible(False)
         plt.show()
 
-    return J_heatmap
+
+def make_consensus_biclusters_ari(biclusters_dict, 
+     data,
+     similarity_measure = "ARI",  # ARI or Jaccard
+     min_similarity=0.8, 
+     min_n_samples=5, 
+     seed=42, 
+     method="kmeans", 
+     verbose=True
+):
+    """WILL REPLACE make_consensus_biclusters() """
+    bic_similarity = calc_signif_bicluster_similarities(
+                    biclusters_dict,
+                    data,
+                    similarity_measure = similarity_measure,
+                    similarity="samples",
+                    adj_pval_thr=0.05,
+                    plot=False,#plot=True,
+                    figsize=(10, 10),
+                    labels=False,
+                    colorbar_off=True )
+    
+    # find groups of biclusters including the same sample sets
+    merged, not_merged, similarity_cutoff = run_Louvain(
+            bic_similarity,
+            similarity_cutoffs=np.arange(min_similarity, 0.95, 0.05),
+            m=False,
+            verbose=verbose,
+            plot=False,
+            modularity_measure="potts"
+        )
+
+    if len(merged) == 0 and verbose:
+        print("No biclusters to merge", file=sys.stdout)
+        return biclusters_dict
+
+    merged_biclusters = {}
+    # add biclusters with no changes
+    for bic_id in not_merged:
+        merged_biclusters[bic_id] = biclusters_dict[bic_id]
+
+    # merge biclusters with overlapping sample sets
+    for bic_group in merged:
+        bic_group = sorted(bic_group)
+        if verbose:
+            print("merged biclustres", bic_group, file=sys.stderr)
+        new_bicluster = biclusters_dict[bic_group[0]]
+        # update genes
+        for bic_id in bic_group[1:]:
+            bic2 = biclusters_dict[bic_id]
+            new_bicluster["genes"] = new_bicluster["genes"] | bic2["genes"]
+            new_bicluster["n_genes"] = len(new_bicluster["genes"])
+        # update sample set for new bicluster
+        # cluster samples in a space of selected genes
+        new_bicluster.update(
+            cluster_samples(
+                data.loc[list(new_bicluster["genes"]), :].T,
+                min_n_samples=min_n_samples,
+                seed=seed,
+                method=method,
+            )
+        )
+        new_bicluster["n_samples"] = len(new_bicluster["sample_indexes"])
+        merged_biclusters[bic_group[0]] = new_bicluster
+    return merged_biclusters
 
