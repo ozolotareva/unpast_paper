@@ -1,7 +1,6 @@
-import pandas as pd
 import numpy as np
 import warnings
-from unpast.utils.method import zscore, prepare_input_matrix, get_trend, calc_SNR
+from unpast.utils.method import  get_trend, calc_SNR
 
 
 def test_get_trend_single_point():

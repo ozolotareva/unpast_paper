@@ -82,7 +82,7 @@ python -m unpast.run_unpast --exprs unpast/tests/scenario_B500.exprs.tsv.gz --ba
 python run_unpast.py -h
 ```
 * Real data example. Analysis of a subset of 200 samples randomly chosen from TCGA-BRCA dataset, including consensus biclustering and visualization:
-  [jupyter-notebook](https://github.com/ozolotareva/unpast/blob/main/notebooks/UnPaSt_examples.ipynb).
+  [jupyter-notebook](https://github.com/ozolotareva/unpast_paper/blob/main/notebooks/UnPaSt_examples.ipynb).
   
 ## Outputs
 `<basename>.[parameters].biclusters.tsv` - A `.tsv` file containing the identified biclusters with the following structure:
