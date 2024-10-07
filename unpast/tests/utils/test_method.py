@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
-from unpast.utils.method import zscore, prepare_input_matrix, get_trend
+import warnings
+from unpast.utils.method import zscore, prepare_input_matrix, get_trend, calc_SNR
 
 
 def test_get_trend_single_point():
@@ -23,6 +24,34 @@ def test_get_trend_noisy():
     min_snr = get_trend(sizes, thresholds, plot=False, verbose=False)
     # 0.1 tolerance, as set of used points may be not very big
     assert np.allclose(min_snr([1, 1.5, 2]), [0.25, 0.5, 0.75], atol=0.1)
+
+
+def test_calc_SNR():
+    val1 = calc_SNR([0, 1, 2], [1, 2, 3])
+    val2 = calc_SNR([0, 1, 2], [1, 2, 3], pd_mode=True)
+    np.testing.assert_almost_equal(val1, -0.6123724356957945)
+    np.testing.assert_almost_equal(val2, -0.5)
+
+    # assert not failing
+    assert calc_SNR([0, 0, 0], [1, 1, 1]) == float("-inf")
+    assert calc_SNR([0, 0, 0], [1, 1, 1], True) == float("-inf")
+    assert calc_SNR([1, 1, 1], [0, 0, 0]) == float("+inf")
+
+    # sends warning "overflow encountered" 
+    # big numbers
+    big_nums = [1e307, 1e307, 1e307]
+    small_nums = [1e-150, 0, 0]
+    assert np.std(big_nums) < float("+inf")
+    assert np.std(small_nums) > 0
+    assert calc_SNR(big_nums, small_nums) in [float("inf"), float("+inf")]
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+
+        # zero std
+        assert calc_SNR([1, 1, 1], [0, 0, 0]) in [float("inf"), float("+inf")]
+        assert calc_SNR([0, 0, 0], [1, 1, 1]) in [float("inf"), float("-inf")]
+
 
 
 # def test_zscore():

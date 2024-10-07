@@ -166,8 +166,33 @@ def calc_mean_std_by_powers(powers):
     return mean, std
 
 
-def calc_SNR(ar1, ar2):
-    return (np.mean(ar1) - np.mean(ar2)) / (np.std(ar1) + np.std(ar2))
+def calc_SNR(ar1, ar2, pd_mode=False):
+    """Calculate Signal-to-Noise Ratio (SNR) for two arrays.
+
+    Args:
+        ar1 (array): first array
+        ar2 (array): second array
+        pd_mode (bool): if True, use pandas-like mean/std methods
+            i.e. n-1 for std, ignore nans
+
+    Returns:
+        float: SNR value
+    """
+
+    if pd_mode:
+        std = lambda x: np.nanstd(x, ddof=1.0)
+        mean = np.nanmean
+    else:
+        std = np.nanstd
+        mean = np.mean
+
+    mean_diff = mean(ar1) - mean(ar2)
+    std_sum = std(ar1) + std(ar2)
+
+    if std_sum == 0:
+        return np.inf * mean_diff
+
+    return mean_diff / std_sum
 
 
 ######### Binarization #########
@@ -1346,10 +1371,9 @@ def update_bicluster_data(bicluster, data):
         avg_zscore = data.loc[list(bicluster["genes"]), :].mean()
 
     # compute SNR for average z-score for this bicluster
-    m = avg_zscore[bic_samples].mean() - avg_zscore[bg_samples].mean()
-    s = avg_zscore[bic_samples].std() + avg_zscore[bg_samples].std()
-    snr = np.abs(m) / s
-    bicluster["SNR"] = snr
+    bicluster["SNR"] = np.abs(
+        calc_SNR(avg_zscore[bic_samples], avg_zscore[bg_samples], pd_mode=True)
+    )
     return bicluster
 
 
