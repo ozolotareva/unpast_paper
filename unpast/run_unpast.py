@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd
 
-def run(exprs_file: pd.DataFrame,
+def unpast(exprs_file: pd.DataFrame,
         basename: str ='',
         out_dir: str ="./",
         save: bool =True,
@@ -25,7 +25,7 @@ def run(exprs_file: pd.DataFrame,
         #cluster_binary: bool = False, 
         merge: float = 1,
         seed: int = 42,
-        verbose: bool = True,
+        verbose: bool = False,
         plot_all: bool = False,
         e_dist_size: int = 10000,
         standradize: bool = True):
@@ -226,10 +226,10 @@ def parse_args():
                         help="Absolute threshold for z-scores. For example, when set to 3, z-scores greater than 3 are set to 3 and z-scores less than -3 are set to -3. No ceiling if set to 0.")
     parser.add_argument('-s','--min_n_samples', metavar=5, default=5, type=int, help  = 'The minimal number of samples in a bicluster `min_n_samples` must be >= 2 and not greater than half of the cohort size.')
     parser.add_argument('-b','--binarization', metavar="kmeans", default="kmeans", type=str,
-                        choices=["kmeans","ward",'GMM', 'Jenks'], help='binarization method')
+                        choices=["kmeans","ward",'GMM'], help='binarization method')
     parser.add_argument('-p','--pval', metavar=0.01, default=0.01, type=float, help  = 'binarization p-value')
     parser.add_argument('-c','--clustering', metavar="WGCNA", default="WGCNA", type=str,
-                        choices=['Louvain', 'WGCNA','iWGCNA'], help='feature clustering method')
+                        choices=['Louvain', 'WGCNA'], help='feature clustering method')
     # Louvain parameters
     parser.add_argument('-m','--modularity', default=1/3, metavar="1/3", type=float, help='Modularity corresponding to a cutoff for similarity matrix (Louvain clustering)')
     parser.add_argument('-r','--similarity_cutoffs', default=-1, metavar="-1", type=float, help='A cutoff or a list of cuttofs for similarity matrix (Louvain clustering). If set to -1, will be chosen authomatically from [1/5,4/5] using elbow method.')
@@ -238,7 +238,7 @@ def parse_args():
     parser.add_argument('--dch', default=0.995, metavar="0.995", type=float, help='dynamicTreeCut parameter, see WGCNA documentation')
     parser.add_argument('--bidirectional', action='store_true', help='Whether to cluster up- and down-regulated features together.')
     parser.add_argument('--rpath', default="", metavar="", type=str, help='Full path to Rscript.')
-    parser.add_argument('--merge', default=1, metavar="1", type=float,help = "Whether to merge biclustres similar in samples with Jaccard index not less then the specified.")
+    #parser.add_argument('--merge', default=1, metavar="1", type=float,help = "Whether to merge biclustres similar in samples with Jaccard index not less than the specified.")
     parser.add_argument('--load_binary', action='store_true', help = "loads binarized features from <basename>.<bin_method>.seed=42.binarized.tsv, statistics from *.binarization_stats.tsv and the background SNR distribution from <basename>.<bin_method>.n=<e_dist_size>.seed=42.background.tsv")
     parser.add_argument('--save_binary', action='store_true', help = "saves binarized features to a file named as <basename>.<bin_method>.seed=42.binarized.tsv. When feature clustering method is WGCNA, binarized features will be always saved. Also, files *.binarization_stats.tsv and *.background.tsv with binarization statistincs and background SNR distributions respectively will be created")
     parser.add_argument('-v','--verbose', action='store_true')
@@ -255,7 +255,7 @@ if __name__ == "__main__":
     if args.bidirectional:
         directions = ["BOTH"]
     
-    biclusters = run(args.exprs, args.basename, out_dir=args.out_dir,  
+    biclusters = unpast(args.exprs, args.basename, out_dir=args.out_dir,  
                 save = args.save_binary, load = args.load_binary,
                 ceiling = args.ceiling,
                 bin_method = args.binarization, 
@@ -267,7 +267,7 @@ if __name__ == "__main__":
                 modularity = args.modularity, similarity_cutoffs = args.similarity_cutoffs, # for Louvain
                 ds = args.ds, dch = args.dch, rpath=args.rpath, precluster=True, # for WGCNA
                 cluster_binary = False, 
-                merge = args.merge,
+                #merge = args.merge,
                 seed = args.seed,
                 #plot_all = args.plot,
                 verbose = args.verbose)
