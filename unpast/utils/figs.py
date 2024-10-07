@@ -66,7 +66,8 @@ def draw_heatmap2(
         elif bicluster_colors == "auto":
             palette = sns.color_palette("colorblind")
             # Get the first n colors from the palette
-            bic_colors = sns.color_palette("colorblind").as_hex()[: biclusters.shape[0]]
+            bic_colors = sns.color_palette("colorblind",biclusters.shape[0]).as_hex()
+            print("colors:", bic_colors)
 
         else:
             bic_colors = bicluster_colors

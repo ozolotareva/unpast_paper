@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import random
 import numpy as np
 import pandas as pd
 
@@ -23,7 +22,7 @@ def run(exprs_file: pd.DataFrame,
         max_power: int = 10, 
         precluster: bool = True,
         rpath: str ="", # for WGCNA
-        cluster_binary: bool = False, 
+        #cluster_binary: bool = False, 
         merge: float = 1,
         seed: int = 42,
         verbose: bool = True,
@@ -185,7 +184,6 @@ def run(exprs_file: pd.DataFrame,
     biclusters = make_biclusters(feature_clusters,
                                  binarized_features,
                                  exprs,
-                                 null_distribution,
                                  method = bin_method,
                                  merge = merge,
                                  min_n_samples=min_n_samples,
@@ -195,7 +193,7 @@ def run(exprs_file: pd.DataFrame,
                                  verbose = verbose)
 
     
-    from unpast.utils.method import write_bic_table
+    from unpast.utils.io import write_bic_table
     suffix  = ".seed="+str(seed)+".bin="+bin_method+",pval="+str(pval)+",clust="+clust_method+",direction="+"-".join(directions)
     if "WGCNA" in clust_method:
         suffix2 = ",ds="+str(ds)+",dch="+str(dch)+",max_power="+str(max_power)+",precluster="+str(precluster)
@@ -206,7 +204,6 @@ def run(exprs_file: pd.DataFrame,
     write_bic_table(biclusters, out_dir+basename+suffix+suffix2+".biclusters.tsv",to_str=True,
                     add_metadata=True, seed = seed, min_n_samples = min_n_samples, pval = pval,
                     bin_method = bin_method, clust_method = clust_method, directions = directions,
-                    #alpha=alpha, beta_K = beta_K, 
                     similarity_cutoff = used_similarity_cutoffs,
                     m=modularity, ds = ds, dch = dch, 
                     max_power=max_power, precluster=precluster,
