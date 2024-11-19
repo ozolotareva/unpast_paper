@@ -270,15 +270,7 @@ def make_consensus_biclusters(
     return consensus_biclusters
 
 
-    # if sample size < max_N), use Fisher's exact
-    # otherwise replacing exact Fisher's with chi2
-    if overlap + group1_only + group2_only + background < max_N:
-        pval = pvalue(overlap, group1_only, group2_only, background).right_tail
-    else:
-        chi2, pval, dof, expected = chi2_contingency(
-            [[overlap, group1_only], [group2_only, background]]
-        )
-    return pval
+    
 
 def calc_signif_bicluster_similarities(
     biclusters_dict,
