@@ -53,12 +53,14 @@ def read_bic_table(file_name: str, parse_metadata: bool = False) -> pd.DataFrame
             lambda x: set([g for g in x.split(" ") if not g == ""])
         )
         biclusters["samples"] = biclusters["samples"].apply(lambda x: set(x.split(" ")))
-        biclusters["gene_indexes"] = biclusters["gene_indexes"].apply(
-            lambda x: set(map(int, set(x.split(" "))))
-        )
-        biclusters["sample_indexes"] = biclusters["sample_indexes"].apply(
-            lambda x: set(map(int, set(x.split(" "))))
-        )
+        if "gene_indexes" in biclusters.columns:
+            biclusters["gene_indexes"] = biclusters["gene_indexes"].apply(
+                lambda x: set(map(int, set(x.split(" "))))
+            )
+        if "sample_indexes" in biclusters.columns:
+            biclusters["sample_indexes"] = biclusters["sample_indexes"].apply(
+                lambda x: set(map(int, set(x.split(" "))))
+            )
 
     if parse_metadata:
         f = open(file_name, "r")
@@ -185,12 +187,14 @@ def write_bic_table(
             bics["samples"] = bics["samples"].apply(
                 lambda x: " ".join(map(str, sorted(x)))
             )
-            bics["gene_indexes"] = bics["gene_indexes"].apply(
-                lambda x: " ".join(map(str, sorted(x)))
-            )
-            bics["sample_indexes"] = bics["sample_indexes"].apply(
-                lambda x: " ".join(map(str, sorted(x)))
-            )
+            if "gene_indexes" in bics.columns:
+                bics["gene_indexes"] = bics["gene_indexes"].apply(
+                    lambda x: " ".join(map(str, sorted(x)))
+                )
+            if "sample_indexes" in bics.columns:
+                bics["sample_indexes"] = bics["sample_indexes"].apply(
+                    lambda x: " ".join(map(str, sorted(x)))
+                )
             if "ids" in bics.columns:
                 bics["ids"] = bics["ids"].apply(lambda x: " ".join(map(str, sorted(x))))
         bics.index.name = "id"
