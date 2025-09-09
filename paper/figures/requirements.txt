@@ -20,6 +20,7 @@ beautifulsoup4==4.12.3
 billiard==3.6.4.0
 bleach==4.0.0
 boltons==23.0.0
+bootstrap4==0.1.0
 brotlipy==0.7.0
 cachetools==5.3.0
 celery==5.2.7
@@ -46,6 +47,7 @@ Django==3.2.18
 django-cors-headers==3.4.0
 django-redis==4.11.0
 django-rq-dashboard==0.3.3
+django-sass-processor==1.4.1
 djangorestframework==3.11.2
 djangorestframework-camel-case==1.1.2
 docopt==0.6.2
@@ -103,6 +105,7 @@ langchain-text-splitters==0.2.4
 langsmith==0.1.117
 lifelines==0.27.4
 llvmlite==0.34.0
+lxml==5.3.0
 MarkupSafe==2.0.1
 marshmallow==3.22.0
 matplotlib==3.7.1
