@@ -756,15 +756,17 @@ def bic_survival(surv_anno, samples, event="OS", surv_time="", lr=True, verbose=
                 file=sys.stderr,
             )
     if v3 == 0:
-        print(
-            "zero variance for events in group; all events are ",
-            set(surv_data.loc[surv_data["x"] == 1, event].values),
-        )
+        if verbose:
+            print(
+                "zero variance for events in group; all events are ",
+                set(surv_data.loc[surv_data["x"] == 1, event].values),
+            )
     if v4 == 0:
-        print(
-            "zero variance for events in background; all events are ",
-            set(surv_data.loc[surv_data["x"] == 0, event].values),
-        )
+        if verbose:
+            print(
+                "zero variance for events in background; all events are ",
+                set(surv_data.loc[surv_data["x"] == 0, event].values),
+            )
 
     # check variance of covariates in event groups
     exclude_covars = []

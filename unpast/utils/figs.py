@@ -11,11 +11,11 @@ def draw_heatmap2(
     annot=None,
     color_dict=None,
     figsize=(20, 10),
-    dendrogram_ratio=(0.01, 0.0),  # space for dendrogram
+    dendrogram_ratio=(0.01, 0.2),  # space for dendrogram
     colors_ratio=(0.005, 0.02),
     bicluster_colors="black",  #
     no_bic_columns=False,  # do not show bicluster annotation in columns
-    no_legend=False,
+    legend_n_cols=0,  # how many columns in legend; default - 0, no legend
     no_cbar=False,
     cluster_rows=True,
     cluster_cols=False,  # enable hierarchical clustering of columns
@@ -174,53 +174,27 @@ def draw_heatmap2(
                     if row_tick.get_text() in biclusters.loc[bic_id, "genes"]:
                         if not row_labels_black:
                             row_tick.set_color(bic_colors[bic_id])
+    if legend_n_cols>0:
+        legends = []
+        n_patches = 0
+        for col in cols:
+            patches = []
+            col_color_map = color_dict[col]
+            # add patches only for groups found in annotation
+            plot_groups = [x for x in col_color_map.keys() if x in set(annot[col].values)]
+            for group in plot_groups:
+                p = g.ax_col_dendrogram.bar(
+                    0, 0, color=col_color_map[group], label=group, linewidth=0
+                )
+                patches.append(p)
 
-    legends = []
-    i = 0
-    n_patches = 0
-    for col in cols:
-        patches = []
-        col_color_map = color_dict[col]
-        # add patches only for groups found in annotation
-        plot_groups = [x for x in col_color_map.keys() if x in set(annot[col].values)]
-        for group in plot_groups:
-            p = g.ax_row_dendrogram.bar(
-                0, 0, color=col_color_map[group], label=group, linewidth=0
-            )
-            patches.append(p)
-        if not no_legend:
-            if len(set(annot[col].values)) <= 10:
-                # add the legend
-                legends.append(
-                    plt.legend(
-                        patches,
-                        plot_groups,
-                        loc="upper left",
-                        title=col,
-                        ncol=10,
-                        bbox_to_anchor=(0.05 * i + 0.06 * (n_patches), 0.95),
-                        bbox_transform=gcf().transFigure,
-                    )
-                )
-                n_patches += len(patches)
-                if i > 0:
-                    plt.gca().add_artist(legends[i - 1])
-                i += 1
-            else:
-                # add the legend to the side
-                legends.append(
-                    plt.legend(
-                        patches,
-                        plot_groups,
-                        loc="upper right",
-                        title=col,
-                        ncol=2,  # bbox_to_anchor=(0.05*i+0.06*(n_patches), 0.95),
-                        bbox_transform=gcf().transFigure,
-                    )
-                )
-                if i > 0:
-                    plt.gca().add_artist(legends[i - 1])
-                i += 1
+            # add the legend
+            n_patches += len(patches)
+            l = g.ax_col_dendrogram.legend(loc="best", 
+                                            ncol=legend_n_cols,
+                                            bbox_transform=gcf().transFigure
+                                            )
+            legends.append(l)   
     return g, sample_order, (row_colors, col_colors)
 
 
