@@ -53,7 +53,7 @@ TABLE_KEYS = ['overall_performance', 'performance_0.5', 'performance_0.25', 'per
 SCENARIOS = ['A', 'B', 'C']
 GENE_SIZES = [5, 50, 500]
 
-REAL_DATASETS = ['METABRIC', 'TCGA']
+REAL_DATASETS = ['TCGA', 'METABRIC']
 
 REAL_COLUMNS = ['Normal', 'Her2', 'Basal', 'LumB', 'LumA', 'Luminal',
        'Claudin-low', 'HER2+', 'ER+/HER2- High Prolif',
@@ -79,6 +79,14 @@ CANCER_GROUPS = [
     ('IHC', ['IHC_ER', 'IHC_HER2', 'IHC_PR', 'IHC_TNBC'])]
 
 DEFAULT_PARAMETERS = {
+    'UnPaSt': {
+        'bin': 'kmeans',
+        'pval': 0.01,
+        'direction': 'UP-DOWN',
+        'clust': 'WGCNA',
+        'dch': 0.995,
+        'ds': 3
+    },
     'kmeans': {
         'k': 5,
         'init': 'k-means++',
@@ -89,7 +97,7 @@ DEFAULT_PARAMETERS = {
         'k': 'default'
     },
     'HierarchicalClustering': {
-        'linkage': 'single',
+        'linkage': 'ward',
 #         'distance': 'euclidean',
         'k': 5
     },
