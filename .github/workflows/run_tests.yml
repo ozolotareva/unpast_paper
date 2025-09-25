@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: run tests
-        uses: docker://freddsle/unpast:latest
+        uses: docker://freddsle/unpast:v0.1.10
         with:
           entrypoint: bash
           args: >

@@ -15,14 +15,14 @@ UnPaSt preprint [https://arxiv.org/abs/2408.00200](https://arxiv.org/abs/2408.00
 UnPaSt environment is available also as a Docker image.
 
 ```bash
-docker pull freddsle/unpast
-git clone https://github.com/ozolotareva/unpast.git
-cd unpast
+docker pull freddsle/unpast:v0.1.10
+git clone https://github.com/ozolotareva/unpast_paper.git
+cd unpast_paper
 mkdir -p results
 
 # running UnPaSt with default parameters and example data
-command="python unpast/run_unpast.py --exprs unpast/tests/scenario_B500.exprs.tsv.gz --basename results/scenario_B500"
-docker run --rm -u $(id -u):$(id -g) -v "$(pwd)":/data --entrypoint bash freddsle/unpast -c "cd /data && PYTHONPATH=/data $command"
+command="PYTHONPATH=. python unpast/run_unpast.py --exprs unpast/tests/scenario_B500.exprs.tsv.gz --basename results/scenario_B500 --verbose"
+docker run --rm -u $(id -u):$(id -g) -v "$(pwd)":/data --entrypoint bash -it freddsle/unpast:v0.1.10 -c "cd /data && PYTHONPATH=/data $command"
 ```
 
 ### Requirements:

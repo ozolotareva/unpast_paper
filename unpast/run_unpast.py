@@ -266,7 +266,7 @@ if __name__ == "__main__":
                 show_fits = [],
                 modularity = args.modularity, similarity_cutoffs = args.similarity_cutoffs, # for Louvain
                 ds = args.ds, dch = args.dch, rpath=args.rpath, precluster=True, # for WGCNA
-                cluster_binary = False, 
+                # cluster_binary = False, 
                 #merge = args.merge,
                 seed = args.seed,
                 #plot_all = args.plot,
