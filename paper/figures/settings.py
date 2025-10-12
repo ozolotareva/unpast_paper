@@ -1,36 +1,31 @@
 METHOD_MAIN = "UnPaSt"
 
-# , 'WGCNA_AffinityPropagation', 'WGCNA_AgglomerativeClustering', 'WGCNA_bikmeans', 'WGCNA_BIRCH', 'WGCNA_DBSCAN', 'WGCNA_GMM', 'WGCNA_Meanshift', 'WGCNA_HC', 'WGCNA_kmeans', 'WGCNA_Spectral', 'MeanShift', 'Spectral', 
-METHODS_CLUSTER = ["kmeans", 'BisectingKMeans', 'MiniBatchKMeans', 'HierarchicalClustering', 'AffinityPropagation', 'AgglomerativeClustering',  'BIRCH', 'DBSCAN', 'GMM', 'SpectralClustering', 'Optics', 'MeanShift', 'mclust']
-METHODS_FACTORIZATION = ["NMF","sparse_PCA","iClusterPlus","moCluster","MOFA2"]
+# , 'WGCNA_AffinityPropagation', 'WGCNA_AgglomerativeClustering', 'WGCNA_bikmeans', 'WGCNA_BIRCH', 'WGCNA_DBSCAN', 'WGCNA_GMM', 'WGCNA_Meanshift', 'WGCNA_HC', 'WGCNA_kmeans', 'WGCNA_Spectral', 'MeanShift', 'Spectral',
+
+# Clustering methods (includes traditional clustering and factorization methods)
+METHODS_CLUSTER = ["kmeans", 'BisectingKMeans', 'MiniBatchKMeans', 'HierarchicalClustering', 'AffinityPropagation', 'AgglomerativeClustering',  'BIRCH', 'DBSCAN', 'GMM', 'SpectralClustering', 'Optics', 'MeanShift', 'mclust', "NMF","sparse_PCA","iClusterPlus","moCluster","MOFA2"]
+
+# Biclustering methods
 METHODS_BICLUSTER = ["QUBIC","QUBIC2","ISA2","FABIA","COALESCE", "BiCoN", "DESMOND","BiMax", "GrandForest", 'Plaid'] #"DeBi",
 
 METHODS_NETWORK_CONSTRAINT = ["GrandForest", "DESMOND", "BiCoN"]
 
-# update: merge factorization methods into clustering group
-METHODS_CLUSTER.extend(METHODS_FACTORIZATION)
-METHODS_FACTORIZATION = []
+# All methods: main method, clustering, and biclustering
+METHODS = [method for method_list in [[METHOD_MAIN], METHODS_CLUSTER, METHODS_BICLUSTER] for method in method_list]
 
-METHODS = [method for method_list in [[METHOD_MAIN], METHODS_CLUSTER,
-                                      METHODS_BICLUSTER, METHODS_FACTORIZATION] for method in method_list]
-
-METHOD_MAIN_COLOR = "#ff0000"
-METHODS_CLUSTER_COLOR = "#0173b2"
-# METHODS_FACTORIZATION_COLOR = "#de8f05"
-METHODS_BICLUSTER_COLOR = "#de8f05"
+METHOD_MAIN_COLOR = "#ff0000"           # Red
+METHODS_CLUSTER_COLOR = "#0173b2"       # Blue
+METHODS_BICLUSTER_COLOR = "#de8f05"     # Yellow (was green)
 
 METHOD_TYPE_PALETTE = {
     METHOD_MAIN: METHOD_MAIN_COLOR,
     'Clustering': METHODS_CLUSTER_COLOR,
-    # 'Factorization': METHODS_FACTORIZATION_COLOR,
     'Biclustering': METHODS_BICLUSTER_COLOR
 }
 
 def find_method_palette(method):
     if method in METHODS_CLUSTER:
         return METHODS_CLUSTER_COLOR
-    # elif method in METHODS_FACTORIZATION:
-        # return METHODS_FACTORIZATION_COLOR
     elif method in METHODS_BICLUSTER:
         return METHODS_BICLUSTER_COLOR
     elif method == METHOD_MAIN:
@@ -44,7 +39,7 @@ METHOD_PALETTE['HC'] = METHODS_CLUSTER_COLOR
 METHOD_PALETTE['MB-kmeans'] = METHODS_CLUSTER_COLOR
 METHOD_PALETTE['Bi-kmeans'] = METHODS_CLUSTER_COLOR
 METHOD_PALETTE['Spectral'] = METHODS_CLUSTER_COLOR
-METHOD_PALETTE['sPCA'] = METHODS_CLUSTER_COLOR #METHODS_FACTORIZATION_COLOR
+METHOD_PALETTE['sPCA'] = METHODS_CLUSTER_COLOR  # Factorization methods are now clustering (blue)
 _to_add = {}
 for key, value in METHOD_PALETTE.items():
     if '_' in key:
@@ -256,3 +251,114 @@ DEFAULT_PARAMETERS = {
         'min_bin_freq':1
     }
 }
+
+# OPTIMIZED_PARAMETERS = {
+#     'QUBIC': {
+#         'r': 1,
+#         'q': 0.04,
+#         'c': 0.75,
+#         'f': 1,
+#         'type': 'area'
+#     },
+    
+#     'ISA2': {
+#         'no_seeds': 50
+#     },
+    
+#     'FABIA': {
+#         'alpha': 0.05,
+#         'spl': 0.0,
+#         'spz': 0.5,
+#         'p': 17
+#     },
+    
+#     'COALESCE': {
+#         'prob_gene': 0.95,
+#         'pvalue_cond': 0.01,
+#         'pvalue_correl': 0.2,
+#         'zscore_cond': 0.01
+#     },
+    
+#     'BiMax': {
+#         'minr': 25,
+#         'minc': 10,
+#         'bin_thr': 1,
+#         'number': 6
+#     },
+    
+#     'Plaid': {
+#         'row_release': 0.7,
+#         'col_release': 0.55,
+#         'shuffle': 10,
+#         'iter_startup': 10,
+#         'iter_layer': 10,
+#         'max_layers': 10
+#     },
+#     'kmeans': {
+#         'k': 20,
+#         'init': 'random'
+#     },
+#     'HierarchicalClustering': {
+#         'method': 'weighted',
+#         'distance': 'yule',
+#         'K': 9
+#     },
+# #     'AffinityPropagation': {
+# #         'damping': 0.7,
+# # #         'max_iter': 200,
+# #         'affinity': 'precomputed',
+# #         'distance': 'canberra',
+# #         # 'preference': 'default',
+# #         # 'convergence_iter': 15
+# #     },
+#     'AgglomerativeClustering': {
+#         'k': 9,
+#         'Affinity': 'manhattan',
+# #         'memory': None,
+# #         'connectivity': None,
+# #         'compute_full_tree': 'auto',
+#         'linkage': 'single',
+# #         'distance_threshold': None,
+# #         'compute_distances': False
+#     },
+#     'BisectingKMeans': {
+#         'k': 10,
+#         'initmethod': 'k-means++',
+# #         'n_init': 1,
+# #         'max_iter': 300,
+#         'algorithm': 'elkan',
+#         'bisecting_strategy': 'biggestinertia'
+#     },
+#     'BIRCH': {
+#         'thresholds': 0.75,
+#         'branchingfactor': 85,
+#         'nclusters': 2,
+#     },
+#     'DBSCAN': {
+#         'eps': 0.9,
+# #         'min_samples': 1,
+#         'metric': 'hamming',
+#         'algorithm': 'brute'
+#     },
+#     'GMM': {
+#         'covtype': 'tied',
+#         'k': 9,
+#         'initmethod': 'randomfromdata'
+#     },
+#     'Spectral': {
+#         'n_clusters': 10,
+#         'eigen_solver': 'amg',
+#         'affinity': 'nearestneighbors',
+#         'assign_labels': 'clusterqr',
+#         'nneighbors': 10
+#     },
+#     'NMF': {'k': 8, 'init': 'nndsvda', 'tol': 0.0001, 'transposed': False, 'alpha_W': -0.1, 'alpha_H': 0.0, 'shuffle': False, 'solver': 'cd', 'beta_loss': 'frobenius', 'max_iter': 1000},
+    
+#     'moCluster': {'n_dimensions': 5, 'n_cluster': 13, 'solver': 'svd', 'center': True, 'method': 'globalScore', 'option': 'uniform', 'scale': False, 'k': 1},
+    
+#     'iClusterPlus': {'lambda_n': 10, 'n_cluster': 12, 'lambda_scale': 1, 'iter_max': 20, 'eps': 0.0001, 'type': 'gaussian', 'burnin_n': 200, 'draw_n': 200, 'sdev': 0.05},
+    
+#     'MOFA2': {'n_factors': 12, 'n_cluster': 9, 'ard_weights': True, 'ard_factors': False, 'likelihood': 'gaussian', 'spikeslab_weights': True, 'spikeslab_factors': False},
+    
+#     'sparse_PCA': {'n_components': 9, 'alpha': 1, 'ridge_alpha': 0.001, 'max_iter': 1000, 'method': 'cd', 'tol': 1e-08}
+# }

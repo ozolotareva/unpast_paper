@@ -129,3 +129,5 @@ dmypy.json
 .pyre/
 .idea
 /checkups/
+
+*.DS_Store
