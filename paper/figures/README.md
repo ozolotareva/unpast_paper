@@ -15,7 +15,7 @@ The original Jupyter notebook (`plot_paper_figures.ipynb`) contained ~2700 lines
 ## 📁 Module Structure
 
 ```
-/paper/
+/figures/
 ├── __init__.py                      # Package initialization
 ├── settings.py                      # Configuration and method definitions
 ├── data_loader.py                   # Data loading and preprocessing
@@ -75,19 +75,19 @@ Main orchestration script that generates all figures:
 ### Generate All Figures
 
 ```bash
-python paper/generate_paper_figures.py
+python figures/generate_paper_figures.py
 ```
 
 ### Generate Specific Figure
 
 ```bash
-python paper/generate_paper_figures.py s3        # Figure S3
-python paper/generate_paper_figures.py figure3b  # Figure 3b
-python paper/generate_paper_figures.py s4        # Figure S4
-python paper/generate_paper_figures.py s4_a      # Figure S5a and S5b
-python paper/generate_paper_figures.py s5c       # Figure S5c
-python paper/generate_paper_figures.py s5d       # Figure S5d
-python paper/generate_paper_figures.py s6        # Figure S6
+python figures/generate_paper_figures.py s3        # Figure S3
+python figures/generate_paper_figures.py figure3b  # Figure 3b
+python figures/generate_paper_figures.py s4        # Figure S4
+python figures/generate_paper_figures.py s4_a      # Figure S5a and S5b
+python figures/generate_paper_figures.py s5c       # Figure S5c
+python figures/generate_paper_figures.py s5d       # Figure S5d
+python figures/generate_paper_figures.py s6        # Figure S6
 ```
 
 ### Use as Python Module
@@ -164,7 +164,7 @@ See `requirements.txt` for exact versions. Key dependencies:
 - **matplotlib 3.7.1** - Core plotting library
 - **seaborn 0.12.0** - Statistical data visualization
 - **scipy 1.7.1** - Scientific computing functions
-- **settings** - Custom settings module (included in paper/ directory)
+- **settings** - Custom settings module (included in figures/ directory)
 
 ### Installation
 
