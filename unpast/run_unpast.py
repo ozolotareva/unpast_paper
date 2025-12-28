@@ -145,7 +145,7 @@ def unpast(exprs_file: pd.DataFrame,
                                                          verbose = verbose,
                                                          rpath = rpath)  
             elif clust_method == "Louvain":
-                # calculate feature similarity matrix (Jaccard) for louvain clusterin
+                # calculate feature similarity matrix (Jaccard) for louvain clustering
                 similarity_matrix = get_similarity_jaccard(df_bin_data,verbose = verbose)
 
                 # if similarity cuttofs is not a list of values 
@@ -171,7 +171,7 @@ def unpast(exprs_file: pd.DataFrame,
         
         # if 0 or 1 features passed binarization - no clustering
         else:
-            not_clustered+= list(df_bin_data.index.values)
+            not_clustered_features+= list(df_bin_data.index.values)
     
     ######### making biclusters #########
     if len(feature_clusters)==0:
