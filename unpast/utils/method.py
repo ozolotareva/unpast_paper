@@ -1153,7 +1153,7 @@ def run_Louvain(
                     if modularities[i] >= m:
                         best_cutoff_m = similarity_cutoffs[i]
                         best_Q_m = modularities[i]
-                        labels_m = feature_clusters[best_cutoff]
+                        labels_m = feature_clusters[best_cutoff_m] 
                         break
                 if best_cutoff_m < best_cutoff:
                     best_cutoff = best_cutoff_m

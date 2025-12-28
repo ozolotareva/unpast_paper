@@ -2,6 +2,7 @@
 import argparse
 import numpy as np
 import pandas as pd
+from typing import Union, Callable
 
 def unpast(exprs_file: pd.DataFrame,
         basename: str ='',
@@ -10,7 +11,7 @@ def unpast(exprs_file: pd.DataFrame,
         load: bool = False,
         ceiling: float= 3,
         bin_method: str = "kmeans", 
-        clust_method: str  = "WGCNA", 
+        clust_method: Union[str , Callable] = "WGCNA", 
         min_n_samples: int = 5, 
         show_fits: list = [],
         pval: float = 0.01,
@@ -22,7 +23,6 @@ def unpast(exprs_file: pd.DataFrame,
         max_power: int = 10, 
         precluster: bool = True,
         rpath: str ="", # for WGCNA
-        #cluster_binary: bool = False, 
         merge: float = 1,
         seed: int = 42,
         verbose: bool = False,
@@ -114,65 +114,64 @@ def unpast(exprs_file: pd.DataFrame,
         bin_data_dict["UP"]  = df_up
         bin_data_dict["DOWN"]  = df_down 
         
-    ######### gene clustering #########
+    ######### feature clustering #########
     if verbose:
         print("Clustering features ...\n",file=sys.stdout)
-    feature_clusters, not_clustered, used_similarity_cutoffs = [], [], []
-    if clust_method == "Louvain":
+        
+    feature_clusters, not_clustered_features = [], []
+    
+    if clust_method=="WGCNA":
+        from unpast.utils.method import run_WGCNA
+    elif clust_method == "Louvain":
         from unpast.utils.method import run_Louvain
         from unpast.utils.method import get_similarity_jaccard
-        
-        for d in directions:
-            df = bin_data_dict[d]
-            if df.shape[0]>1:
+    elif not callable(clust_method):
+        print("'clust_method' must be a string 'WGCNA', or 'Louvain', or a user-defined function.",file=sys.stderr)
+    
+    for d in directions:
+        df_bin_data = bin_data_dict[d]
+        # cluster if 2+ features passed binariaztion
+        if df_bin_data.shape[0]>1:
+            if clust_method=="WGCNA":
+                    # WGCNA tmp file prefix
+                    tmp_prefix = out_dir+basename+ "."+bin_method+".pval="+str(pval)+".seed="+str(seed)+"."+d
+                    modules, single_features = run_WGCNA(df_bin_data,
+                                                         tmp_prefix=tmp_prefix, 
+                                                         deepSplit=ds,
+                                                         detectCutHeight=dch,
+                                                         nt = "signed_hybrid",
+                                                         max_power = max_power, 
+                                                         precluster=precluster,
+                                                         verbose = verbose,
+                                                         rpath = rpath)  
+            elif clust_method == "Louvain":
+                # calculate feature similarity matrix (Jaccard) for louvain clusterin
+                similarity_matrix = get_similarity_jaccard(df_bin_data,verbose = verbose)
 
-                similarity = get_similarity_jaccard(df,verbose = verbose)
-                #similarity = get_similarity_corr(df,verbose = verbose)
+                # if similarity cuttofs is not a list of values 
+                if not type(similarity_cutoffs) in [list, np.ndarray]:
+                    if similarity_cutoffs  == -1: # select from the range based on the data
+                        similarity_cutoffs = np.arange(0.3,0.9,0.01)
+                    else:
+                        similarity_cutoffs = [similarity_cutoffs]
 
-                if similarity_cutoffs  == -1: # guess from the data
-                    similarity_cutoffs = np.arange(0.3,0.9,0.01)
-                # if similarity cuttofs is a single value turns it to a list
-                try: 
-                    similarity_cutoffs = [elem for elem in similarity_cutoffs]
-                except:
-                    similarity_cutoffs = [similarity_cutoffs]
-
-                # if modularity m is defined, choses a similarity cutoff corresponding to this modularity
-                # and rund Louvain clustering
-                modules, single_features, similarity_cutoff = run_Louvain(similarity,
+                # if modularity m is defined
+                # choses a similarity cutoff corresponding to this modularity
+                # and runs Louvain clustering
+                modules, single_features, similarity_cutoff = run_Louvain(similarity_matrix,
                                                                           similarity_cutoffs = similarity_cutoffs,
                                                                           m = modularity, 
                                                                           verbose = verbose)
-                used_similarity_cutoffs.append(similarity_cutoff)
-                feature_clusters+= modules
-                not_clustered+= single_features
-            elif df.shape[0]==1:
-                not_clustered+= list(df.index.values)
-                used_similarity_cutoffs.append(None)
-        used_similarity_cutoffs = ",".join(map(str,used_similarity_cutoffs))
+            # clust_method is a function
+            else:
+                modules, single_features = clust_method(df_bin_data)
+            
+            feature_clusters+= modules
+            not_clustered_features+= single_features  
         
-    elif "WGCNA" in clust_method:
-        if clust_method == "iWGCNA":
-            from unpast.utils.method import run_WGCNA_iterative
-            WGCNA_func = run_WGCNA_iterative
+        # if 0 or 1 features passed binarization - no clustering
         else:
-            from unpast.utils.method import run_WGCNA
-            WGCNA_func = run_WGCNA
-
-        for d in directions:
-            # WGCNA tmp file prefix
-            tmp_prefix = out_dir+basename+ "."+bin_method+".pval="+str(pval)+".seed="+str(seed)+"."+d
-            df = bin_data_dict[d] 
-            if df.shape[0]>1:
-                modules, single_features = WGCNA_func(df,tmp_prefix=tmp_prefix, 
-                                                      deepSplit=ds,detectCutHeight=dch,nt = "signed_hybrid",
-                                                      max_power = max_power, precluster=precluster,
-                                                     verbose = verbose,rpath = rpath)  
-                feature_clusters+= modules
-                not_clustered+= single_features
-    
-    else:
-        print("'clust_method' must be 'WGCNA', 'iWGCNA', or 'Louvain'.",file=sys.stderr)
+            not_clustered+= list(df_bin_data.index.values)
     
     ######### making biclusters #########
     if len(feature_clusters)==0:
@@ -194,20 +193,28 @@ def unpast(exprs_file: pd.DataFrame,
 
     
     from unpast.utils.io import write_bic_table
-    suffix  = ".seed="+str(seed)+".bin="+bin_method+",pval="+str(pval)+",clust="+clust_method+",direction="+"-".join(directions)
-    if "WGCNA" in clust_method:
-        suffix2 = ",ds="+str(ds)+",dch="+str(dch)+",max_power="+str(max_power)+",precluster="+str(precluster)
-        modularity, similarity_cutoff = None, None
-    elif clust_method == "Louvain":
-        suffix2 = ",m="+str(round(modularity,2))
-        ds, dhs = None, None
-    write_bic_table(biclusters, out_dir+basename+suffix+suffix2+".biclusters.tsv",to_str=True,
-                    add_metadata=True, seed = seed, min_n_samples = min_n_samples, pval = pval,
-                    bin_method = bin_method, clust_method = clust_method, directions = directions,
-                    similarity_cutoff = used_similarity_cutoffs,
-                    m=modularity, ds = ds, dch = dch, 
-                    max_power=max_power, precluster=precluster,
-                    merge = merge)
+    
+    if callable(clust_method):
+        cm_name = clust_method.__name__
+        suffix2 = ""
+    else: 
+        cm_name = clust_method
+        if "WGCNA" in clust_method:
+            suffix2 = ",ds="+str(ds)+",dch="+str(dch)+",max_power="+str(max_power)+",precluster="+str(precluster)
+        elif clust_method == "Louvain":
+            suffix2 = ",m="+str(round(modularity,2))
+    suffix  = ".seed="+ str(seed) + ".bin=" + bin_method + ",pval=" + str(pval) + ",clust=" + cm_name + ",direction=" + "-".join(directions)
+    
+    write_bic_table(biclusters, 
+                    out_dir+basename+suffix+suffix2+".biclusters.tsv",
+                    to_str=True,
+                    #add_metadata=True, seed = seed, min_n_samples = min_n_samples, pval = pval,
+                    #bin_method = bin_method, clust_method = clust_method, directions = directions,
+                    #similarity_cutoff = similarity_cutoffs,
+                    #m=modularity, ds = ds, dch = dch, 
+                    #max_power=max_power, precluster=precluster,
+                    #merge = merge
+                   )
 
     if verbose:
         print(out_dir+basename+suffix+suffix2+".biclusters.tsv", file = sys.stdout)
