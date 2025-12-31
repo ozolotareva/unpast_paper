@@ -8,6 +8,25 @@ UnPaSt is a novel method for identification of differentially expressed bicluste
 ## Cite
 UnPaSt preprint [https://arxiv.org/abs/2408.00200](https://arxiv.org/abs/2408.00200).
 
+### Evaluation of UnPaSt and other patient stratification methods using simulated and real data:
+- UnPaSt analysis of [simulated datasets (A,B,C scenarios)](https://github.com/ozolotareva/unpast_paper/tree/main/notebooks/UnPaSt_simulated_data_ABC.ipynb) 
+- breast cancer [(TCGA-BRCA and METABRIC)](https://github.com/ozolotareva/unpast_paper/tree/main/notebooks/breast_cancer/)
+- [asthma (GSE4302 and GSE89809)](https://github.com/ozolotareva/unpast_paper/tree/main/notebooks/asthma/)
+- runnig [other patient stratification methods](https://github.com/ozolotareva/unpast_paper/tree/main/evaluation/)
+- generation of figures [3a-d](https://github.com/ozolotareva/unpast_paper/tree/main/notebooks/plot_method_performances_Fig3.ipynb) and [S2-S5](https://github.com/ozolotareva/unpast_paper/tree/main/figures/)
+
+### Other analyses:
+- [all cancers from TCGA](https://github.com/ozolotareva/unpast_paper/tree/main/notebooks/TCGA_all_cancers/)
+- [SCI proteomics](https://github.com/ozolotareva/unpast_paper/tree/main/notebooks/SCI_proteomics/UnPaSt_SCI_relaxed_params.ipynb)
+- [delVGs](https://github.com/ozolotareva/unpast_paper/tree/main/notebooks/delVGs/)
+- TCGA-BRCA [multomics](https://github.com/ozolotareva/unpast_paper/tree/main/notebooks/BRCA_multi-omics.ipynb)
+- single cell [3k PBMC](https://github.com/ozolotareva/unpast_paper/tree/main/notebooks/single_cell_3kPBMC
+.ipynb)
+- [spatial transcriptomics of kidneys (GSE250138) and visualisation of biclusters on slides](https://github.com/ozolotareva/unpast_paper/tree/main/notebooks/spatial_ANCA-GN/)
+  
+### Advanced visualisation of biclusters: 
+[https://github.com/SongNightroad/Unpast_visualisation](https://github.com/SongNightroad/Unpast_visualisation/tree/main?tab=readme-ov-file)
+
 ## Install
 ![Tests status](https://github.com/ozolotareva/unpast_paper/actions/workflows/run_tests.yml/badge.svg)
 
