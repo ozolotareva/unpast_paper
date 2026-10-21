@@ -887,7 +887,7 @@ def run_WGCNA(
             "/".join(os.path.realpath(__file__).split("/")[:-1]) + "/run_WGCNA.R"
         )
 
-    binarized_expressions_ = binarized_expressions.loc[:, :].copy()
+    binarized_expressions_ = binarized_expressions.copy(deep=False)
 
     # add suffixes to duplicated feature names
     feature_names = binarized_expressions.columns.values
@@ -933,6 +933,9 @@ def run_WGCNA(
 
     # save binarized expression to a file
     binarized_expressions_.to_csv(fname, sep="\t")
+    del binarized_expressions_
+    import gc
+    gc.collect()
 
     # run Rscript
     if len(rpath) > 0:
@@ -971,17 +974,37 @@ def run_WGCNA(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+
     stdout, stderr = process.communicate()
-    # stdout = stdout.decode('utf-8')
-    module_file = fname.replace(".tsv", ".modules.tsv")  # stdout.rstrip()
+
+    stdout = stdout.decode("utf-8", errors="replace")
+    stderr = stderr.decode("utf-8", errors="replace")
+
+    module_file = fname.replace(".tsv", ".modules.tsv")
+    log_file = fname.replace(".tsv", ".WGCNA.log")
+
+    # Сохраняем вывод R независимо от verbose
+    with open(log_file, "w", encoding="utf-8") as log:
+        log.write(f"Rscript return code: {process.returncode}\n")
+        log.write("\n===== STDOUT =====\n")
+        log.write(stdout)
+        log.write("\n===== STDERR =====\n")
+        log.write(stderr)
+
+    if process.returncode != 0:
+        raise RuntimeError(
+            f"Rscript failed with code {process.returncode}. "
+            f"Details: {log_file}"
+        )
+
     try:
         modules_df = pd.read_csv(module_file, sep="\t", index_col=0)
-    except:
-        # print("WGCNA output:", stdout, file = sys.stdout)
-        stderr = stderr.decode("utf-8")
-        if verbose:
-            print("WGCNA error:", stderr, file=sys.stdout)
-        modules_df = pd.DataFrame.from_dict({})
+    except Exception as e:
+        raise RuntimeError(
+            f"Rscript finished, but output file could not be read: {e}. "
+            f"Details: {log_file}"
+        ) from e
+    
     if verbose:
         print(
             "\tWGCNA runtime: modules detected in {:.2f} s.".format(time() - t0),
